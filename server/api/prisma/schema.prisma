@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Repository {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  githubRepoId    BigInt         @unique @map("github_repo_id")
+  fullName        String         @map("full_name") @db.VarChar(255)
+  installationId  BigInt         @map("installation_id")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+  
+  migrationJobs   MigrationJob[]
+
+  @@map("repositories")
+}
+
+model MigrationJob {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repositoryId    String         @map("repository_id") @db.Uuid
+  dependencyName  String         @map("dependency_name") @db.VarChar(255)
+  targetVersion   String         @map("target_version") @db.VarChar(50)
+  status          String         @default("QUEUED") @db.VarChar(50)
+  pullRequestUrl  String?        @map("pull_request_url") @db.VarChar(255)
+  errorMessage    String?        @map("error_message")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  repository      Repository     @relation(fields: [repositoryId], references: [id])
+  executionLogs   ExecutionLog[]
+
+  @@unique([repositoryId, dependencyName, targetVersion])
+  @@map("migration_jobs")
+}
+
+model ExecutionLog {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId           String         @map("job_id") @db.Uuid
+  step            String         @db.VarChar(100)
+  output          String?
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+
+  job             MigrationJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("execution_logs")
+}
