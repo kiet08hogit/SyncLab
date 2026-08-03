@@ -1,98 +1,86 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# SyncLab API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS service containing both the Gateway (receives GitHub webhooks, enqueues jobs) and the Worker (consumes jobs, orchestrates sandbox containers). See `infra/Architecture/` for the design documents.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## How a job runs
 
-## Description
+The worker never executes untrusted code itself. It runs three containers in sequence over a single shared Docker volume mounted at `/workspace`:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+| Phase | Network | GitHub token | Does |
+| --- | --- | --- | --- |
+| `prepare` | yes | yes | clone the repository, install dependencies |
+| `migrate` | **no** | **no** | apply the codemod, run `npm test` |
+| `publish` | yes | yes | commit, push the branch, open a pull request |
 
-## Project setup
+The `migrate` phase is the only one that runs repository code, and it is the one with no network access and no credentials.
+
+## Setup
 
 ```bash
-$ npm install
+# from server/
+docker compose up -d          # Postgres + Redis
+
+# from server/api/
+cp .env.example .env          # then fill in the values below
+npm install
+npx prisma migrate deploy     # or `npx prisma migrate dev` while iterating
+npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
+npm run start:dev
 ```
 
-## Compile and run the project
+If your database already has these tables because it was created with `prisma db push`, baseline it instead of applying the first migration:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npx prisma migrate resolve --applied 20260803000000_init
 ```
 
-## Run tests
+If `npm run sandbox:build` cannot reach Docker, set `DOCKER_SOCKET_PATH` in `.env`. Docker Desktop on macOS usually places the socket at `~/.docker/run/docker.sock`, while dockerode looks at `/var/run/docker.sock` by default.
+
+## Credentials
+
+`GITHUB_WEBHOOK_SECRET` is always required. The gateway verifies the `x-hub-signature-256` header against it and rejects anything that does not match.
+
+For repository access, either register a GitHub App (preferred) or use a Personal Access Token for local experiments.
+
+### Registering the GitHub App
+
+1. Go to Settings, Developer settings, GitHub Apps, then New GitHub App.
+2. Repository permissions: **Contents** read and write, **Pull requests** read and write, **Metadata** read.
+3. Subscribe to the **Release** event.
+4. Set the webhook URL to your gateway's `/webhook` endpoint and the webhook secret to the same value as `GITHUB_WEBHOOK_SECRET`.
+5. Generate a private key and download the `.pem`.
+6. Install the App on the repositories you want SyncLab to migrate.
+7. Set `GITHUB_APP_ID` and either `GITHUB_PRIVATE_KEY_PATH` or `GITHUB_PRIVATE_KEY` in `.env`.
+
+The worker mints a fresh installation token per job. The private key stays in the worker and is never passed into a sandbox container.
+
+### Personal Access Token fallback
+
+Set `GITHUB_TOKEN` to a token with `repo` scope and leave the App variables unset. This exists so the sandbox can be exercised end to end before an App is registered; it should not be used against repositories you do not own.
+
+## Testing the webhook locally
+
+The gateway requires a valid signature, so the payload has to be signed:
 
 ```bash
-# unit tests
-$ npm run test
+SECRET="your-webhook-secret"
+BODY=$(cat payload.json)
+SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')"
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+curl -X POST http://localhost:3000/webhook \
+  -H "Content-Type: application/json" \
+  -H "X-GitHub-Event: release" \
+  -H "X-Hub-Signature-256: $SIG" \
+  --data "$BODY"
 ```
 
-## Deployment
+The payload needs `action: "published"`, a `repository` with `id` and `full_name`, a `release.tag_name`, and an `installation.id`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Scripts
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Command | Purpose |
+| --- | --- |
+| `npm run start:dev` | run the gateway and worker with reload |
+| `npm run sandbox:build` | build the sandbox container image |
+| `npm test` | unit tests |
+| `npm run test:e2e` | end-to-end tests |
