@@ -37,7 +37,7 @@ export async function publish(): Promise<PhaseResult> {
   if (!(await hasUncommittedChanges(config.repoDir))) {
     steps.push({
       step: 'PR',
-      output: 'The codemod produced no changes, so no pull request was opened.',
+      output: 'The refactor produced no changes, so no pull request was opened.',
     });
     return { phase: 'publish', ok: true, steps, data: { skipped: true } };
   }

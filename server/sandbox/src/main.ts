@@ -1,11 +1,13 @@
 import { prepare } from './phases/prepare.js';
-import { migrate } from './phases/migrate.js';
+import { refactor } from './phases/refactor.js';
+import { test } from './phases/test.js';
 import { publish } from './phases/publish.js';
 import { emitResult, type PhaseName, type PhaseResult } from './result.js';
 
 const PHASES: Record<PhaseName, () => Promise<PhaseResult>> = {
   prepare,
-  migrate,
+  refactor,
+  test,
   publish,
 };
 

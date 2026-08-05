@@ -1,20 +1,28 @@
 {
   "name": "synclab-sandbox",
   "version": "0.0.1",
-  "description": "Ephemeral sandbox agent that clones a repository, applies a codemod, runs its tests, and opens a pull request.",
+  "description": "Ephemeral sandbox agent that clones a repository, refactors it with an LLM, runs its tests, and opens a pull request.",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test \"dist/**/*.spec.js\"",
     "docker:build": "docker build -t synclab-sandbox:latest .",
     "start": "node dist/main.js"
   },
   "dependencies": {
-    "@octokit/rest": "^22.0.1"
+    "@babel/parser": "^8.0.4",
+    "@babel/traverse": "^8.0.4",
+    "@babel/types": "^8.0.4",
+    "@langchain/core": "^1.2.4",
+    "@langchain/google-genai": "^2.2.0",
+    "@octokit/rest": "^22.0.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/babel__traverse": "^7.28.0",
     "@types/node": "^26.1.2",
     "typescript": "^7.0.2"
   }

@@ -5,7 +5,7 @@
  */
 export const RESULT_SENTINEL = '##SYNCLAB_RESULT##';
 
-export const SANDBOX_PHASES = ['prepare', 'migrate', 'publish'] as const;
+export const SANDBOX_PHASES = ['prepare', 'refactor', 'test', 'publish'] as const;
 
 export type SandboxPhase = (typeof SANDBOX_PHASES)[number];
 
@@ -23,21 +23,30 @@ export interface PhaseResult {
   data?: Record<string, unknown>;
 }
 
+export interface SandboxLlmParams {
+  apiKey: string;
+  model: string;
+  maxAttempts: number;
+  maxFiles: number;
+  maxFileBytes: number;
+}
+
 export interface SandboxJobParams {
   repoUrl: string;
   repoFullName: string;
   dependencyName: string;
   targetVersion: string;
   branchName: string;
-  codemodSearch: string;
-  codemodReplace: string;
   token: string;
+  llm: SandboxLlmParams;
 }
 
 export interface SandboxRunOutcome {
   ok: boolean;
   error?: string;
   pullRequestUrl?: string;
+  /** Set when the failure is transient, such as a model rate limit. */
+  retryable?: boolean;
 }
 
 /**

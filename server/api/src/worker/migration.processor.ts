@@ -1,7 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { GithubTokenService } from '../github/github-token.service';
 import { DockerSandboxService } from './sandbox/docker-sandbox.service';
@@ -53,7 +53,13 @@ export class MigrationProcessor extends WorkerHost {
     }
 
     const token = await this.githubToken.getInstallationToken(record.repository.installationId);
-    const sandboxConfig = this.config.get('sandbox', { infer: true });
+    const llm = this.config.get('llm', { infer: true });
+
+    if (!llm.apiKey) {
+      throw new UnrecoverableError(
+        'GEMINI_API_KEY is not set, so the refactoring phase cannot run.',
+      );
+    }
 
     const params: SandboxJobParams = {
       repoUrl: job.data.repoUrl || `https://github.com/${record.repository.fullName}.git`,
@@ -61,9 +67,8 @@ export class MigrationProcessor extends WorkerHost {
       dependencyName: record.dependencyName,
       targetVersion: record.targetVersion,
       branchName: `synclab/${slug(record.dependencyName)}-${slug(record.targetVersion)}`,
-      codemodSearch: sandboxConfig.codemodSearch,
-      codemodReplace: sandboxConfig.codemodReplace,
       token,
+      llm,
     };
 
     await this.prisma.migrationJob.update({
@@ -81,9 +86,12 @@ export class MigrationProcessor extends WorkerHost {
       const outcome = await this.sandbox.run(jobId, params, (steps) => this.log(jobId, steps));
 
       if (!outcome.ok) {
-        // The catch below records the failure; throwing here is what makes
-        // BullMQ retry the job.
-        throw new Error(outcome.error ?? 'sandbox run failed');
+        const message = outcome.error ?? 'sandbox run failed';
+
+        // The catch below records the failure either way. Only a transient
+        // failure earns a retry: replaying a migration the model got wrong, or
+        // that its own test suite rejected, just spends the quota again.
+        throw outcome.retryable ? new Error(message) : new UnrecoverableError(message);
       }
 
       await this.prisma.migrationJob.update({

@@ -18,25 +18,32 @@ export interface ContainerOptionsInput {
 }
 
 /**
- * The migrate phase is the one that executes untrusted repository code and the
- * repository's own test suite, so it is the one that gets cut off. Clone,
- * install, and pull request creation all legitimately need to reach GitHub.
+ * The test phase is the one that executes untrusted repository code, so it is
+ * the one that gets cut off. Clone, install, and pull request creation all
+ * legitimately need to reach GitHub, and the refactor phase needs to reach the
+ * model provider - but refactor only reads and writes files with our own code,
+ * so nothing from the repository ever runs with a network connection.
  */
 export function phaseNeedsNetwork(phase: SandboxPhase): boolean {
-  return phase !== 'migrate';
+  return phase !== 'test';
 }
 
 /**
- * Kept separate from network access on purpose: these are two independent
- * reasons to withhold something from the untrusted phase.
+ * Kept separate from network access on purpose: these are independent reasons
+ * to withhold something from a phase. Refactor has no business reaching GitHub.
  */
 export function phaseNeedsToken(phase: SandboxPhase): boolean {
-  return phase !== 'migrate';
+  return phase === 'prepare' || phase === 'publish';
+}
+
+export function phaseNeedsLlmKey(phase: SandboxPhase): boolean {
+  return phase === 'refactor';
 }
 
 export function buildPhaseEnv(
   phase: SandboxPhase,
   params: SandboxJobParams,
+  attempt: number,
 ): Record<string, string> {
   const env: Record<string, string> = {
     REPO_URL: params.repoUrl,
@@ -44,13 +51,20 @@ export function buildPhaseEnv(
     DEPENDENCY_NAME: params.dependencyName,
     TARGET_VERSION: params.targetVersion,
     BRANCH_NAME: params.branchName,
-    CODEMOD_SEARCH: params.codemodSearch,
-    CODEMOD_REPLACE: params.codemodReplace,
     SANDBOX_WORKSPACE: WORKSPACE_MOUNT,
+    LLM_MODEL: params.llm.model,
+    LLM_MAX_FILES: String(params.llm.maxFiles),
+    LLM_MAX_FILE_BYTES: String(params.llm.maxFileBytes),
+    REFACTOR_ATTEMPT: String(attempt),
+    REFACTOR_MAX_ATTEMPTS: String(params.llm.maxAttempts),
   };
 
   if (phaseNeedsToken(phase)) {
     env.GITHUB_TOKEN = params.token;
+  }
+
+  if (phaseNeedsLlmKey(phase)) {
+    env.GEMINI_API_KEY = params.llm.apiKey;
   }
 
   return env;
