@@ -1,91 +1,136 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
-import * as Docker from 'dockerode';
+import { GithubTokenService } from '../github/github-token.service';
+import { DockerSandboxService } from './sandbox/docker-sandbox.service';
+import { JobStatus, LogStep, MIGRATION_QUEUE, type MigrationJobData } from '../common/constants';
+import type { Configuration } from '../config/configuration';
+import type { SandboxJobParams, StepLog } from './sandbox/sandbox.types';
 
-@Processor('migration-queue')
+function slug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+@Processor(MIGRATION_QUEUE)
 export class MigrationProcessor extends WorkerHost {
-  private docker: Docker;
+  private readonly logger = new Logger(MigrationProcessor.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sandbox: DockerSandboxService,
+    private readonly githubToken: GithubTokenService,
+    private readonly config: ConfigService<Configuration, true>,
+  ) {
     super();
-    // Connect to local docker socket
-    this.docker = new Docker();
   }
 
-  async process(job: Job<any, any, string>): Promise<any> {
-    const { jobId, repoUrl } = job.data;
-    
-    // Update status to IN_PROGRESS
+  async process(job: Job<MigrationJobData>): Promise<void> {
+    const { jobId } = job.data;
+
+    const record = await this.prisma.migrationJob.findUnique({
+      where: { id: jobId },
+      include: { repository: true },
+    });
+
+    if (!record) {
+      throw new Error(`MigrationJob ${jobId} no longer exists`);
+    }
+
+    // A retry of a job that already produced a pull request must not open a second one.
+    if (record.status === JobStatus.COMPLETED) {
+      await this.log(jobId, [
+        {
+          step: LogStep.SKIPPED,
+          output: `Job is already ${JobStatus.COMPLETED}${record.pullRequestUrl ? ` (${record.pullRequestUrl})` : ''}.`,
+        },
+      ]);
+      return;
+    }
+
+    const token = await this.githubToken.getInstallationToken(record.repository.installationId);
+    const sandboxConfig = this.config.get('sandbox', { infer: true });
+
+    const params: SandboxJobParams = {
+      repoUrl: job.data.repoUrl || `https://github.com/${record.repository.fullName}.git`,
+      repoFullName: record.repository.fullName,
+      dependencyName: record.dependencyName,
+      targetVersion: record.targetVersion,
+      branchName: `synclab/${slug(record.dependencyName)}-${slug(record.targetVersion)}`,
+      codemodSearch: sandboxConfig.codemodSearch,
+      codemodReplace: sandboxConfig.codemodReplace,
+      token,
+    };
+
     await this.prisma.migrationJob.update({
       where: { id: jobId },
-      data: { status: 'IN_PROGRESS' },
+      data: { status: JobStatus.IN_PROGRESS },
     });
 
-    await this.prisma.executionLog.create({
-      data: { jobId, step: 'STARTED', output: `Starting migration for ${repoUrl}` }
-    });
+    await this.log(jobId, [
+      { step: LogStep.STARTED, output: `Starting migration for ${params.repoFullName}` },
+    ]);
 
     try {
-      // Pull alpine image
-      await new Promise((resolve, reject) => {
-        this.docker.pull('alpine:latest', (err: any, stream: any) => {
-          if (err) return reject(err);
-          this.docker.modem.followProgress(stream, (err: any, res: any) => err ? reject(err) : resolve(res));
-        });
-      });
+      await this.sandbox.ensureImage();
 
-      // Spawn container
-      const container = await this.docker.createContainer({
-        Image: 'alpine:latest',
-        Cmd: ['echo', 'Hello World from Sandbox'],
-        Tty: false,
-      });
+      const outcome = await this.sandbox.run(jobId, params, (steps) => this.log(jobId, steps));
 
-      await container.start();
-
-      // Get logs
-      const stream = await container.logs({
-        follow: true,
-        stdout: true,
-        stderr: true,
-      });
-
-      let output = '';
-      stream.on('data', (chunk) => {
-        // Strip docker log headers if needed, but chunk to string works for basic text
-        output += chunk.toString('utf8');
-      });
-
-      // Wait for container to finish
-      await container.wait();
-
-      // Save log
-      await this.prisma.executionLog.create({
-        data: { jobId, step: 'EXECUTION', output: output.trim() }
-      });
-
-      // Cleanup
-      await container.remove();
-
-      // Complete job
-      await this.prisma.migrationJob.update({
-        where: { id: jobId },
-        data: { status: 'COMPLETED' },
-      });
-
-    } catch (error: any) {
-      // Handle failure
-      await this.prisma.executionLog.create({
-        data: { jobId, step: 'FAILED', output: error.message }
-      });
+      if (!outcome.ok) {
+        // The catch below records the failure; throwing here is what makes
+        // BullMQ retry the job.
+        throw new Error(outcome.error ?? 'sandbox run failed');
+      }
 
       await this.prisma.migrationJob.update({
         where: { id: jobId },
-        data: { status: 'FAILED', errorMessage: error.message },
+        data: {
+          status: JobStatus.COMPLETED,
+          pullRequestUrl: outcome.pullRequestUrl ?? null,
+          errorMessage: null,
+        },
       });
-      
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.fail(jobId, message);
       throw error;
+    }
+  }
+
+  private async log(jobId: string, steps: StepLog[]): Promise<void> {
+    if (steps.length === 0) {
+      return;
+    }
+
+    await this.prisma.executionLog.createMany({
+      data: steps.map((step) => ({
+        jobId,
+        step: step.step,
+        output:
+          step.exitCode === undefined
+            ? step.output
+            : `[exit ${step.exitCode}]\n${step.output}`,
+      })),
+    });
+  }
+
+  /**
+   * Tolerates its own failure: the thrown error must reach BullMQ so the job
+   * retries, even if writing the failure state did not work.
+   */
+  private async fail(jobId: string, message: string): Promise<void> {
+    try {
+      await this.prisma.migrationJob.update({
+        where: { id: jobId },
+        data: { status: JobStatus.FAILED, errorMessage: message },
+      });
+      await this.log(jobId, [{ step: LogStep.FAILED, output: message }]);
+    } catch (error: unknown) {
+      this.logger.error(`Could not record failure for job ${jobId}: ${String(error)}`);
     }
   }
 }
