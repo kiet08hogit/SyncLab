@@ -1,4 +1,7 @@
 import { readFileSync } from 'node:fs';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
 
 const MEGABYTE = 1024 * 1024;
 
@@ -32,11 +35,33 @@ export interface LlmConfig {
   maxFileBytes: number;
 }
 
+export const APP_ROLES = ['all', 'gateway', 'worker'] as const;
+
+export type AppRole = (typeof APP_ROLES)[number];
+
+export interface WorkerRuntimeConfig {
+  concurrency: number;
+}
+
 export interface Configuration {
+  appRole: AppRole;
   redis: RedisConfig;
   github: GithubConfig;
   sandbox: SandboxConfig;
   llm: LlmConfig;
+  worker: WorkerRuntimeConfig;
+}
+
+export function resolveAppRole(value: string | undefined): AppRole {
+  return APP_ROLES.includes(value as AppRole) ? (value as AppRole) : 'all';
+}
+
+export function roleIncludesGateway(role: AppRole): boolean {
+  return role === 'all' || role === 'gateway';
+}
+
+export function roleIncludesWorker(role: AppRole): boolean {
+  return role === 'all' || role === 'worker';
 }
 
 function positiveNumber(value: string | undefined, fallback: number): number {
@@ -59,6 +84,12 @@ function loadPrivateKey(): string | undefined {
 
 export function configuration(): Configuration {
   return {
+    appRole: resolveAppRole(process.env.APP_ROLE),
+    worker: {
+      // One sandbox is a 2GB container. Extra worker processes are the
+      // other way to add parallelism; this only raises concurrency inside one.
+      concurrency: Math.max(1, Math.floor(positiveNumber(process.env.WORKER_CONCURRENCY, 1))),
+    },
     redis: {
       host: process.env.REDIS_HOST ?? 'localhost',
       port: positiveNumber(process.env.REDIS_PORT, 6379),

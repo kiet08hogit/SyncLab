@@ -30,7 +30,15 @@ cp .env.example .env          # then fill in the values below
 npm install
 npx prisma migrate deploy     # or `npx prisma migrate dev` while iterating
 npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
-npm run start:dev
+npm run start:dev             # gateway + worker in one process
+```
+
+To process more than one job at a time, leave the gateway as a single process and start extra workers. Each worker process takes jobs from the same Redis queue. `WORKER_CONCURRENCY` (default `1`) is how many sandboxes one process runs at once — keep it at 1 unless the machine can hold more than one 2GB container.
+
+```bash
+npm run start:gateway         # terminal 1
+npm run start:worker          # terminal 2
+npm run start:worker          # terminal 3, optional
 ```
 
 If your database already has these tables because it was created with `prisma db push`, baseline it instead of applying the first migration:
@@ -87,7 +95,9 @@ The payload needs `action: "published"`, a `repository` with `id` and `full_name
 
 | Command | Purpose |
 | --- | --- |
-| `npm run start:dev` | run the gateway and worker with reload |
+| `npm run start:dev` | run the gateway and worker in one process |
+| `npm run start:gateway` | webhooks only (`APP_ROLE=gateway`) |
+| `npm run start:worker` | sandbox jobs only (`APP_ROLE=worker`) |
 | `npm run sandbox:build` | build the sandbox container image |
 | `npm test` | unit tests |
 | `npm run test:e2e` | end-to-end tests |
