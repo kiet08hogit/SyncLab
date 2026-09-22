@@ -1,6 +1,6 @@
 export const RESULT_SENTINEL = '##SYNCLAB_RESULT##';
 
-export type PhaseName = 'prepare' | 'migrate' | 'publish';
+export type PhaseName = 'prepare' | 'refactor' | 'test' | 'publish';
 
 export interface StepLog {
   step: string;

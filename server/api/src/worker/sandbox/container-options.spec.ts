@@ -7,6 +7,7 @@ import {
 import { SANDBOX_PHASES, type SandboxJobParams, type SandboxPhase } from './sandbox.types';
 
 const TOKEN = 'ghs_supersecrettoken';
+const API_KEY = 'AIza_supersecretgeminikey';
 
 const LIMITS: SandboxLimits = {
   memoryBytes: 2048 * 1024 * 1024,
@@ -20,42 +21,69 @@ const PARAMS: SandboxJobParams = {
   dependencyName: 'react',
   targetVersion: 'v18.0.0',
   branchName: 'synclab/react-v18-0-0',
-  codemodSearch: 'DEPRECATED_API',
-  codemodReplace: 'MODERN_API',
   token: TOKEN,
+  llm: {
+    apiKey: API_KEY,
+    model: 'gemini-3.1-pro-preview',
+    maxAttempts: 3,
+    maxFiles: 20,
+    maxFileBytes: 60_000,
+  },
 };
 
-function optionsFor(phase: SandboxPhase) {
+function optionsFor(phase: SandboxPhase, attempt = 1) {
   return buildContainerOptions({
     phase,
     image: 'synclab-sandbox:latest',
     volumeName: 'synclab-job-abc',
-    env: buildPhaseEnv(phase, PARAMS),
+    env: buildPhaseEnv(phase, PARAMS, attempt),
     limits: LIMITS,
   });
 }
 
 describe('buildPhaseEnv', () => {
   it('withholds the GitHub token from the phase that runs untrusted code', () => {
-    expect(buildPhaseEnv('migrate', PARAMS).GITHUB_TOKEN).toBeUndefined();
+    expect(buildPhaseEnv('test', PARAMS, 1).GITHUB_TOKEN).toBeUndefined();
+  });
+
+  it('withholds the GitHub token from refactor, which has no reason to reach GitHub', () => {
+    expect(buildPhaseEnv('refactor', PARAMS, 1).GITHUB_TOKEN).toBeUndefined();
   });
 
   it('provides the GitHub token to the phases that talk to GitHub', () => {
-    expect(buildPhaseEnv('prepare', PARAMS).GITHUB_TOKEN).toBe(TOKEN);
-    expect(buildPhaseEnv('publish', PARAMS).GITHUB_TOKEN).toBe(TOKEN);
+    expect(buildPhaseEnv('prepare', PARAMS, 1).GITHUB_TOKEN).toBe(TOKEN);
+    expect(buildPhaseEnv('publish', PARAMS, 1).GITHUB_TOKEN).toBe(TOKEN);
+  });
+
+  it('gives the model key only to the refactor phase', () => {
+    expect(buildPhaseEnv('refactor', PARAMS, 1).GEMINI_API_KEY).toBe(API_KEY);
+
+    for (const phase of ['prepare', 'test', 'publish'] as const) {
+      expect(buildPhaseEnv(phase, PARAMS, 1).GEMINI_API_KEY).toBeUndefined();
+    }
+  });
+
+  it('passes the attempt counter through so a retry can correct itself', () => {
+    const env = buildPhaseEnv('refactor', PARAMS, 2);
+
+    expect(env.REFACTOR_ATTEMPT).toBe('2');
+    expect(env.REFACTOR_MAX_ATTEMPTS).toBe('3');
   });
 });
 
 describe('buildContainerOptions', () => {
-  it('disables networking only for the migrate phase', () => {
+  it('disables networking only for the phase that runs the repository test suite', () => {
     expect(optionsFor('prepare').HostConfig?.NetworkMode).toBe('bridge');
-    expect(optionsFor('migrate').HostConfig?.NetworkMode).toBe('none');
+    expect(optionsFor('refactor').HostConfig?.NetworkMode).toBe('bridge');
+    expect(optionsFor('test').HostConfig?.NetworkMode).toBe('none');
     expect(optionsFor('publish').HostConfig?.NetworkMode).toBe('bridge');
   });
 
-  it('keeps the token out of the migrate container environment entirely', () => {
-    const env = optionsFor('migrate').Env ?? [];
+  it('keeps every credential out of the test container environment', () => {
+    const env = optionsFor('test').Env ?? [];
+
     expect(env.some((entry) => entry.includes(TOKEN))).toBe(false);
+    expect(env.some((entry) => entry.includes(API_KEY))).toBe(false);
   });
 
   it('passes the phase as the container command', () => {

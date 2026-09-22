@@ -1,11 +1,18 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { configuration, type Configuration } from './config/configuration';
+import {
+  configuration,
+  roleIncludesGateway,
+  roleIncludesWorker,
+  type Configuration,
+} from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { GithubModule } from './github/github.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { WorkerModule } from './worker/worker.module';
+
+const role = configuration().appRole;
 
 @Module({
   imports: [
@@ -21,8 +28,8 @@ import { WorkerModule } from './worker/worker.module';
         connection: config.get('redis', { infer: true }),
       }),
     }),
-    GatewayModule,
-    WorkerModule,
+    ...(roleIncludesGateway(role) ? [GatewayModule] : []),
+    ...(roleIncludesWorker(role) ? [WorkerModule] : []),
   ],
 })
 export class AppModule {}

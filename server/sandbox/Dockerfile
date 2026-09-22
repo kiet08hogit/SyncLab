@@ -6,7 +6,7 @@ COPY package.json package-lock.json tsconfig.json ./
 RUN npm ci
 
 COPY src ./src
-RUN npm run build
+RUN npm run build && find dist -name '*.spec.js*' -delete
 
 
 FROM node:22-bookworm-slim AS runtime

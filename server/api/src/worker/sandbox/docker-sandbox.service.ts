@@ -9,7 +9,6 @@ import {
   type SandboxLimits,
 } from './container-options';
 import {
-  SANDBOX_PHASES,
   parsePhaseResult,
   type PhaseResult,
   type SandboxJobParams,
@@ -58,6 +57,11 @@ export class DockerSandboxService {
     }
   }
 
+  /**
+   * Prepare once, then alternate refactor and test until the repository's own
+   * suite accepts the change, then publish. Each test failure is left on the
+   * shared volume for the next refactor attempt to read.
+   */
   async run(
     jobId: string,
     params: SandboxJobParams,
@@ -66,24 +70,55 @@ export class DockerSandboxService {
     const volumeName = `synclab-job-${jobId}`;
     await this.docker.createVolume({ Name: volumeName, Labels: { 'com.synclab.job': jobId } });
 
-    let pullRequestUrl: string | undefined;
-
     try {
-      for (const phase of SANDBOX_PHASES) {
-        const result = await this.runPhase(phase, volumeName, params);
-        await onSteps(result.steps);
-
-        const url = result.data?.pullRequestUrl;
-        if (typeof url === 'string') {
-          pullRequestUrl = url;
-        }
-
-        if (!result.ok) {
-          return { ok: false, error: result.error ?? `sandbox phase "${phase}" failed` };
-        }
+      const prepared = await this.runPhase('prepare', volumeName, params, 1);
+      await onSteps(prepared.steps);
+      if (!prepared.ok) {
+        return { ok: false, error: prepared.error ?? 'sandbox phase "prepare" failed' };
       }
 
-      return { ok: true, pullRequestUrl };
+      const maxAttempts = params.llm.maxAttempts;
+      let testsPassed = false;
+      let lastTestError: string | undefined;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const refactored = await this.runPhase('refactor', volumeName, params, attempt);
+        await onSteps(refactored.steps);
+        if (!refactored.ok) {
+          return {
+            ok: false,
+            error: refactored.error ?? 'sandbox phase "refactor" failed',
+            retryable: refactored.data?.retryable === true,
+          };
+        }
+
+        const tested = await this.runPhase('test', volumeName, params, attempt);
+        await onSteps(tested.steps);
+
+        if (tested.ok) {
+          testsPassed = true;
+          break;
+        }
+
+        lastTestError = tested.error ?? 'test suite failed';
+      }
+
+      if (!testsPassed) {
+        return {
+          ok: false,
+          error: `tests still failing after ${maxAttempts} refactor attempt(s): ${lastTestError}`,
+        };
+      }
+
+      const published = await this.runPhase('publish', volumeName, params, maxAttempts);
+      await onSteps(published.steps);
+      if (!published.ok) {
+        return { ok: false, error: published.error ?? 'sandbox phase "publish" failed' };
+      }
+
+      const url = published.data?.pullRequestUrl;
+
+      return { ok: true, pullRequestUrl: typeof url === 'string' ? url : undefined };
     } finally {
       await this.docker
         .getVolume(volumeName)
@@ -98,13 +133,14 @@ export class DockerSandboxService {
     phase: SandboxPhase,
     volumeName: string,
     params: SandboxJobParams,
+    attempt: number,
   ): Promise<PhaseResult> {
     const container = await this.docker.createContainer(
       buildContainerOptions({
         phase,
         image: this.image,
         volumeName,
-        env: buildPhaseEnv(phase, params),
+        env: buildPhaseEnv(phase, params, attempt),
         limits: this.limits,
       }),
     );

@@ -4,15 +4,20 @@ NestJS service containing both the Gateway (receives GitHub webhooks, enqueues j
 
 ## How a job runs
 
-The worker never executes untrusted code itself. It runs three containers in sequence over a single shared Docker volume mounted at `/workspace`:
+The worker never executes untrusted code itself. It runs a sequence of containers over a single shared Docker volume mounted at `/workspace`:
 
-| Phase | Network | GitHub token | Does |
-| --- | --- | --- | --- |
-| `prepare` | yes | yes | clone the repository, install dependencies |
-| `migrate` | **no** | **no** | apply the codemod, run `npm test` |
-| `publish` | yes | yes | commit, push the branch, open a pull request |
+| Phase | Network | GitHub token | Model key | Does |
+| --- | --- | --- | --- | --- |
+| `prepare` | yes | yes | no | clone the repository, install dependencies, fetch the target release notes |
+| `refactor` | yes | no | yes | find files importing the dependency, rewrite them with Gemini |
+| `test` | **no** | **no** | **no** | run `npm test` |
+| `publish` | yes | yes | no | commit, push the branch, open a pull request |
 
-The `migrate` phase is the only one that runs repository code, and it is the one with no network access and no credentials.
+`test` is the only phase that runs repository code, and it is the one with no network access and no credentials. `refactor` reaches the model provider but only reads and writes files using SyncLab's own code, so nothing from the repository ever executes with a network connection.
+
+After `prepare`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run.
+
+A rate-limited model call fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
 
 ## Setup
 
@@ -25,7 +30,15 @@ cp .env.example .env          # then fill in the values below
 npm install
 npx prisma migrate deploy     # or `npx prisma migrate dev` while iterating
 npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
-npm run start:dev
+npm run start:dev             # gateway + worker in one process
+```
+
+To process more than one job at a time, leave the gateway as a single process and start extra workers. Each worker process takes jobs from the same Redis queue. `WORKER_CONCURRENCY` (default `1`) is how many sandboxes one process runs at once — keep it at 1 unless the machine can hold more than one 2GB container.
+
+```bash
+npm run start:gateway         # terminal 1
+npm run start:worker          # terminal 2
+npm run start:worker          # terminal 3, optional
 ```
 
 If your database already has these tables because it was created with `prisma db push`, baseline it instead of applying the first migration:
@@ -39,6 +52,8 @@ If `npm run sandbox:build` cannot reach Docker, set `DOCKER_SOCKET_PATH` in `.en
 ## Credentials
 
 `GITHUB_WEBHOOK_SECRET` is always required. The gateway verifies the `x-hub-signature-256` header against it and rejects anything that does not match.
+
+`GEMINI_API_KEY` is required for the refactor phase. Create one in [Google AI Studio](https://aistudio.google.com/apikey). It is passed only to the `refactor` container and never to the phase that runs repository code.
 
 For repository access, either register a GitHub App (preferred) or use a Personal Access Token for local experiments.
 
@@ -80,7 +95,11 @@ The payload needs `action: "published"`, a `repository` with `id` and `full_name
 
 | Command | Purpose |
 | --- | --- |
-| `npm run start:dev` | run the gateway and worker with reload |
+| `npm run start:dev` | run the gateway and worker in one process |
+| `npm run start:gateway` | webhooks only (`APP_ROLE=gateway`) |
+| `npm run start:worker` | sandbox jobs only (`APP_ROLE=worker`) |
 | `npm run sandbox:build` | build the sandbox container image |
 | `npm test` | unit tests |
 | `npm run test:e2e` | end-to-end tests |
+
+The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the dependency analyzer and the rate-limit classifier.

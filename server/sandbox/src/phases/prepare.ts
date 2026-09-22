@@ -1,7 +1,10 @@
 import { promises as fs } from 'node:fs';
+import { Octokit } from '@octokit/rest';
 import { run, redact, runOrThrow } from '../exec.js';
 import { configureGitCredentials } from '../git.js';
 import { loadConfig, requireToken } from '../config.js';
+import { fetchReleaseNotes } from '../changelog.js';
+import { writeBreakingChanges } from '../state.js';
 import type { PhaseResult, StepLog } from '../result.js';
 
 async function isEmptyDir(dir: string): Promise<boolean> {
@@ -53,6 +56,28 @@ export async function prepare(): Promise<PhaseResult> {
   if (install.code !== 0) {
     return { phase: 'prepare', ok: false, error: 'dependency install failed', steps };
   }
+
+  // Fetched here because this is the last phase that has both a GitHub token
+  // and a network connection. The refactor phase only reads the result.
+  const octokit = new Octokit({ auth: token, baseUrl: config.githubApiUrl });
+  const notes = await fetchReleaseNotes(
+    octokit,
+    config.dependencyName,
+    config.targetVersion,
+  ).catch(() => undefined);
+
+  await writeBreakingChanges(
+    config.stateDir,
+    notes ??
+      `No release notes were found for ${config.dependencyName} ${config.targetVersion}.`,
+  );
+
+  steps.push({
+    step: 'CHANGELOG',
+    output: notes
+      ? `Found release notes for ${config.dependencyName} ${config.targetVersion} (${notes.length} characters).`
+      : `No release notes found for ${config.dependencyName} ${config.targetVersion}; continuing without them.`,
+  });
 
   const head = await runOrThrow('git', ['rev-parse', 'HEAD'], { cwd: config.repoDir });
 
