@@ -1,0 +1,22 @@
+{
+  "id": "hard-ajv-three-files",
+  "difficulty": "hard",
+  "dependency": "ajv",
+  "targetVersion": "8.17.1",
+  "summary": "Three validators read dataPath from nested helpers. One already uses instancePath. A text file must not be selected.",
+  "expectedFiles": [
+    "src/user.js",
+    "src/order.js",
+    "src/address.js",
+    "src/ready.js"
+  ],
+  "filesThatMustChange": [
+    "src/user.js",
+    "src/order.js",
+    "src/address.js"
+  ],
+  "removedPatterns": [
+    ".dataPath"
+  ],
+  "breakingChanges": "Ajv 8 removed error.dataPath. Return error.instancePath. Property type failures use JSON pointer paths such as \"/email\", \"/sku\", and \"/city\"."
+}

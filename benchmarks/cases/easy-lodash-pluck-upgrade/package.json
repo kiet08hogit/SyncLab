@@ -1,0 +1,12 @@
+{
+  "name": "easy-lodash-pluck-upgrade",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "node --check src/users.js && node --check test/users.test.js",
+    "test": "node --test test/users.test.js"
+  },
+  "dependencies": {
+    "lodash": "3.10.1"
+  }
+}

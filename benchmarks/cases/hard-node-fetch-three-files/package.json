@@ -1,0 +1,12 @@
+{
+  "name": "hard-node-fetch-three-files",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "node --check src/*.js && node --check test/*.js",
+    "test": "node --test test/*.js"
+  },
+  "dependencies": {
+    "node-fetch": "3.3.2"
+  }
+}
