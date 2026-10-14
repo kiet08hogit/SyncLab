@@ -3,11 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassThrough } from 'node:stream';
 import Docker from 'dockerode';
 import type { Configuration } from '../../config/configuration';
-import {
-  buildContainerOptions,
-  buildPhaseEnv,
-  type SandboxLimits,
-} from './container-options';
+import { buildContainerOptions, buildPhaseEnv, type SandboxLimits } from './container-options';
 import {
   parsePhaseResult,
   type PhaseResult,

@@ -53,6 +53,8 @@ If `npm run sandbox:build` cannot reach Docker, set `DOCKER_SOCKET_PATH` in `.en
 
 `GITHUB_WEBHOOK_SECRET` is always required. The gateway verifies the `x-hub-signature-256` header against it and rejects anything that does not match.
 
+`MIGRATIONS_API_TOKEN` protects `POST /migrations`. Callers send it as `Authorization: Bearer <token>`. Until it is set, every request to that endpoint fails with a 500.
+
 `GEMINI_API_KEY` is required for the refactor phase. Create one in [Google AI Studio](https://aistudio.google.com/apikey). It is passed only to the `refactor` container and never to the phase that runs repository code.
 
 For repository access, either register a GitHub App (preferred) or use a Personal Access Token for local experiments.
@@ -91,12 +93,25 @@ curl -X POST http://localhost:3000/webhook \
 
 The payload needs `action: "published"`, a `repository` with `id` and `full_name`, a `release.tag_name`, and an `installation.id`.
 
+## Triggering a migration manually
+
+`POST /migrations` queues a job without waiting for a release webhook:
+
+```bash
+curl -X POST http://localhost:3000/migrations \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MIGRATIONS_API_TOKEN" \
+  --data '{"repoFullName":"owner/repo","dependencyName":"axios","targetVersion":"1.7.0"}'
+```
+
+The gateway looks the repository up on GitHub (404 if it does not exist or the App cannot see it), then creates the job or returns the existing one for the same repository, dependency and version. Like the webhook, it only queues an existing job again if its status is `FAILED`. The response is `202` with the job `id`, its `status`, and whether it was `queued`.
+
 ## Scripts
 
 | Command | Purpose |
 | --- | --- |
 | `npm run start:dev` | run the gateway and worker in one process |
-| `npm run start:gateway` | webhooks only (`APP_ROLE=gateway`) |
+| `npm run start:gateway` | webhooks and `POST /migrations` only (`APP_ROLE=gateway`) |
 | `npm run start:worker` | sandbox jobs only (`APP_ROLE=worker`) |
 | `npm run sandbox:build` | build the sandbox container image |
 | `npm run typecheck` | type-check without emitting |
