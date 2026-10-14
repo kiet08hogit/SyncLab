@@ -15,7 +15,7 @@ The worker never executes untrusted code itself. It runs a sequence of container
 
 `test` is the only phase that runs repository code, and it is the one with no network access and no credentials. `refactor` reaches the model provider but only reads and writes files using SyncLab's own code, so nothing from the repository ever executes with a network connection.
 
-After `prepare`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run.
+After `prepare`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
 
 A rate-limited model call fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
 
@@ -99,7 +99,8 @@ The payload needs `action: "published"`, a `repository` with `id` and `full_name
 | `npm run start:gateway` | webhooks only (`APP_ROLE=gateway`) |
 | `npm run start:worker` | sandbox jobs only (`APP_ROLE=worker`) |
 | `npm run sandbox:build` | build the sandbox container image |
+| `npm run typecheck` | type-check without emitting |
 | `npm test` | unit tests |
-| `npm run test:e2e` | end-to-end tests |
+| `npm run test:e2e` | end-to-end tests (needs Postgres and Redis from `server/docker-compose.yml`) |
 
 The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the dependency analyzer and the rate-limit classifier.
