@@ -8,7 +8,7 @@ The worker never executes untrusted code itself. It runs a sequence of container
 
 | Phase | Network | GitHub token | Model key | Does |
 | --- | --- | --- | --- | --- |
-| `prepare` | yes | yes | no | clone the repository, install dependencies, fetch the target release notes |
+| `prepare` | yes | yes | no | clone the repository, install dependencies, upgrade the migrated dependency to the target version (install scripts skipped), fetch the target release notes |
 | `refactor` | yes | no | yes | find files importing the dependency, rewrite them with Gemini |
 | `test` | **no** | **no** | **no** | run `npm test` |
 | `publish` | yes | yes | no | commit, push the branch, open a pull request |
