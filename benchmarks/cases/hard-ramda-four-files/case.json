@@ -1,0 +1,25 @@
+{
+  "id": "hard-ramda-four-files",
+  "difficulty": "hard",
+  "dependency": "ramda",
+  "targetVersion": "0.30.1",
+  "summary": "Four files use removed contains or merge, one of them nested. One file already uses includes and mergeRight. A text mention must not be selected.",
+  "expectedFiles": [
+    "src/has.js",
+    "src/tags.js",
+    "src/combine.js",
+    "src/prefs.js",
+    "src/stable.js"
+  ],
+  "filesThatMustChange": [
+    "src/has.js",
+    "src/tags.js",
+    "src/combine.js",
+    "src/prefs.js"
+  ],
+  "removedPatterns": [
+    "contains",
+    "R.merge("
+  ],
+  "breakingChanges": "Ramda removed contains and R.contains; use includes or R.includes with the same (value, list) order. It removed R.merge(left, right); use R.mergeRight(left, right)."
+}

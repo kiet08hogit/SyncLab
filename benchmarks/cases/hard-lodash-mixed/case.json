@@ -1,0 +1,11 @@
+{
+  "id": "hard-lodash-mixed",
+  "difficulty": "hard",
+  "dependency": "lodash",
+  "targetVersion": "4.17.21",
+  "summary": "Four files use removed lodash 3 helpers (_.pluck, _.where, _.findWhere, _.pairs). src/keep.js already uses lodash/map and must stay correct. A string mention of lodash must not be selected.",
+  "expectedFiles": ["src/names.js", "src/active.js", "src/lookup.js", "src/pairs.js", "src/keep.js"],
+  "filesThatMustChange": ["src/names.js", "src/active.js", "src/lookup.js", "src/pairs.js"],
+  "removedPatterns": ["_.pluck", ".pluck(", "_.where", ".where(", "_.findWhere", ".findWhere(", "_.pairs", ".pairs("],
+  "breakingChanges": "lodash 4.0.0 removed several helpers. _.pluck(collection, property) is _.map(collection, property). _.where(collection, props) is _.filter(collection, props). _.findWhere(collection, props) is _.find(collection, props). _.pairs(object) is _.toPairs(object)."
+}

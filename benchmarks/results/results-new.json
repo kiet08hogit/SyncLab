@@ -1,0 +1,806 @@
+{
+  "kind": "local-synthetic",
+  "startedAt": "2026-09-24T04:05:45.060Z",
+  "finishedAt": "2026-09-24T04:15:37.045Z",
+  "model": "gemini-3.1-pro-preview",
+  "maxAttempts": 3,
+  "results": [
+    {
+      "id": "easy-ajv-data-path",
+      "difficulty": "easy",
+      "dependency": "ajv",
+      "targetVersion": "8.17.1",
+      "summary": "Ajv 8 renamed error.dataPath to error.instancePath. A type error on name reports /name.",
+      "filesAffected": 1,
+      "expectedFiles": [
+        "src/check.js"
+      ],
+      "selectedFiles": [
+        "src/check.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/check.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/check.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 5559
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 225,
+      "executionMs": 5724,
+      "totalMs": 5949
+    },
+    {
+      "id": "easy-node-fetch-default",
+      "difficulty": "easy",
+      "dependency": "node-fetch",
+      "targetVersion": "3.3.2",
+      "summary": "node-fetch 3 is ESM. The CommonJS binding is not callable; the function is on .default.",
+      "filesAffected": 1,
+      "expectedFiles": [
+        "src/client.js"
+      ],
+      "selectedFiles": [
+        "src/client.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/client.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/client.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 4866
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 165,
+      "executionMs": 5011,
+      "totalMs": 5176
+    },
+    {
+      "id": "easy-query-string-default",
+      "difficulty": "easy",
+      "dependency": "query-string",
+      "targetVersion": "9.1.1",
+      "summary": "query-string 9 is ESM. The CommonJS require returns { default }, so parse lives on .default.",
+      "filesAffected": 1,
+      "expectedFiles": [
+        "src/query.js"
+      ],
+      "selectedFiles": [
+        "src/query.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/query.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": false,
+      "attemptsUsed": 2,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/query.js"
+          ],
+          "buildOk": true,
+          "testsOk": false,
+          "durationMs": 3055
+        },
+        {
+          "attempt": 2,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/query.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 68277
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 141,
+      "executionMs": 71465,
+      "totalMs": 71606
+    },
+    {
+      "id": "easy-ramda-includes",
+      "difficulty": "easy",
+      "dependency": "ramda",
+      "targetVersion": "0.30.1",
+      "summary": "Ramda removed R.contains. The replacement with the same argument order is R.includes.",
+      "filesAffected": 1,
+      "expectedFiles": [
+        "src/has.js"
+      ],
+      "selectedFiles": [
+        "src/has.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/has.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/has.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 3096
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 310,
+      "executionMs": 3245,
+      "totalMs": 3555
+    },
+    {
+      "id": "easy-ramda-merge",
+      "difficulty": "easy",
+      "dependency": "ramda",
+      "targetVersion": "0.30.1",
+      "summary": "Ramda removed R.merge. R.mergeRight keeps the same left-then-right argument order.",
+      "filesAffected": 1,
+      "expectedFiles": [
+        "src/combine.js"
+      ],
+      "selectedFiles": [
+        "src/combine.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/combine.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/combine.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 3983
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 191,
+      "executionMs": 4130,
+      "totalMs": 4321
+    },
+    {
+      "id": "hard-ajv-three-files",
+      "difficulty": "hard",
+      "dependency": "ajv",
+      "targetVersion": "8.17.1",
+      "summary": "Three validators read dataPath from nested helpers. One already uses instancePath. A text file must not be selected.",
+      "filesAffected": 3,
+      "expectedFiles": [
+        "src/address.js",
+        "src/order.js",
+        "src/ready.js",
+        "src/user.js"
+      ],
+      "selectedFiles": [
+        "src/address.js",
+        "src/order.js",
+        "src/ready.js",
+        "src/user.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/address.js",
+        "src/order.js",
+        "src/user.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/address.js",
+            "src/order.js",
+            "src/user.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 24215
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 216,
+      "executionMs": 24391,
+      "totalMs": 24607
+    },
+    {
+      "id": "hard-node-fetch-three-files",
+      "difficulty": "hard",
+      "dependency": "node-fetch",
+      "targetVersion": "3.3.2",
+      "summary": "Three modules need the default export, including one that passes fetch into a nested caller. One binding is already correct.",
+      "filesAffected": 3,
+      "expectedFiles": [
+        "src/api.js",
+        "src/nested.js",
+        "src/ready.js",
+        "src/retry.js"
+      ],
+      "selectedFiles": [
+        "src/api.js",
+        "src/nested.js",
+        "src/ready.js",
+        "src/retry.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/api.js",
+        "src/nested.js",
+        "src/retry.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/api.js",
+            "src/nested.js",
+            "src/retry.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 23608
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 275,
+      "executionMs": 23761,
+      "totalMs": 24036
+    },
+    {
+      "id": "hard-query-string-three-files",
+      "difficulty": "hard",
+      "dependency": "query-string",
+      "targetVersion": "9.1.1",
+      "summary": "Three files use the old CommonJS binding: a namespace require, a named destructure, and a nested stringify. One file already uses .default.",
+      "filesAffected": 3,
+      "expectedFiles": [
+        "src/codec.js",
+        "src/nested.js",
+        "src/read.js",
+        "src/ready.js"
+      ],
+      "selectedFiles": [
+        "src/codec.js",
+        "src/nested.js",
+        "src/read.js",
+        "src/ready.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/codec.js",
+        "src/nested.js",
+        "src/read.js",
+        "src/ready.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": false,
+      "attemptsUsed": 2,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/codec.js",
+            "src/nested.js",
+            "src/read.js"
+          ],
+          "buildOk": true,
+          "testsOk": false,
+          "durationMs": 21379
+        },
+        {
+          "attempt": 2,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/codec.js",
+            "src/read.js",
+            "src/ready.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 278617
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 226,
+      "executionMs": 300131,
+      "totalMs": 300357
+    },
+    {
+      "id": "hard-ramda-four-files",
+      "difficulty": "hard",
+      "dependency": "ramda",
+      "targetVersion": "0.30.1",
+      "summary": "Four files use removed contains or merge, one of them nested. One file already uses includes and mergeRight. A text mention must not be selected.",
+      "filesAffected": 4,
+      "expectedFiles": [
+        "src/combine.js",
+        "src/has.js",
+        "src/prefs.js",
+        "src/stable.js",
+        "src/tags.js"
+      ],
+      "selectedFiles": [
+        "src/combine.js",
+        "src/has.js",
+        "src/prefs.js",
+        "src/stable.js",
+        "src/tags.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/combine.js",
+        "src/has.js",
+        "src/prefs.js",
+        "src/tags.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/combine.js",
+            "src/has.js",
+            "src/prefs.js",
+            "src/tags.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 31911
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 294,
+      "executionMs": 32065,
+      "totalMs": 32359
+    },
+    {
+      "id": "hard-ramda-nested-signature",
+      "difficulty": "hard",
+      "dependency": "ramda",
+      "targetVersion": "0.30.1",
+      "summary": "contains and merge are used inside nested functions across three files, and merge must keep right-hand precedence. A migrated file must stay intact.",
+      "filesAffected": 3,
+      "expectedFiles": [
+        "src/config.js",
+        "src/overlay.js",
+        "src/search.js",
+        "src/stable.js"
+      ],
+      "selectedFiles": [
+        "src/config.js",
+        "src/overlay.js",
+        "src/search.js",
+        "src/stable.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/config.js",
+        "src/overlay.js",
+        "src/search.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/config.js",
+            "src/overlay.js",
+            "src/search.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 21484
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 286,
+      "executionMs": 21652,
+      "totalMs": 21938
+    },
+    {
+      "id": "medium-ajv-two-files",
+      "difficulty": "medium",
+      "dependency": "ajv",
+      "targetVersion": "8.17.1",
+      "summary": "Two validators still read dataPath. A third already reads instancePath. A comment-like string must not be selected.",
+      "filesAffected": 2,
+      "expectedFiles": [
+        "src/age.js",
+        "src/name.js",
+        "src/ready.js"
+      ],
+      "selectedFiles": [
+        "src/age.js",
+        "src/name.js",
+        "src/ready.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/age.js",
+        "src/name.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/age.js",
+            "src/name.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 20686
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 296,
+      "executionMs": 20842,
+      "totalMs": 21138
+    },
+    {
+      "id": "medium-node-fetch-two-files",
+      "difficulty": "medium",
+      "dependency": "node-fetch",
+      "targetVersion": "3.3.2",
+      "summary": "Two modules bind node-fetch itself and expect a function. One module already uses .default. A string mention must not be selected.",
+      "filesAffected": 2,
+      "expectedFiles": [
+        "src/api.js",
+        "src/ready.js",
+        "src/retry.js"
+      ],
+      "selectedFiles": [
+        "src/api.js",
+        "src/ready.js",
+        "src/retry.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/api.js",
+        "src/retry.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/api.js",
+            "src/retry.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 20831
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 276,
+      "executionMs": 20983,
+      "totalMs": 21259
+    },
+    {
+      "id": "medium-query-string-named",
+      "difficulty": "medium",
+      "dependency": "query-string",
+      "targetVersion": "9.1.1",
+      "summary": "parse and stringify are destructured from the CommonJS module, but those names exist only on the default export.",
+      "filesAffected": 1,
+      "expectedFiles": [
+        "src/codec.js"
+      ],
+      "selectedFiles": [
+        "src/codec.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/codec.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/codec.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 4074
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 331,
+      "executionMs": 4215,
+      "totalMs": 4546
+    },
+    {
+      "id": "medium-query-string-two-files",
+      "difficulty": "medium",
+      "dependency": "query-string",
+      "targetVersion": "9.1.1",
+      "summary": "parse and stringify are both called on the CommonJS module object. They exist only on .default. A notes file must not be selected.",
+      "filesAffected": 2,
+      "expectedFiles": [
+        "src/read.js",
+        "src/write.js"
+      ],
+      "selectedFiles": [
+        "src/read.js",
+        "src/write.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/read.js",
+        "src/write.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": false,
+      "attemptsUsed": 2,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/read.js",
+            "src/write.js"
+          ],
+          "buildOk": true,
+          "testsOk": false,
+          "durationMs": 9932
+        },
+        {
+          "attempt": 2,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/read.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 24924
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 140,
+      "executionMs": 34987,
+      "totalMs": 35127
+    },
+    {
+      "id": "medium-ramda-destructure",
+      "difficulty": "medium",
+      "dependency": "ramda",
+      "targetVersion": "0.30.1",
+      "summary": "The removed contains export is destructured and used under that local name, including inside a nested helper.",
+      "filesAffected": 1,
+      "expectedFiles": [
+        "src/membership.js"
+      ],
+      "selectedFiles": [
+        "src/membership.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/membership.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/membership.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 4097
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 206,
+      "executionMs": 4247,
+      "totalMs": 4453
+    },
+    {
+      "id": "medium-ramda-two-renames",
+      "difficulty": "medium",
+      "dependency": "ramda",
+      "targetVersion": "0.30.1",
+      "summary": "Two files still call removed R.contains and R.merge. A third file already uses R.includes. A string mention must not be selected.",
+      "filesAffected": 2,
+      "expectedFiles": [
+        "src/already.js",
+        "src/combine.js",
+        "src/has.js"
+      ],
+      "selectedFiles": [
+        "src/already.js",
+        "src/combine.js",
+        "src/has.js"
+      ],
+      "astCorrect": true,
+      "changedFiles": [
+        "src/combine.js",
+        "src/has.js"
+      ],
+      "requiredChangesMade": true,
+      "patternsRemaining": [],
+      "firstAttemptPassed": true,
+      "attemptsUsed": 1,
+      "attempts": [
+        {
+          "attempt": 1,
+          "refactorOk": true,
+          "changedFiles": [
+            "src/combine.js",
+            "src/has.js"
+          ],
+          "buildOk": true,
+          "testsOk": true,
+          "durationMs": 11190
+        }
+      ],
+      "buildPassed": true,
+      "testsPassed": true,
+      "baselineTestsFailed": true,
+      "success": true,
+      "failureCategory": null,
+      "failureReason": null,
+      "installMs": 201,
+      "executionMs": 11352,
+      "totalMs": 11553
+    }
+  ]
+}
