@@ -116,6 +116,11 @@ export class DockerSandboxService {
         return { ok: false, error: published.error ?? 'sandbox phase "publish" failed' };
       }
 
+      // Not retryable: rerunning the same refactor would change nothing again.
+      if (published.data?.skipped === true) {
+        return { ok: false, error: 'refactor produced no changes' };
+      }
+
       const url = published.data?.pullRequestUrl;
 
       return { ok: true, pullRequestUrl: typeof url === 'string' ? url : undefined };
