@@ -15,6 +15,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "sandbox:build": "docker build -t synclab-sandbox:latest ../sandbox",
     "test": "jest",
     "test:watch": "jest --watch",
