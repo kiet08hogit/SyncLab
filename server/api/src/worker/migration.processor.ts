@@ -110,9 +110,7 @@ export class MigrationProcessor extends WorkerHost {
         jobId,
         step: step.step,
         output:
-          step.exitCode === undefined
-            ? step.output
-            : `[exit ${step.exitCode}]\n${step.output}`,
+          step.exitCode === undefined ? step.output : `[exit ${step.exitCode}]\n${step.output}`,
       })),
     });
   }

@@ -15,7 +15,7 @@ function mockPrisma(
 
   return {
     prisma: {
-      $transaction: jest.fn(async (fn: (client: typeof tx) => unknown) => fn(tx)),
+      $transaction: jest.fn((fn: (client: typeof tx) => unknown) => Promise.resolve(fn(tx))),
     } as never,
     tx,
   };
@@ -40,7 +40,10 @@ describe('claimMigrationJob', () => {
       status: JobStatus.IN_PROGRESS,
       repository: { fullName: 'acme/widgets' },
     };
-    const { prisma, tx } = mockPrisma([{ status: JobStatus.QUEUED, pull_request_url: null }], record);
+    const { prisma, tx } = mockPrisma(
+      [{ status: JobStatus.QUEUED, pull_request_url: null }],
+      record,
+    );
 
     await expect(claimMigrationJob(prisma, 'job-1')).resolves.toEqual({
       kind: 'claimed',
