@@ -4,6 +4,10 @@ import type { Configuration, GithubConfig } from '../config/configuration';
 
 type CreateAppAuth = typeof import('@octokit/auth-app').createAppAuth;
 
+function toBadGateway(error: unknown): never {
+  throw new BadGatewayException('GitHub request failed', { cause: error });
+}
+
 export interface GithubRepositoryInfo {
   githubRepoId: bigint;
   installationId: bigint;
@@ -73,13 +77,14 @@ export class GithubTokenService {
     const github: GithubConfig = this.config.get('github', { infer: true });
 
     let installationId = 0n;
+    let token: string;
     if (github.appId && github.privateKey) {
       const createAppAuth = await this.loadCreateAppAuth();
       const auth = createAppAuth({
         appId: github.appId,
         privateKey: github.privateKey,
       });
-      const { token: appJwt } = await auth({ type: 'app' });
+      const { token: appJwt } = await auth({ type: 'app' }).catch(toBadGateway);
 
       const installation = await this.githubGet<{ id: number }>(
         github.apiUrl,
@@ -88,9 +93,11 @@ export class GithubTokenService {
         `The GitHub App is not installed on ${fullName}`,
       );
       installationId = BigInt(installation.id);
+      token = await this.getInstallationToken(installationId).catch(toBadGateway);
+    } else {
+      token = await this.getInstallationToken(installationId);
     }
 
-    const token = await this.getInstallationToken(installationId);
     const repo = await this.githubGet<{ id: number; full_name: string; clone_url: string }>(
       github.apiUrl,
       `/repos/${fullName}`,
@@ -118,7 +125,7 @@ export class GithubTokenService {
         Authorization: `Bearer ${token}`,
         'X-GitHub-Api-Version': '2022-11-28',
       },
-    });
+    }).catch(toBadGateway);
 
     if (response.status === 404) {
       throw new NotFoundException(notFoundMessage);

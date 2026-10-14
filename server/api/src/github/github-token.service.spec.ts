@@ -107,4 +107,23 @@ describe('GithubTokenService.lookupRepository', () => {
       BadGatewayException,
     );
   });
+
+  it('reports an unreachable GitHub as a bad gateway', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
+
+    await expect(service({ token: 'pat' }).lookupRepository('acme/widgets')).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
+  });
+
+  it('reports a failed installation token exchange as a bad gateway', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: 7 }));
+    auth
+      .mockResolvedValueOnce({ token: 'app-jwt' })
+      .mockRejectedValueOnce(new Error('403 Forbidden'));
+
+    await expect(
+      service({ appId: '1', privateKey: 'key' }).lookupRepository('acme/widgets'),
+    ).rejects.toBeInstanceOf(BadGatewayException);
+  });
 });
