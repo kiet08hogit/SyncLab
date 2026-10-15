@@ -73,7 +73,15 @@ export function resolveAppRole(value: string | undefined): AppRole {
 }
 
 export function resolveLlmProvider(value: string | undefined): LlmProvider {
-  return LLM_PROVIDERS.includes(value as LlmProvider) ? (value as LlmProvider) : 'ollama';
+  if (!value) {
+    return 'ollama';
+  }
+
+  if (!LLM_PROVIDERS.includes(value as LlmProvider)) {
+    throw new Error(`LLM_PROVIDER must be one of ${LLM_PROVIDERS.join(', ')}, got "${value}".`);
+  }
+
+  return value as LlmProvider;
 }
 
 export function roleIncludesGateway(role: AppRole): boolean {

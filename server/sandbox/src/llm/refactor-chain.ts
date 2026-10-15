@@ -52,6 +52,14 @@ const FENCED_SYSTEM_PROMPT = [
 const OUTPUT_TOKENS_PER_CHARACTER = 0.5;
 const OUTPUT_TOKEN_HEADROOM = 512;
 
+// The low end for code, so the estimate errs towards a prompt being larger
+// than it is.
+const CHARACTERS_PER_TOKEN = 3;
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / CHARACTERS_PER_TOKEN);
+}
+
 export interface RefactorRequest {
   relativePath: string;
   contents: string;
@@ -126,13 +134,34 @@ function createStructuredChain(config: SandboxConfig): RefactorChain {
 
 function createFencedChain(config: SandboxConfig): RefactorChain {
   return async (request) => {
-    const maxOutputTokens =
-      Math.ceil(request.contents.length * OUTPUT_TOKENS_PER_CHARACTER) + OUTPUT_TOKEN_HEADROOM;
+    const userPrompt = buildUserPrompt(config, request);
+    // Ollama drops the start of the prompt or stops the reply without an error
+    // once the context is full, so a file whose prompt and rewrite cannot both
+    // fit is refused up front.
+    const roomLeft =
+      config.llm.numCtx - estimateTokens(FENCED_SYSTEM_PROMPT) - estimateTokens(userPrompt);
+
+    if (roomLeft < estimateTokens(request.contents) + OUTPUT_TOKEN_HEADROOM) {
+      throw new Error(
+        `${request.relativePath} is too large to rewrite within the ${config.llm.numCtx} token context window. Raise LLM_NUM_CTX or lower LLM_MAX_FILE_BYTES.`,
+      );
+    }
+
+    const maxOutputTokens = Math.min(
+      Math.ceil(request.contents.length * OUTPUT_TOKENS_PER_CHARACTER) + OUTPUT_TOKEN_HEADROOM,
+      roomLeft,
+    );
     const model = createOllamaModel(config.llm, maxOutputTokens);
     const reply = await model.invoke([
       { role: 'system', content: FENCED_SYSTEM_PROMPT },
-      { role: 'user', content: buildUserPrompt(config, request) },
+      { role: 'user', content: userPrompt },
     ]);
+
+    // A fence inside the file can pass for the closing one, so only Ollama
+    // knows for sure that the reply ran out of room.
+    if (reply.response_metadata?.done_reason === 'length') {
+      throw new Error('The model reply reached its output limit, so the file was cut off.');
+    }
 
     return parseFencedReply(reply.text, request.contents);
   };

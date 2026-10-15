@@ -303,7 +303,7 @@ function applyEnv(repoDir, stateDir, spec) {
   }
   // The benchmark runs on the host, not in a sandbox container, so Ollama is
   // on localhost rather than host.docker.internal.
-  process.env.LLM_BASE_URL = process.env.BENCHMARK_LLM_BASE_URL || 'http://localhost:11434';
+  process.env.LLM_BASE_URL = 'http://localhost:11434';
   void stateDir;
 }
 
@@ -399,8 +399,13 @@ function report(results, meta) {
 const startedAt = new Date().toISOString();
 await loadEnvFile(path.join(root, 'server', 'api', '.env')).catch(() => undefined);
 const DEFAULT_MODELS = { ollama: 'qwen2.5-coder:14b', gemini: 'gemini-3.1-pro-preview' };
-if (process.env.LLM_PROVIDER !== 'gemini') {
+if (!process.env.LLM_PROVIDER) {
   process.env.LLM_PROVIDER = 'ollama';
+}
+if (!Object.hasOwn(DEFAULT_MODELS, process.env.LLM_PROVIDER)) {
+  throw new Error(
+    `LLM_PROVIDER must be one of ${Object.keys(DEFAULT_MODELS).join(', ')}, got "${process.env.LLM_PROVIDER}".`,
+  );
 }
 if (process.env.LLM_PROVIDER === 'gemini' && !process.env.GEMINI_API_KEY) {
   throw new Error('GEMINI_API_KEY is not set. Refusing to invent benchmark results.');
