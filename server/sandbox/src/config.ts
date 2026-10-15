@@ -1,7 +1,16 @@
 import path from 'node:path';
 
+export const LLM_PROVIDERS = ['ollama', 'gemini'] as const;
+
+export type LlmProvider = (typeof LLM_PROVIDERS)[number];
+
 export interface LlmConfig {
+  provider: LlmProvider;
   model: string;
+  /** Only read by the Ollama provider. */
+  baseUrl: string;
+  /** Only read by the Ollama provider. */
+  numCtx: number;
   attempt: number;
   maxAttempts: number;
   maxFiles: number;
@@ -34,6 +43,10 @@ function positiveNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+export function resolveLlmProvider(value: string | undefined): LlmProvider {
+  return LLM_PROVIDERS.includes(value as LlmProvider) ? (value as LlmProvider) : 'ollama';
+}
+
 export function loadConfig(): SandboxConfig {
   const workspace = process.env.SANDBOX_WORKSPACE ?? '/workspace';
 
@@ -48,7 +61,10 @@ export function loadConfig(): SandboxConfig {
     branchName: required('BRANCH_NAME'),
     githubApiUrl: process.env.GITHUB_API_URL ?? 'https://api.github.com',
     llm: {
-      model: process.env.LLM_MODEL ?? 'gemini-3.1-pro-preview',
+      provider: resolveLlmProvider(process.env.LLM_PROVIDER),
+      model: required('LLM_MODEL'),
+      baseUrl: process.env.LLM_BASE_URL ?? 'http://host.docker.internal:11434',
+      numCtx: positiveNumber(process.env.LLM_NUM_CTX, 32_768),
       attempt: positiveNumber(process.env.REFACTOR_ATTEMPT, 1),
       maxAttempts: positiveNumber(process.env.REFACTOR_MAX_ATTEMPTS, 1),
       maxFiles: positiveNumber(process.env.LLM_MAX_FILES, 20),
@@ -67,8 +83,9 @@ export function requireToken(): string {
 }
 
 /**
- * Only the refactor phase talks to the model provider.
+ * Only the refactor phase talks to the model provider, and only a hosted
+ * provider needs a key.
  */
-export function requireLlmKey(): string {
+export function requireGeminiKey(): string {
   return required('GEMINI_API_KEY');
 }

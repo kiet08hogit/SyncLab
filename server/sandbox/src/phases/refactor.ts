@@ -5,7 +5,7 @@ import { collectSourceFiles } from '../files.js';
 import { analyzeDependencyUsage, type DependencyUsage } from '../analysis/imports.js';
 import { readBreakingChanges, readTestOutput } from '../state.js';
 import { createRefactorChain } from '../llm/refactor-chain.js';
-import { isRateLimitError } from '../llm/errors.js';
+import { isRetryableModelError } from '../llm/errors.js';
 import type { PhaseResult, StepLog } from '../result.js';
 
 interface Candidate {
@@ -103,7 +103,7 @@ export async function refactor(): Promise<PhaseResult> {
         steps,
         // The worker turns this into a delayed BullMQ retry rather than a
         // permanent failure.
-        data: { retryable: isRateLimitError(error) },
+        data: { retryable: isRetryableModelError(error) },
       };
     }
 

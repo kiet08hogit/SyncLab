@@ -36,7 +36,7 @@ export function phaseNeedsToken(phase: SandboxPhase): boolean {
   return phase === 'prepare' || phase === 'publish';
 }
 
-export function phaseNeedsLlmKey(phase: SandboxPhase): boolean {
+export function phaseNeedsModel(phase: SandboxPhase): boolean {
   return phase === 'refactor';
 }
 
@@ -52,6 +52,7 @@ export function buildPhaseEnv(
     TARGET_VERSION: params.targetVersion,
     BRANCH_NAME: params.branchName,
     SANDBOX_WORKSPACE: WORKSPACE_MOUNT,
+    LLM_PROVIDER: params.llm.provider,
     LLM_MODEL: params.llm.model,
     LLM_MAX_FILES: String(params.llm.maxFiles),
     LLM_MAX_FILE_BYTES: String(params.llm.maxFileBytes),
@@ -63,8 +64,13 @@ export function buildPhaseEnv(
     env.GITHUB_TOKEN = params.token;
   }
 
-  if (phaseNeedsLlmKey(phase)) {
-    env.GEMINI_API_KEY = params.llm.apiKey;
+  if (phaseNeedsModel(phase)) {
+    if (params.llm.provider === 'gemini') {
+      env.GEMINI_API_KEY = params.llm.apiKey;
+    } else {
+      env.LLM_BASE_URL = params.llm.baseUrl;
+      env.LLM_NUM_CTX = String(params.llm.numCtx);
+    }
   }
 
   return env;

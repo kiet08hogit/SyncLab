@@ -3,7 +3,13 @@ import type { PhaseResult, SandboxJobParams, SandboxPhase } from './sandbox.type
 
 function makeService() {
   const config = {
-    get: () => ({ image: 'synclab-sandbox:test', timeoutMs: 1000, memoryBytes: 1, nanoCpus: 1, pidsLimit: 1 }),
+    get: () => ({
+      image: 'synclab-sandbox:test',
+      timeoutMs: 1000,
+      memoryBytes: 1,
+      nanoCpus: 1,
+      pidsLimit: 1,
+    }),
   };
   const service = new DockerSandboxService(config as never);
 
@@ -22,7 +28,10 @@ describe('DockerSandboxService.run', () => {
     const service = makeService();
 
     jest
-      .spyOn(service as unknown as { runPhase: (phase: SandboxPhase) => Promise<PhaseResult> }, 'runPhase')
+      .spyOn(
+        service as unknown as { runPhase: (phase: SandboxPhase) => Promise<PhaseResult> },
+        'runPhase',
+      )
       .mockImplementation((phase) =>
         Promise.resolve(
           phase === 'publish'
