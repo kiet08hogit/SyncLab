@@ -34,6 +34,33 @@ export interface EnqueueMigrationResult {
   queued: boolean;
 }
 
+export interface MigrationJobDetail {
+  id: string;
+  repositoryId: string;
+  dependencyName: string;
+  targetVersion: string;
+  status: string;
+  pullRequestUrl: string | null;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  // BigInt columns go out as strings: JSON.stringify cannot serialize a BigInt.
+  repository: {
+    id: string;
+    githubRepoId: string;
+    fullName: string;
+    installationId: string;
+    createdAt: Date;
+  };
+  executionLogs: Array<{
+    id: string;
+    jobId: string;
+    step: string;
+    output: string | null;
+    createdAt: Date;
+  }>;
+}
+
 /**
  * Shared by the release webhook and the manual trigger, so both deduplicate
  * and retry a migration the same way.
@@ -94,6 +121,25 @@ export class MigrationJobsService {
     }
 
     return { id: job.id, status: JobStatus.QUEUED, queued: true };
+  }
+
+  async findDetail(id: string): Promise<MigrationJobDetail | null> {
+    const job = await this.prisma.migrationJob.findUnique({
+      where: { id },
+      include: { repository: true, executionLogs: { orderBy: { createdAt: 'asc' } } },
+    });
+    if (!job) {
+      return null;
+    }
+
+    return {
+      ...job,
+      repository: {
+        ...job.repository,
+        githubRepoId: job.repository.githubRepoId.toString(),
+        installationId: job.repository.installationId.toString(),
+      },
+    };
   }
 
   /**
