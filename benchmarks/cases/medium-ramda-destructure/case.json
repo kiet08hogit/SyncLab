@@ -1,0 +1,17 @@
+{
+  "id": "medium-ramda-destructure",
+  "difficulty": "medium",
+  "dependency": "ramda",
+  "targetVersion": "0.30.1",
+  "summary": "The removed contains export is destructured and used under that local name, including inside a nested helper.",
+  "expectedFiles": [
+    "src/membership.js"
+  ],
+  "filesThatMustChange": [
+    "src/membership.js"
+  ],
+  "removedPatterns": [
+    "contains"
+  ],
+  "breakingChanges": "Ramda removed the contains export. Destructure includes instead and call includes(value, list)."
+}

@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GithubTokenService } from '../github/github-token.service';
 import { DockerSandboxService } from './sandbox/docker-sandbox.service';
 import { JobStatus, LogStep, MIGRATION_QUEUE, type MigrationJobData } from '../common/constants';
-import type { Configuration } from '../config/configuration';
+import { configuration, type Configuration } from '../config/configuration';
 import type { SandboxJobParams, StepLog } from './sandbox/sandbox.types';
 import { claimMigrationJob } from './claim-job';
 
@@ -17,7 +17,8 @@ function slug(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-const concurrency = Math.max(1, Math.floor(Number(process.env.WORKER_CONCURRENCY) || 1));
+// The decorator is evaluated at module load, before ConfigService exists.
+const concurrency = configuration().worker.concurrency;
 
 @Processor(MIGRATION_QUEUE, { concurrency })
 export class MigrationProcessor extends WorkerHost {
@@ -110,9 +111,7 @@ export class MigrationProcessor extends WorkerHost {
         jobId,
         step: step.step,
         output:
-          step.exitCode === undefined
-            ? step.output
-            : `[exit ${step.exitCode}]\n${step.output}`,
+          step.exitCode === undefined ? step.output : `[exit ${step.exitCode}]\n${step.output}`,
       })),
     });
   }

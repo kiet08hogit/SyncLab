@@ -50,6 +50,7 @@ export interface Configuration {
   sandbox: SandboxConfig;
   llm: LlmConfig;
   worker: WorkerRuntimeConfig;
+  migrationsApiToken?: string;
 }
 
 export function resolveAppRole(value: string | undefined): AppRole {
@@ -101,6 +102,7 @@ export function configuration(): Configuration {
       token: process.env.GITHUB_TOKEN,
       apiUrl: process.env.GITHUB_API_URL ?? 'https://api.github.com',
     },
+    migrationsApiToken: process.env.MIGRATIONS_API_TOKEN,
     sandbox: {
       image: process.env.SANDBOX_IMAGE ?? 'synclab-sandbox:latest',
       timeoutMs: positiveNumber(process.env.SANDBOX_TIMEOUT_MS, 10 * 60 * 1000),

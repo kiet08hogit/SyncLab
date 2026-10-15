@@ -3,11 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassThrough } from 'node:stream';
 import Docker from 'dockerode';
 import type { Configuration } from '../../config/configuration';
-import {
-  buildContainerOptions,
-  buildPhaseEnv,
-  type SandboxLimits,
-} from './container-options';
+import { buildContainerOptions, buildPhaseEnv, type SandboxLimits } from './container-options';
 import {
   parsePhaseResult,
   type PhaseResult,
@@ -114,6 +110,11 @@ export class DockerSandboxService {
       await onSteps(published.steps);
       if (!published.ok) {
         return { ok: false, error: published.error ?? 'sandbox phase "publish" failed' };
+      }
+
+      // Not retryable: rerunning the same refactor would change nothing again.
+      if (published.data?.skipped === true) {
+        return { ok: false, error: 'refactor produced no changes' };
       }
 
       const url = published.data?.pullRequestUrl;

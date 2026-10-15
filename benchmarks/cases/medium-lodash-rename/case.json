@@ -1,0 +1,11 @@
+{
+  "id": "medium-lodash-rename",
+  "difficulty": "medium",
+  "dependency": "lodash",
+  "targetVersion": "4.17.21",
+  "summary": "Two files use removed lodash 3 helpers (_.pluck and _.indexBy). src/labels.js already uses _.map and must keep working. src/notes.js mentions lodash only in a string and must not be selected.",
+  "expectedFiles": ["src/names.js", "src/groups.js", "src/labels.js"],
+  "filesThatMustChange": ["src/names.js", "src/groups.js"],
+  "removedPatterns": ["_.pluck", ".pluck(", "_.indexBy", ".indexBy("],
+  "breakingChanges": "lodash 4.0.0 removed _.pluck(collection, property); use _.map(collection, property). It also removed _.indexBy(collection, property); use _.keyBy(collection, property)."
+}

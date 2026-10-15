@@ -8,14 +8,14 @@ The worker never executes untrusted code itself. It runs a sequence of container
 
 | Phase | Network | GitHub token | Model key | Does |
 | --- | --- | --- | --- | --- |
-| `prepare` | yes | yes | no | clone the repository, install dependencies, fetch the target release notes |
+| `prepare` | yes | yes | no | clone the repository, install dependencies, upgrade the migrated dependency to the target version (install scripts skipped), fetch the target release notes |
 | `refactor` | yes | no | yes | find files importing the dependency, rewrite them with Gemini |
 | `test` | **no** | **no** | **no** | run `npm test` |
 | `publish` | yes | yes | no | commit, push the branch, open a pull request |
 
 `test` is the only phase that runs repository code, and it is the one with no network access and no credentials. `refactor` reaches the model provider but only reads and writes files using SyncLab's own code, so nothing from the repository ever executes with a network connection.
 
-After `prepare`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run.
+After `prepare`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
 
 A rate-limited model call fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
 
@@ -52,6 +52,8 @@ If `npm run sandbox:build` cannot reach Docker, set `DOCKER_SOCKET_PATH` in `.en
 ## Credentials
 
 `GITHUB_WEBHOOK_SECRET` is always required. The gateway verifies the `x-hub-signature-256` header against it and rejects anything that does not match.
+
+`MIGRATIONS_API_TOKEN` protects `POST /migrations`. Callers send it as `Authorization: Bearer <token>`. Until it is set, every request to that endpoint fails with a 500.
 
 `GEMINI_API_KEY` is required for the refactor phase. Create one in [Google AI Studio](https://aistudio.google.com/apikey). It is passed only to the `refactor` container and never to the phase that runs repository code.
 
@@ -91,15 +93,29 @@ curl -X POST http://localhost:3000/webhook \
 
 The payload needs `action: "published"`, a `repository` with `id` and `full_name`, a `release.tag_name`, and an `installation.id`.
 
+## Triggering a migration manually
+
+`POST /migrations` queues a job without waiting for a release webhook:
+
+```bash
+curl -X POST http://localhost:3000/migrations \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $MIGRATIONS_API_TOKEN" \
+  --data '{"repoFullName":"owner/repo","dependencyName":"axios","targetVersion":"1.7.0"}'
+```
+
+The gateway looks the repository up on GitHub (404 if it does not exist or the App cannot see it), then creates the job or returns the existing one for the same repository, dependency and version. Like the webhook, it only queues an existing job again if its status is `FAILED`. The response is `202` with the job `id`, its `status`, and whether it was `queued`.
+
 ## Scripts
 
 | Command | Purpose |
 | --- | --- |
 | `npm run start:dev` | run the gateway and worker in one process |
-| `npm run start:gateway` | webhooks only (`APP_ROLE=gateway`) |
+| `npm run start:gateway` | webhooks and `POST /migrations` only (`APP_ROLE=gateway`) |
 | `npm run start:worker` | sandbox jobs only (`APP_ROLE=worker`) |
 | `npm run sandbox:build` | build the sandbox container image |
+| `npm run typecheck` | type-check without emitting |
 | `npm test` | unit tests |
-| `npm run test:e2e` | end-to-end tests |
+| `npm run test:e2e` | end-to-end tests (needs Postgres and Redis from `server/docker-compose.yml`) |
 
 The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the dependency analyzer and the rate-limit classifier.

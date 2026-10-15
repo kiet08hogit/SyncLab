@@ -1,0 +1,19 @@
+{
+  "id": "medium-query-string-two-files",
+  "difficulty": "medium",
+  "dependency": "query-string",
+  "targetVersion": "9.1.1",
+  "summary": "parse and stringify are both called on the CommonJS module object. They exist only on .default. A notes file must not be selected.",
+  "expectedFiles": [
+    "src/read.js",
+    "src/write.js"
+  ],
+  "filesThatMustChange": [
+    "src/read.js",
+    "src/write.js"
+  ],
+  "removedPatterns": [
+    "const qs = require('query-string');\n"
+  ],
+  "breakingChanges": "query-string 8+ is ESM-only. Use const qs = require('query-string').default before calling parse or stringify."
+}

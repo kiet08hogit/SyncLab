@@ -1,0 +1,17 @@
+{
+  "id": "easy-query-string-default",
+  "difficulty": "easy",
+  "dependency": "query-string",
+  "targetVersion": "9.1.1",
+  "summary": "query-string 9 is ESM. The CommonJS require returns { default }, so parse lives on .default.",
+  "expectedFiles": [
+    "src/query.js"
+  ],
+  "filesThatMustChange": [
+    "src/query.js"
+  ],
+  "removedPatterns": [
+    "const qs = require('query-string');"
+  ],
+  "breakingChanges": "query-string 8+ is ESM-only. In CommonJS, replace const qs = require('query-string') with const qs = require('query-string').default, then keep calling qs.parse."
+}

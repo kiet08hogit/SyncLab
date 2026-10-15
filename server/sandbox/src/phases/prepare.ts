@@ -5,6 +5,7 @@ import { configureGitCredentials } from '../git.js';
 import { loadConfig, requireToken } from '../config.js';
 import { fetchReleaseNotes } from '../changelog.js';
 import { writeBreakingChanges } from '../state.js';
+import { upgradeDependency } from '../upgrade.js';
 import type { PhaseResult, StepLog } from '../result.js';
 
 async function isEmptyDir(dir: string): Promise<boolean> {
@@ -55,6 +56,17 @@ export async function prepare(): Promise<PhaseResult> {
 
   if (install.code !== 0) {
     return { phase: 'prepare', ok: false, error: 'dependency install failed', steps };
+  }
+
+  const upgrade = await upgradeDependency(
+    config.repoDir,
+    config.dependencyName,
+    config.targetVersion,
+  );
+  steps.push({ ...upgrade.step, output: redact(upgrade.step.output, [token]) });
+
+  if (!upgrade.ok) {
+    return { phase: 'prepare', ok: false, error: upgrade.error, steps };
   }
 
   // Fetched here because this is the last phase that has both a GitHub token
