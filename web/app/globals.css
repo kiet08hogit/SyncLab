@@ -1,0 +1,194 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-jetbrains);
+  --font-serif: var(--font-lora);
+  --font-heading: var(--font-lora);
+  --color-log: var(--log);
+  --color-status-queued: var(--status-queued);
+  --color-status-running: var(--status-running);
+  --color-status-completed: var(--status-completed);
+  --color-status-failed: var(--status-failed);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* Palette from meuze.ai: white and cloud grays, near-black ink, electric blue. */
+  --background: #ffffff;
+  --foreground: #0b1014;
+  --card: #ffffff;
+  --card-foreground: #0b1014;
+  --popover: #ffffff;
+  --popover-foreground: #0b1014;
+  --primary: #2c63ff;
+  --primary-foreground: #ffffff;
+  --secondary: #edeff7;
+  --secondary-foreground: #0b1014;
+  --muted: #edeff7;
+  --muted-foreground: #5c606d;
+  --accent: #f4f5fa;
+  --accent-foreground: #0b1014;
+  --destructive: #e5484d;
+  --border: #d3d6e0;
+  --input: #bcbfcc;
+  --ring: #2c63ff;
+  --chart-1: #2c63ff;
+  --chart-2: #1f8a4c;
+  --chart-3: #d98200;
+  --chart-4: #e5484d;
+  --chart-5: #6e7180;
+  --radius: 0rem;
+  --sidebar: #f7f8fb;
+  --sidebar-foreground: #0b1014;
+  --sidebar-primary: #2c63ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4eaff;
+  --sidebar-accent-foreground: #0b1014;
+  --sidebar-border: #d3d6e0;
+  --sidebar-ring: #2c63ff;
+  --log: #f4f5fa;
+
+  /* Job states. Each is always paired with an icon and a label, never color alone. */
+  --status-queued: #5c606d;
+  --status-running: #2c63ff;
+  --status-completed: #1f8a4c;
+  --status-failed: #d93a40;
+}
+
+.dark {
+  --background: #0b1014;
+  --foreground: #edeff7;
+  --card: #10161b;
+  --card-foreground: #edeff7;
+  --popover: #10161b;
+  --popover-foreground: #edeff7;
+  --primary: #2c63ff;
+  --primary-foreground: #ffffff;
+  --secondary: #1e1e24;
+  --secondary-foreground: #edeff7;
+  --muted: #1e1e24;
+  --muted-foreground: #9da2b3;
+  --accent: #151c22;
+  --accent-foreground: #edeff7;
+  --destructive: #ff6b70;
+  --border: #283038;
+  --input: #40424d;
+  --ring: #5a83ff;
+  --chart-1: #5a83ff;
+  --chart-2: #3fbf73;
+  --chart-3: #f0a43a;
+  --chart-4: #ff6b70;
+  --chart-5: #9da2b3;
+  --sidebar: #080c0f;
+  --sidebar-foreground: #edeff7;
+  --sidebar-primary: #5a83ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #14213f;
+  --sidebar-accent-foreground: #edeff7;
+  --sidebar-border: #1e252c;
+  --sidebar-ring: #5a83ff;
+  --log: #080c0f;
+
+  --status-queued: #9da2b3;
+  --status-running: #6f93ff;
+  --status-completed: #3fbf73;
+  --status-failed: #ff6b70;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: light;
+    scrollbar-color: var(--border) transparent;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 25%, transparent);
+    color: var(--foreground);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  a {
+    text-underline-offset: 3px;
+  }
+}
+
+/* meuze's signature: a small solid square pinned to a panel's top-left corner. */
+@utility corner-mark {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 7px;
+    height: 7px;
+    background: var(--foreground);
+    z-index: 1;
+  }
+}
+
+/* Uppercase, letter-spaced mono for labels, matching meuze's section tags. */
+@utility label-mono {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}

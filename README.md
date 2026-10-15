@@ -6,9 +6,12 @@ When a dependency ships a breaking release, SyncLab clones the affected reposito
 The untrusted repository code never runs on the orchestrating server.
 Every step that touches it runs in a short-lived, locked-down Docker container, and the only container that executes repository code has no network and no credentials.
 
+A web dashboard in `web/` shows every migration job, its progress through the pipeline, and its execution log.
+
 - [How it works in one minute](#how-it-works-in-one-minute)
 - [High-level workflow](#high-level-workflow)
 - [Low-level workflow](#low-level-workflow)
+- [Dashboard](#dashboard)
 - [Data model](#data-model)
 - [Failure handling and retries](#failure-handling-and-retries)
 - [Repository layout](#repository-layout)
@@ -260,6 +263,20 @@ Each container prints one final line, `##SYNCLAB_RESULT##{json}`, describing `{p
 The worker scans the logs from the end, so repository output that happens to contain the sentinel cannot shadow the real result.
 If no result line appears (for example, the container was killed), the raw log becomes the failure record.
 
+## Dashboard
+
+`web/` is a Next.js app for watching migrations (Tailwind CSS, shadcn/ui, Magic UI and Aceternity UI components, light and dark themes).
+
+| Route | Shows |
+| --- | --- |
+| `/` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
+| `/jobs/[id]` | One job's pipeline track (clone, install, upgrade, changelog, refactor, test, pull request), failure reason, and execution log |
+| `/repositories` | Repositories with the GitHub App installed, with job totals and last activity |
+
+The API has no read endpoints yet, so the dashboard currently serves sample data shaped like the Prisma models.
+Connecting it to live data means replacing the getters in `web/lib/data.ts`.
+See [`web/README.md`](web/README.md).
+
 ## Data model
 
 Schema: `server/api/prisma/schema.prisma`.
@@ -324,6 +341,7 @@ A failed job can also be retried by triggering the same repository, dependency a
 ```text
 SyncLab/
 ├── infra/Architecture/        design documents (Obsidian vault, Mermaid and Excalidraw)
+├── web/                       Next.js dashboard for jobs, pipeline progress and execution logs (sample data for now)
 ├── server/
 │   ├── docker-compose.yml     PostgreSQL 15 and Redis 7 for local development
 │   ├── api/                   NestJS gateway and worker
@@ -382,6 +400,14 @@ npm run start:worker
 npm run start:worker
 ```
 
+Run the dashboard alongside the API (it uses port 3001, since the API takes 3000):
+
+```bash
+cd web
+npm install
+npm run dev                   # http://localhost:3001
+```
+
 See [`server/api/README.md`](server/api/README.md) for every environment variable, registering the GitHub App, signing a test webhook, and the full script list.
 
 ## Testing and benchmarks
@@ -390,6 +416,7 @@ See [`server/api/README.md`](server/api/README.md) for every environment variabl
 cd server/api && npm run typecheck && npm test   # unit tests
 cd server/api && npm run test:e2e                # needs PostgreSQL and Redis running
 cd server/sandbox && npm test                    # analyzer, upgrade and rate-limit tests
+cd web && npm run lint && npm run build          # dashboard lint, typecheck and production build
 ```
 
 `benchmarks/` holds synthetic migration cases (lodash, ramda, ajv, node-fetch, query-string, uuid) at easy, medium and hard difficulty.
@@ -413,4 +440,4 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 
 - Metrics for queue depth, sandbox start time and LLM token usage.
 - Auto-scaling worker deployment (for example, ECS or EKS).
-- A dashboard for browsing jobs and their execution logs.
+- Read endpoints in the API so the dashboard in `web/` shows live jobs instead of sample data.
