@@ -5,14 +5,17 @@ export type StageState = "done" | "running" | "failed" | "pending";
 export interface StageView {
   stage: PipelineStage;
   label: string;
-  /** For narrow screens, where six full labels do not fit side by side. */
+  /** For narrow screens, where seven full labels do not fit side by side. */
   shortLabel: string;
   state: StageState;
 }
 
+const SHORT_LABELS: Partial<Record<PipelineStage, string>> = { CHANGELOG: "Notes", PR: "PR" };
+
 const LABELS: Record<PipelineStage, string> = {
   CLONE: "Clone",
   INSTALL: "Install",
+  UPGRADE: "Upgrade",
   CHANGELOG: "Changelog",
   REFACTOR: "Refactor",
   TEST: "Test",
@@ -42,7 +45,7 @@ export function pipelineStages(steps: LogStep[], status: JobStatus): StageView[]
     } else if (index === current && status === "IN_PROGRESS") {
       state = "running";
     }
-    return { stage, label: LABELS[stage], shortLabel: stage === "PR" ? "PR" : LABELS[stage], state };
+    return { stage, label: LABELS[stage], shortLabel: SHORT_LABELS[stage] ?? LABELS[stage], state };
   });
 }
 

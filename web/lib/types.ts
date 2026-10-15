@@ -4,10 +4,11 @@
 export const JOB_STATUSES = ["QUEUED", "IN_PROGRESS", "COMPLETED", "FAILED"] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
-export type LogStep = "STARTED" | "CLONE" | "INSTALL" | "CHANGELOG" | "REFACTOR" | "TEST" | "PR" | "SKIPPED" | "FAILED";
+export type LogStep =
+  "STARTED" | "CLONE" | "INSTALL" | "UPGRADE" | "CHANGELOG" | "REFACTOR" | "TEST" | "PR" | "SKIPPED" | "FAILED";
 
 /** The sandbox stages a migration moves through, in order. */
-export const PIPELINE_STAGES = ["CLONE", "INSTALL", "CHANGELOG", "REFACTOR", "TEST", "PR"] as const;
+export const PIPELINE_STAGES = ["CLONE", "INSTALL", "UPGRADE", "CHANGELOG", "REFACTOR", "TEST", "PR"] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 export interface Repository {

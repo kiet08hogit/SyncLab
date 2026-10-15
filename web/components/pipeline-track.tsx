@@ -11,7 +11,7 @@ const SEGMENT: Record<StageState, string> = {
   pending: "bg-foreground/12",
 };
 
-/** Six segments, one per sandbox stage. Sized for a table cell. */
+/** One segment per sandbox stage. Sized for a table cell. */
 export function PipelineTrackCompact({ steps, status }: { steps: LogStep[]; status: JobStatus }) {
   const stages = pipelineStages(steps, status);
   const description = describePipeline(stages, status);
@@ -54,7 +54,7 @@ export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: Job
   const stages = pipelineStages(steps, status);
 
   return (
-    <ol aria-label={describePipeline(stages, status)} className="grid grid-cols-6">
+    <ol aria-label={describePipeline(stages, status)} className="grid grid-cols-7">
       {stages.map((stage, index) => (
         <li key={stage.stage} className="relative flex flex-col items-center gap-2 text-center">
           {index > 0 && (
