@@ -117,7 +117,7 @@ sequenceDiagram
         SB->>GH: push branch, open pull request
         WK->>DB: COMPLETED + pull_request_url
     else tests failed, refactor failed, or nothing changed
-        WK->>DB: FAILED + error_message
+        WK->>DB: error_message, QUEUED if BullMQ will retry, else FAILED
         WK->>Q: retry only if the failure is transient (model rate limit)
     end
 ```
@@ -150,7 +150,9 @@ flowchart TD
     U --> J{"INSERT MigrationJob<br/>unique (repo, dependency, version)"}
     J -- created --> ENQ["queue.add(process-migration)"]
     J -- "duplicate (P2002)" --> S{"existing status"}
-    S -- FAILED --> ENQ
+    S -- FAILED --> R{"UPDATE status FAILED to QUEUED<br/>where still FAILED"}
+    R -- "row updated" --> ENQ
+    R -- "another trigger won" --> NQ
     S -- "QUEUED / IN_PROGRESS / COMPLETED" --> NQ["202 {queued: false}"]
     ENQ --> Q1["202 {queued: true}"]
 ```
@@ -160,6 +162,7 @@ Key details:
 - Signatures are checked over the raw request body with a constant-time comparison, so a forged or re-serialized payload is rejected.
 - Deduplication relies on the database unique constraint rather than read-then-write, so two concurrent deliveries of the same release cannot both create a job.
 - A redelivered webhook never opens a second pull request, but a job that previously `FAILED` is queued again.
+  The conditional `FAILED` to `QUEUED` update is the claim on that retry, so concurrent triggers queue it only once.
 - Both triggers share `MigrationJobsService`, so they deduplicate and retry identically.
 
 ### 2. Worker job lifecycle
@@ -171,9 +174,9 @@ stateDiagram-v2
     [*] --> QUEUED: gateway creates job
     QUEUED --> IN_PROGRESS: worker claims row (SELECT ... FOR UPDATE)
     IN_PROGRESS --> COMPLETED: tests passed, PR opened
-    IN_PROGRESS --> FAILED: any failure (error_message recorded)
-    FAILED --> IN_PROGRESS: BullMQ retry (transient failures only)
-    FAILED --> IN_PROGRESS: trigger received again for same repo, dependency, version
+    IN_PROGRESS --> QUEUED: transient failure, BullMQ attempts left (error_message recorded)
+    IN_PROGRESS --> FAILED: last attempt or unrecoverable failure (error_message recorded)
+    FAILED --> QUEUED: trigger received again for same repo, dependency, version
     COMPLETED --> COMPLETED: later deliveries are skipped (SKIPPED log)
     COMPLETED --> [*]
 ```
@@ -198,7 +201,7 @@ flowchart TD
     PREP -- failed --> F1["FAILED, not retried"]
     PREP -- ok --> LOOP{"attempt <= LLM_MAX_ATTEMPTS?"}
     LOOP -- yes --> REF["refactor (attempt n)"]
-    REF -- "model rate limited" --> F2["FAILED, BullMQ retries with backoff"]
+    REF -- "model rate limited" --> F2["QUEUED, BullMQ retries with backoff<br/>(FAILED after the last attempt)"]
     REF -- "other model error" --> F3["FAILED, not retried"]
     REF -- ok --> TEST["test (attempt n)"]
     TEST -- pass --> PUB["publish"]
@@ -327,14 +330,14 @@ Only failures that could succeed on a later try are retried; everything else is 
 
 | Failure | Job status | Retried by BullMQ |
 | --- | --- | --- |
-| Gemini rate limit (429, quota or resource exhausted) | `FAILED` | yes |
-| Ollama server not reachable (connection refused) | `FAILED` | yes |
+| Gemini rate limit (429, quota or resource exhausted) | `QUEUED` while retrying, then `FAILED` | yes |
+| Ollama server not reachable (connection refused) | `QUEUED` while retrying, then `FAILED` | yes |
 | Other model errors (bad key, unknown model, malformed output) | `FAILED` | no |
 | `GEMINI_API_KEY` missing with `LLM_PROVIDER=gemini` | `FAILED` | no |
 | Clone, install or dependency upgrade failed | `FAILED` | no |
 | Tests still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
 | Refactor produced no changes | `FAILED` | no |
-| Infrastructure errors (Docker, GitHub token, database) | `FAILED` | yes |
+| Infrastructure errors (Docker, GitHub token, database) | `QUEUED` while retrying, then `FAILED` | yes |
 | Already `COMPLETED` when claimed | unchanged | no (logged as `SKIPPED`) |
 
 A failed job can also be retried by triggering the same repository, dependency and version again.
