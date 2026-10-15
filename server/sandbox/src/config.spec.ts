@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { loadConfig, requireToken } from './config.js';
+import { loadConfig, requireToken, resolveLlmProvider } from './config.js';
 
 function restoreEnv(saved: NodeJS.ProcessEnv): void {
   for (const name of Object.keys(process.env)) {
@@ -18,6 +18,7 @@ const REQUIRED = {
   DEPENDENCY_NAME: 'lodash',
   TARGET_VERSION: '4.17.21',
   BRANCH_NAME: 'synclab/lodash-4.17.21',
+  LLM_MODEL: 'qwen2.5-coder:14b',
 };
 
 describe('config', () => {
@@ -45,6 +46,7 @@ describe('config', () => {
       assert.equal(config.dependencyName, REQUIRED.DEPENDENCY_NAME);
       assert.equal(config.targetVersion, REQUIRED.TARGET_VERSION);
       assert.equal(config.branchName, REQUIRED.BRANCH_NAME);
+      assert.equal(config.llm.model, REQUIRED.LLM_MODEL);
     });
 
     it('fails on each missing or empty required variable', () => {
@@ -112,5 +114,24 @@ describe('config', () => {
       process.env.GITHUB_TOKEN = '';
       assert.throws(() => requireToken(), { message: 'Missing required environment variable GITHUB_TOKEN' });
     });
+  });
+});
+
+describe('resolveLlmProvider', () => {
+  it('defaults to ollama when the provider is not set', () => {
+    assert.equal(resolveLlmProvider(undefined), 'ollama');
+    assert.equal(resolveLlmProvider(''), 'ollama');
+  });
+
+  it('accepts each supported provider', () => {
+    assert.equal(resolveLlmProvider('ollama'), 'ollama');
+    assert.equal(resolveLlmProvider('gemini'), 'gemini');
+  });
+
+  it('refuses a provider it does not know rather than falling back to ollama', () => {
+    assert.throws(() => resolveLlmProvider('Gemini'), {
+      message: 'LLM_PROVIDER must be one of ollama, gemini, got "Gemini".',
+    });
+    assert.throws(() => resolveLlmProvider('gemeni'), /must be one of ollama, gemini/);
   });
 });

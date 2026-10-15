@@ -27,8 +27,23 @@ export interface SandboxConfig {
   dockerSocketPath?: string;
 }
 
+export const LLM_PROVIDERS = ['ollama', 'gemini'] as const;
+
+export type LlmProvider = (typeof LLM_PROVIDERS)[number];
+
+const DEFAULT_LLM_MODELS: Record<LlmProvider, string> = {
+  ollama: 'qwen2.5-coder:14b',
+  gemini: 'gemini-3.1-pro-preview',
+};
+
 export interface LlmConfig {
+  provider: LlmProvider;
+  /** Only used by the Gemini provider. */
   apiKey: string;
+  /** Only used by the Ollama provider, and resolved from inside the sandbox container. */
+  baseUrl: string;
+  /** Only used by the Ollama provider. */
+  numCtx: number;
   model: string;
   maxAttempts: number;
   maxFiles: number;
@@ -55,6 +70,18 @@ export interface Configuration {
 
 export function resolveAppRole(value: string | undefined): AppRole {
   return APP_ROLES.includes(value as AppRole) ? (value as AppRole) : 'all';
+}
+
+export function resolveLlmProvider(value: string | undefined): LlmProvider {
+  if (!value) {
+    return 'ollama';
+  }
+
+  if (!LLM_PROVIDERS.includes(value as LlmProvider)) {
+    throw new Error(`LLM_PROVIDER must be one of ${LLM_PROVIDERS.join(', ')}, got "${value}".`);
+  }
+
+  return value as LlmProvider;
 }
 
 export function roleIncludesGateway(role: AppRole): boolean {
@@ -84,6 +111,8 @@ function loadPrivateKey(): string | undefined {
 }
 
 export function configuration(): Configuration {
+  const llmProvider = resolveLlmProvider(process.env.LLM_PROVIDER);
+
   return {
     appRole: resolveAppRole(process.env.APP_ROLE),
     worker: {
@@ -112,8 +141,13 @@ export function configuration(): Configuration {
       dockerSocketPath: process.env.DOCKER_SOCKET_PATH,
     },
     llm: {
+      provider: llmProvider,
       apiKey: process.env.GEMINI_API_KEY ?? '',
-      model: process.env.LLM_MODEL ?? 'gemini-3.1-pro-preview',
+      // The sandbox container reaches Ollama on the host, so this is the
+      // host as Docker Desktop exposes it, not localhost.
+      baseUrl: process.env.LLM_BASE_URL ?? 'http://host.docker.internal:11434',
+      numCtx: positiveNumber(process.env.LLM_NUM_CTX, 32_768),
+      model: process.env.LLM_MODEL ?? DEFAULT_LLM_MODELS[llmProvider],
       // Every attempt is a fresh round of LLM calls, so the ceilings are
       // deliberately low: they are the only brake on the cost of one job.
       maxAttempts: positiveNumber(process.env.LLM_MAX_ATTEMPTS, 3),
