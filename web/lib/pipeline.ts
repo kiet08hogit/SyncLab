@@ -1,4 +1,4 @@
-import { PIPELINE_STAGES, type JobStatus, type LogStep, type PipelineStage } from "@/lib/types";
+import { PIPELINE_STAGES, type JobStatus, type PipelineStage, type StepResult } from "@/lib/types";
 
 export type StageState = "done" | "running" | "failed" | "pending";
 
@@ -20,18 +20,26 @@ const LABELS: Record<PipelineStage, string> = {
 };
 
 /**
- * The worker writes one log row per stage as it reaches it, so the furthest
- * stage seen is where the job is now: still running, or where it failed.
+ * The worker flushes a phase's log rows only once the phase finishes, so a
+ * logged stage has completed, or failed if it logged a nonzero exit code. A job
+ * in progress is running the first stage after the furthest one logged. A
+ * failed job failed at its last stage with a nonzero exit code, or else at the
+ * first stage after the furthest one logged.
  */
-export function pipelineStages(steps: LogStep[], status: JobStatus): StageView[] {
-  const reached = PIPELINE_STAGES.reduce((furthest, stage, index) => (steps.includes(stage) ? index : furthest), -1);
+export function pipelineStages(steps: StepResult[], status: JobStatus): StageView[] {
+  const reached = PIPELINE_STAGES.findLastIndex((stage) => steps.some((step) => step.step === stage));
+  const exited = steps.findLast((step) => step.exitCode !== null && step.exitCode !== 0)?.step;
+  const exitedIndex = PIPELINE_STAGES.findIndex((stage) => stage === exited);
+  const current = status === "FAILED" && exitedIndex !== -1 ? exitedIndex : reached + 1;
 
   return PIPELINE_STAGES.map((stage, index) => {
     let state: StageState = "pending";
-    if (status === "COMPLETED" || index < reached) {
+    if (status === "COMPLETED" || (status !== "QUEUED" && index < current)) {
       state = "done";
-    } else if (index === reached) {
-      state = status === "FAILED" ? "failed" : status === "IN_PROGRESS" ? "running" : "done";
+    } else if (index === current && status === "FAILED") {
+      state = "failed";
+    } else if (index === current && status === "IN_PROGRESS") {
+      state = "running";
     }
     return { stage, label: LABELS[stage], shortLabel: stage === "PR" ? "PR" : LABELS[stage], state };
   });

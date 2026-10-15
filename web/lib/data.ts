@@ -2,6 +2,7 @@ import "server-only";
 
 import { connection } from "next/server";
 
+import { splitExitCode } from "@/lib/format";
 import type {
   ExecutionLog,
   JobDetail,
@@ -52,7 +53,6 @@ const seeds: JobSeed[] = [
       ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 4,812 objects, done."],
       ["INSTALL", "[exit 0]\nadded 1,204 packages in 38s\nnext@15.1.0 installed (was 14.2.18)"],
       ["CHANGELOG", "Fetched release notes for next v15.0.0 → v15.1.0 (3 releases, 41 breaking-change mentions)."],
-      ["REFACTOR", "Refactoring 23 files that import next/headers, next/navigation, or route handlers..."],
     ],
   },
   {
@@ -234,7 +234,9 @@ function build(seed: JobSeed): JobDetail {
     updatedAt: lastLog?.createdAt ?? ago(seed.createdAgo),
   };
 
-  return { ...job, repository, steps: executionLogs.map((log) => log.step), executionLogs };
+  const steps = executionLogs.map((log) => ({ step: log.step, exitCode: splitExitCode(log.output).exitCode }));
+
+  return { ...job, repository, steps, executionLogs };
 }
 
 function allJobs(): JobDetail[] {

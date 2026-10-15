@@ -2,7 +2,7 @@ import { Check, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { describePipeline, pipelineStages, type StageState } from "@/lib/pipeline";
-import type { JobStatus, LogStep } from "@/lib/types";
+import type { JobStatus, StepResult } from "@/lib/types";
 
 const SEGMENT: Record<StageState, string> = {
   done: "bg-status-completed",
@@ -12,7 +12,7 @@ const SEGMENT: Record<StageState, string> = {
 };
 
 /** Six segments, one per sandbox stage. Sized for a table cell. */
-export function PipelineTrackCompact({ steps, status }: { steps: LogStep[]; status: JobStatus }) {
+export function PipelineTrackCompact({ steps, status }: { steps: StepResult[]; status: JobStatus }) {
   const stages = pipelineStages(steps, status);
   const description = describePipeline(stages, status);
 
@@ -50,7 +50,7 @@ const STATE_TEXT: Record<StageState, string> = {
 };
 
 /** The full track: one labelled stop per stage, joined like a route line. */
-export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: JobStatus }) {
+export function PipelineTrack({ steps, status }: { steps: StepResult[]; status: JobStatus }) {
   const stages = pipelineStages(steps, status);
 
   return (

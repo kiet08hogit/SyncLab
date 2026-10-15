@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans({
@@ -32,12 +31,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <TooltipProvider>
-          <AppSidebar />
-          <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none md:overflow-y-auto">
-            {children}
-          </main>
-        </TooltipProvider>
+        <AppSidebar />
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none md:overflow-y-auto">
+          {children}
+        </main>
       </body>
     </html>
   );
