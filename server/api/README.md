@@ -118,6 +118,10 @@ curl -X POST http://localhost:3000/migrations \
 
 The gateway looks the repository up on GitHub (404 if it does not exist or the App cannot see it), then creates the job or returns the existing one for the same repository, dependency and version. Like the webhook, it only queues an existing job again if its status is `FAILED`. The response is `202` with the job `id`, its `status`, and whether it was `queued`.
 
+`GET /migrations/:id` takes the same bearer token and returns one job with its repository and execution log, oldest entry first.
+`githubRepoId` and `installationId` come back as strings, because JSON cannot carry a BigInt.
+It answers `404` for an unknown job and `400` when the id is not a UUID.
+
 ## Scripts
 
 | Command | Purpose |

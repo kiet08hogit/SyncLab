@@ -2,8 +2,12 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -73,5 +77,14 @@ export class MigrationsController {
       dependencyName,
       targetVersion,
     });
+  }
+
+  @Get(':id')
+  async getMigration(@Param('id', ParseUUIDPipe) id: string) {
+    const job = await this.migrationJobs.findDetail(id);
+    if (!job) {
+      throw new NotFoundException(`Migration job ${id} was not found`);
+    }
+    return job;
   }
 }

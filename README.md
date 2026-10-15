@@ -274,10 +274,12 @@ If no result line appears (for example, the container was killed), the raw log b
 | `/` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
 | `/jobs/[id]` | One job's pipeline track (clone, install, upgrade, changelog, refactor, test, pull request), failure reason, and execution log |
 | `/repositories` | Repositories with the GitHub App installed, with job totals and last activity |
+| `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
+| `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
 
-The API has no read endpoints yet, so the dashboard currently serves sample data shaped like the Prisma models.
-Connecting it to live data means replacing the getters in `web/lib/data.ts`.
-See [`web/README.md`](web/README.md).
+Job pages read real jobs through `GET /migrations/:id`.
+The API has no list endpoints yet, so the overview and repository pages still serve sample data shaped like the Prisma models.
+See [`web/README.md`](web/README.md) for the environment variables that enable sign-in and the form.
 
 ## Data model
 
@@ -344,7 +346,7 @@ A failed job can also be retried by triggering the same repository, dependency a
 ```text
 SyncLab/
 ├── infra/Architecture/        design documents (Obsidian vault, Mermaid and Excalidraw)
-├── web/                       Next.js dashboard for jobs, pipeline progress and execution logs (sample data for now)
+├── web/                       Next.js dashboard for jobs, pipeline progress, execution logs, GitHub sign-in and manual migrations
 ├── server/
 │   ├── docker-compose.yml     PostgreSQL 15 and Redis 7 for local development
 │   ├── api/                   NestJS gateway and worker
@@ -464,4 +466,4 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 
 - Metrics for queue depth, sandbox start time and LLM token usage.
 - Auto-scaling worker deployment (for example, ECS or EKS).
-- Read endpoints in the API so the dashboard in `web/` shows live jobs instead of sample data.
+- List endpoints in the API so the dashboard overview in `web/` shows live jobs instead of sample data.

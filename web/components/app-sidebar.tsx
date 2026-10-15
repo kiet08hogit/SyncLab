@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { usePathname } from "next/navigation";
-import { FolderGit2, GitPullRequestArrow } from "lucide-react";
+import { FolderGit2, GitPullRequestArrow, Plus, Settings } from "lucide-react";
 
 import { Mascot } from "@/components/mascot";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { label: "Migrations", href: "/", icon: GitPullRequestArrow },
+  { label: "New migration", href: "/migrations/new", icon: Plus },
   { label: "Repositories", href: "/repositories", icon: FolderGit2 },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -31,7 +33,7 @@ export function AppSidebar() {
         <div className="flex flex-col gap-3">
           <ThemeToggle />
           <p className="border border-sidebar-border px-3 py-2.5 text-xs leading-relaxed text-sidebar-foreground/70">
-            Showing sample data. The API has no read endpoints yet.
+            Job lists show sample data. The API has no list endpoints yet.
           </p>
         </div>
       </SidebarBody>
@@ -71,9 +73,9 @@ function NavLinks({ pathname, onNavigate }: { pathname: string | null; onNavigat
 
 function Brand() {
   return (
-    <div className="flex items-center gap-2.5 px-1">
-      <Mascot className="size-8" />
-      <span className="text-base font-semibold tracking-tight">SyncLab</span>
+    <div className="flex items-center gap-3 px-1">
+      <Mascot className="size-11" />
+      <span className="text-2xl font-semibold tracking-tight">SyncLab</span>
     </div>
   );
 }

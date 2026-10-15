@@ -1,7 +1,11 @@
 import "server-only";
 
 import { connection } from "next/server";
+import { cache } from "react";
 
+import { apiConfigured, fetchJob } from "@/lib/api";
+import { getAccessibleRepositories, GithubUnauthorizedError } from "@/lib/github";
+import { getSession } from "@/lib/session";
 import type {
   ExecutionLog,
   JobDetail,
@@ -13,9 +17,11 @@ import type {
   RepositorySummary,
 } from "@/lib/types";
 
-// The API has no read endpoints yet, so every getter below serves sample data
+// The API has no list endpoints yet, so the getters below serve sample data
 // shaped exactly like the Prisma models. Swapping in real requests only means
 // rewriting these functions; nothing that renders them has to change.
+// getJob already reads real jobs from the API for signed-in users with access
+// to the repository, falling back to the samples.
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -305,10 +311,26 @@ export async function getJobs(
     );
 }
 
-export async function getJob(id: string): Promise<JobDetail | null> {
+export const getJob = cache(async (id: string): Promise<JobDetail | null> => {
   await connection();
-  return allJobs().find((job) => job.id === id) ?? null;
-}
+  const sample = allJobs().find((job) => job.id === id);
+  if (sample) return sample;
+  if (!apiConfigured()) return null;
+
+  // Real jobs are only shown to someone whose own installations reach the
+  // repository, since the API trusts the shared token.
+  const session = await getSession();
+  if (!session) return null;
+  const job = await fetchJob(id);
+  if (!job) return null;
+  try {
+    const repositories = await getAccessibleRepositories(session.accessToken);
+    return repositories.some((repository) => String(repository.id) === job.repository.githubRepoId) ? job : null;
+  } catch (error) {
+    if (error instanceof GithubUnauthorizedError) return null;
+    throw error;
+  }
+});
 
 export async function getStatusCounts(): Promise<Record<JobStatus, number>> {
   await connection();
