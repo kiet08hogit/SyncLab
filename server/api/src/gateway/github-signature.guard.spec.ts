@@ -1,5 +1,6 @@
+import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
-import { isValidSignature } from './github-signature.guard';
+import { GithubSignatureGuard, isValidSignature, SIGNATURE_HEADER } from './github-signature.guard';
 
 const SECRET = 'a-test-webhook-secret';
 const BODY = Buffer.from(JSON.stringify({ action: 'published' }), 'utf8');
@@ -33,5 +34,36 @@ describe('isValidSignature', () => {
   it('rejects a signature of the wrong length without throwing', () => {
     expect(() => isValidSignature(BODY, 'sha256=abc', SECRET)).not.toThrow();
     expect(isValidSignature(BODY, 'sha256=abc', SECRET)).toBe(false);
+  });
+});
+
+describe('GithubSignatureGuard', () => {
+  function canActivate(secret: string, rawBody: Buffer | undefined, signature?: string) {
+    const config = { get: () => ({ webhookSecret: secret }) };
+    const request = {
+      rawBody,
+      header: (name: string) => (name === SIGNATURE_HEADER ? signature : undefined),
+    };
+    const context = { switchToHttp: () => ({ getRequest: () => request }) };
+    return new GithubSignatureGuard(config as never).canActivate(context as never);
+  }
+
+  it('lets a correctly signed delivery through', () => {
+    expect(canActivate(SECRET, BODY, sign(BODY, SECRET))).toBe(true);
+  });
+
+  it('rejects a delivery with a bad signature as unauthorized', () => {
+    expect(() => canActivate(SECRET, BODY, sign(BODY, 'wrong-secret'))).toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects an unsigned delivery as unauthorized', () => {
+    expect(() => canActivate(SECRET, BODY)).toThrow(UnauthorizedException);
+  });
+
+  it('fails closed with a server error when no webhook secret is configured', () => {
+    // A signature made with an empty secret must not be accepted either.
+    expect(() => canActivate('', BODY, sign(BODY, ''))).toThrow(InternalServerErrorException);
   });
 });

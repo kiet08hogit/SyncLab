@@ -1,0 +1,293 @@
+import { Prisma } from '@prisma/client';
+import { JobStatus, MIGRATION_JOB_NAME } from '../common/constants';
+import { MigrationJobsService, type EnqueueMigrationInput } from './migration-jobs.service';
+
+const INPUT: EnqueueMigrationInput = {
+  githubRepoId: 42n,
+  fullName: 'acme/widgets',
+  installationId: 7n,
+  repoUrl: 'https://github.com/acme/widgets.git',
+  dependencyName: 'react',
+  targetVersion: '19.0.0',
+};
+
+const RETRY_JOB_OPTIONS = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 120_000 },
+  removeOnComplete: 100,
+  removeOnFail: 500,
+};
+
+function knownError(code: string) {
+  return new Prisma.PrismaClientKnownRequestError('request failed', {
+    code,
+    clientVersion: 'test',
+  });
+}
+
+/**
+ * An in-memory stand-in for the two tables, enforcing the same unique
+ * constraint the database does, so dedup is exercised rather than scripted.
+ */
+function setup() {
+  const repositories = new Map<bigint, { id: string; fullName: string; installationId: bigint }>();
+  const jobs: Array<{
+    id: string;
+    repositoryId: string;
+    dependencyName: string;
+    targetVersion: string;
+    status: string;
+    errorMessage: string | null;
+  }> = [];
+
+  const prisma = {
+    repository: {
+      upsert: jest.fn(
+        (args: {
+          where: { githubRepoId: bigint };
+          create: { fullName: string; installationId: bigint };
+          update: { fullName: string; installationId: bigint };
+        }) => {
+          const existing = repositories.get(args.where.githubRepoId);
+          const row = existing
+            ? { ...existing, ...args.update }
+            : { id: `repo-${repositories.size + 1}`, ...args.create };
+          repositories.set(args.where.githubRepoId, row);
+          return Promise.resolve(row);
+        },
+      ),
+    },
+    migrationJob: {
+      create: jest.fn(
+        (args: {
+          data: { repositoryId: string; dependencyName: string; targetVersion: string };
+        }) => {
+          const { repositoryId, dependencyName, targetVersion } = args.data;
+          if (
+            jobs.some(
+              (job) =>
+                job.repositoryId === repositoryId &&
+                job.dependencyName === dependencyName &&
+                job.targetVersion === targetVersion,
+            )
+          ) {
+            return Promise.reject(knownError('P2002'));
+          }
+          const row = {
+            id: `job-${jobs.length + 1}`,
+            ...args.data,
+            status: JobStatus.QUEUED,
+            errorMessage: null,
+          };
+          jobs.push(row);
+          return Promise.resolve(row);
+        },
+      ),
+      findUniqueOrThrow: jest.fn(
+        (args: {
+          where: {
+            repositoryId_dependencyName_targetVersion: {
+              repositoryId: string;
+              dependencyName: string;
+              targetVersion: string;
+            };
+          };
+        }) => {
+          const key = args.where.repositoryId_dependencyName_targetVersion;
+          const row = jobs.find(
+            (job) =>
+              job.repositoryId === key.repositoryId &&
+              job.dependencyName === key.dependencyName &&
+              job.targetVersion === key.targetVersion,
+          );
+          return row ? Promise.resolve(row) : Promise.reject(knownError('P2025'));
+        },
+      ),
+      update: jest.fn(
+        (args: { where: { id: string }; data: { status: string; errorMessage: string } }) => {
+          const row = jobs.find((job) => job.id === args.where.id);
+          Object.assign(row!, args.data);
+          return Promise.resolve(row);
+        },
+      ),
+    },
+  };
+  const queue = { add: jest.fn().mockResolvedValue(undefined) };
+  const service = new MigrationJobsService(queue as never, prisma as never);
+
+  return { service, prisma, queue, repositories, jobs };
+}
+
+describe('MigrationJobsService.enqueue', () => {
+  it('stores the repository and a QUEUED job, then queues it with retry options', async () => {
+    const { service, queue, repositories, jobs } = setup();
+
+    await expect(service.enqueue(INPUT)).resolves.toEqual({
+      id: 'job-1',
+      status: JobStatus.QUEUED,
+      queued: true,
+    });
+
+    expect(repositories.get(42n)).toEqual({
+      id: 'repo-1',
+      githubRepoId: 42n,
+      fullName: 'acme/widgets',
+      installationId: 7n,
+    });
+    expect(jobs).toEqual([
+      {
+        id: 'job-1',
+        repositoryId: 'repo-1',
+        dependencyName: 'react',
+        targetVersion: '19.0.0',
+        status: JobStatus.QUEUED,
+        errorMessage: null,
+      },
+    ]);
+    expect(queue.add).toHaveBeenCalledTimes(1);
+    expect(queue.add).toHaveBeenCalledWith(
+      MIGRATION_JOB_NAME,
+      { jobId: 'job-1', repoUrl: 'https://github.com/acme/widgets.git' },
+      RETRY_JOB_OPTIONS,
+    );
+  });
+
+  it('refreshes a renamed or reinstalled repository without creating a second row', async () => {
+    const { service, repositories } = setup();
+
+    await service.enqueue(INPUT);
+    await service.enqueue({
+      ...INPUT,
+      fullName: 'acme/gadgets',
+      installationId: 8n,
+      targetVersion: '19.1.0',
+    });
+
+    expect(repositories.size).toBe(1);
+    expect(repositories.get(42n)).toMatchObject({
+      id: 'repo-1',
+      fullName: 'acme/gadgets',
+      installationId: 8n,
+    });
+  });
+
+  it('queues the same release once when it is triggered twice', async () => {
+    const { service, queue, jobs } = setup();
+
+    await service.enqueue(INPUT);
+    await expect(service.enqueue(INPUT)).resolves.toEqual({
+      id: 'job-1',
+      status: JobStatus.QUEUED,
+      queued: false,
+    });
+
+    expect(jobs).toHaveLength(1);
+    expect(queue.add).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a different version or dependency of the same repository as a new job', async () => {
+    const { service, queue, jobs } = setup();
+
+    await service.enqueue(INPUT);
+    await service.enqueue({ ...INPUT, targetVersion: '19.1.0' });
+    await service.enqueue({ ...INPUT, dependencyName: 'react-dom' });
+
+    expect(jobs.map((job) => job.id)).toEqual(['job-1', 'job-2', 'job-3']);
+    expect(queue.add).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([JobStatus.IN_PROGRESS, JobStatus.COMPLETED])(
+    'reports an existing %s job without queueing it again',
+    async (status) => {
+      const { service, queue, jobs } = setup();
+      await service.enqueue(INPUT);
+      jobs[0].status = status;
+
+      await expect(service.enqueue(INPUT)).resolves.toEqual({
+        id: 'job-1',
+        status,
+        queued: false,
+      });
+      expect(queue.add).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('queues an existing FAILED job again', async () => {
+    const { service, queue, jobs } = setup();
+    await service.enqueue(INPUT);
+    jobs[0].status = JobStatus.FAILED;
+
+    await expect(service.enqueue(INPUT)).resolves.toEqual({
+      id: 'job-1',
+      status: JobStatus.QUEUED,
+      queued: true,
+    });
+    expect(queue.add).toHaveBeenCalledTimes(2);
+    expect(queue.add).toHaveBeenLastCalledWith(
+      MIGRATION_JOB_NAME,
+      { jobId: 'job-1', repoUrl: 'https://github.com/acme/widgets.git' },
+      RETRY_JOB_OPTIONS,
+    );
+  });
+
+  // Known bug: the FAILED row is queued without being moved back to QUEUED, so
+  // a second trigger before the worker claims it queues a duplicate run.
+  // Remove `.failing` once enqueue claims the retry atomically.
+  it.failing(
+    'queues a FAILED job once when it is retried twice before the worker runs',
+    async () => {
+      const { service, queue, jobs } = setup();
+      await service.enqueue(INPUT);
+      jobs[0].status = JobStatus.FAILED;
+
+      await service.enqueue(INPUT);
+      await service.enqueue(INPUT);
+
+      expect(queue.add).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('marks the job FAILED when the queue rejects it, so a later trigger can retry', async () => {
+    const { service, queue, jobs } = setup();
+    queue.add.mockRejectedValueOnce(new Error('connect ECONNREFUSED 127.0.0.1:6379'));
+
+    await expect(service.enqueue(INPUT)).rejects.toThrow('ECONNREFUSED');
+    expect(jobs[0]).toMatchObject({
+      status: JobStatus.FAILED,
+      errorMessage: 'Could not queue job: Error: connect ECONNREFUSED 127.0.0.1:6379',
+    });
+
+    await expect(service.enqueue(INPUT)).resolves.toEqual({
+      id: 'job-1',
+      status: JobStatus.QUEUED,
+      queued: true,
+    });
+    expect(queue.add).toHaveBeenCalledTimes(2);
+  });
+
+  it('rethrows a database error that is not a unique violation', async () => {
+    const { service, prisma, queue } = setup();
+    prisma.migrationJob.create.mockRejectedValueOnce(knownError('P2003'));
+
+    await expect(service.enqueue(INPUT)).rejects.toMatchObject({ code: 'P2003' });
+    expect(prisma.migrationJob.findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('propagates a failed repository upsert without creating a job', async () => {
+    const { service, prisma, queue } = setup();
+    prisma.repository.upsert.mockRejectedValueOnce(new Error('connection lost'));
+
+    await expect(service.enqueue(INPUT)).rejects.toThrow('connection lost');
+    expect(prisma.migrationJob.create).not.toHaveBeenCalled();
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('propagates a duplicate whose row vanished before it could be read', async () => {
+    const { service, prisma, queue } = setup();
+    prisma.migrationJob.create.mockRejectedValueOnce(knownError('P2002'));
+
+    await expect(service.enqueue(INPUT)).rejects.toMatchObject({ code: 'P2025' });
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+});

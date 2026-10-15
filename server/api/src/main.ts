@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { configuration } from './config/configuration';
+import { onProcessSignal } from './shutdown';
 
 async function bootstrap() {
   const role = configuration().appRole;
@@ -9,10 +10,10 @@ async function bootstrap() {
   // several workers can run on one machine without fighting over PORT.
   if (role === 'worker') {
     const app = await NestFactory.createApplicationContext(AppModule);
-    const shutdown = async () => {
-      await app.close();
-      process.exit(0);
-    };
+    const shutdown = onProcessSignal(
+      () => app.close(),
+      (code) => process.exit(code),
+    );
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
     return;
@@ -23,4 +24,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+
+void bootstrap().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});

@@ -12,7 +12,7 @@ const PHASES: Record<PhaseName, () => Promise<PhaseResult>> = {
 };
 
 function parsePhase(value: string | undefined): PhaseName {
-  if (value && value in PHASES) {
+  if (value && Object.hasOwn(PHASES, value)) {
     return value as PhaseName;
   }
   throw new Error(`Expected one of ${Object.keys(PHASES).join(', ')} but received "${value ?? ''}"`);

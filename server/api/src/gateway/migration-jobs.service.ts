@@ -81,7 +81,17 @@ export class MigrationJobsService {
 
     // No explicit BullMQ jobId: the database unique constraint already
     // deduplicates, and a retained id would block re-queueing a failed job.
-    await this.migrationQueue.add(MIGRATION_JOB_NAME, jobData, RETRY_JOB_OPTIONS);
+    try {
+      await this.migrationQueue.add(MIGRATION_JOB_NAME, jobData, RETRY_JOB_OPTIONS);
+    } catch (error: unknown) {
+      // A row left QUEUED with nothing in the queue would make every later
+      // trigger skip it, so mark it FAILED to keep it retryable.
+      await this.prisma.migrationJob.update({
+        where: { id: job.id },
+        data: { status: JobStatus.FAILED, errorMessage: `Could not queue job: ${String(error)}` },
+      });
+      throw error;
+    }
 
     return { id: job.id, status: JobStatus.QUEUED, queued: true };
   }
