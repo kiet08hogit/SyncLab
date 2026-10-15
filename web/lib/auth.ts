@@ -12,5 +12,7 @@ export function signInConfigured(): boolean {
 
 /** Only same-origin paths, so the sign-in round trip cannot be turned into an open redirect. */
 export function safeReturnTo(value: string | null | undefined): string {
-  return value && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\") ? value : "/settings";
+  if (!value || !value.startsWith("/") || /[\\\s]/.test(value)) return "/settings";
+  const url = new URL(value, "http://synclab.invalid");
+  return url.origin === "http://synclab.invalid" ? url.pathname + url.search + url.hash : "/settings";
 }
