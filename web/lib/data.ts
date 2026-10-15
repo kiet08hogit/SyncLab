@@ -2,7 +2,6 @@ import "server-only";
 
 import { connection } from "next/server";
 
-import { splitExitCode } from "@/lib/format";
 import type {
   ExecutionLog,
   JobDetail,
@@ -65,6 +64,24 @@ const seeds: JobSeed[] = [
     logs: [
       ["STARTED", "Starting migration for northwind/checkout-service"],
       ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 2,147 objects, done."],
+    ],
+  },
+  {
+    id: "4e6b8d0f-2a4c-4e8a-b1d3-5f7a9c1e3b10",
+    repo: 3,
+    dependencyName: "@nestjs/core",
+    targetVersion: "v11.1.0",
+    status: "IN_PROGRESS",
+    createdAgo: 14 * MINUTE,
+    logs: [
+      ["STARTED", "Starting migration for kiet08hogit/SyncLab"],
+      ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 598 objects, done."],
+      ["INSTALL", "[exit 0]\nchanged 6 packages in 12s"],
+      ["CHANGELOG", "Fetched release notes for @nestjs/core v11.0.0 → v11.1.0 (2 releases, no breaking changes)."],
+      ["REFACTOR", "Attempt 1/3 using gemini-2.5-flash\n429 Too Many Requests: quota exceeded, retry in 60s"],
+      ["FAILED", "model call failed on src/app.module.ts: 429 Too Many Requests: quota exceeded, retry in 60s"],
+      ["STARTED", "Starting migration for kiet08hogit/SyncLab"],
+      ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 598 objects, done."],
     ],
   },
   {
@@ -234,9 +251,7 @@ function build(seed: JobSeed): JobDetail {
     updatedAt: lastLog?.createdAt ?? ago(seed.createdAgo),
   };
 
-  const steps = executionLogs.map((log) => ({ step: log.step, exitCode: splitExitCode(log.output).exitCode }));
-
-  return { ...job, repository, steps, executionLogs };
+  return { ...job, repository, steps: executionLogs.map((log) => log.step), executionLogs };
 }
 
 function allJobs(): JobDetail[] {

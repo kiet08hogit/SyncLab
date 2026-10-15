@@ -10,11 +10,6 @@ export type LogStep = "STARTED" | "CLONE" | "INSTALL" | "CHANGELOG" | "REFACTOR"
 export const PIPELINE_STAGES = ["CLONE", "INSTALL", "CHANGELOG", "REFACTOR", "TEST", "PR"] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
-export interface StepResult {
-  step: LogStep;
-  exitCode: number | null;
-}
-
 export interface Repository {
   id: string;
   githubRepoId: string;
@@ -45,8 +40,8 @@ export interface MigrationJob {
 
 export interface JobWithRepository extends MigrationJob {
   repository: Repository;
-  /** Logged steps, oldest first, with the exit code parsed from each output. Enough to draw the pipeline track. */
-  steps: StepResult[];
+  /** Steps reached so far, oldest first. Enough to draw the pipeline track. */
+  steps: LogStep[];
 }
 
 export interface JobDetail extends JobWithRepository {
