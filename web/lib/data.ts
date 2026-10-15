@@ -325,7 +325,7 @@ export const getJob = cache(async (id: string): Promise<JobDetail | null> => {
   if (!job) return null;
   try {
     const repositories = await getAccessibleRepositories(session.accessToken);
-    return repositories.some((repository) => repository.fullName === job.repository.fullName) ? job : null;
+    return repositories.some((repository) => String(repository.id) === job.repository.githubRepoId) ? job : null;
   } catch (error) {
     if (error instanceof GithubUnauthorizedError) return null;
     throw error;
