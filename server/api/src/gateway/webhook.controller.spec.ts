@@ -39,6 +39,8 @@ function setup(existing?: { id: string; status: string }) {
         ? jest.fn().mockRejectedValue(duplicateError())
         : jest.fn().mockResolvedValue({ id: 'job-1', status: JobStatus.QUEUED }),
       findUniqueOrThrow: jest.fn().mockResolvedValue(existing),
+      // The row is still FAILED when the redelivery claims its retry.
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };

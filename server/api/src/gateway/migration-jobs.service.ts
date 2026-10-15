@@ -74,6 +74,24 @@ export class MigrationJobsService {
       return { id: job.id, status: job.status, queued: false };
     }
 
+    // Moving FAILED back to QUEUED is the claim on the retry. Only the trigger
+    // whose conditional update lands queues a run; one that loses the race to
+    // a concurrent trigger sees the row is no longer FAILED and stops.
+    if (!isNew) {
+      const { count } = await this.prisma.migrationJob.updateMany({
+        where: { id: job.id, status: JobStatus.FAILED },
+        data: { status: JobStatus.QUEUED, errorMessage: null },
+      });
+
+      if (count === 0) {
+        const current = await this.prisma.migrationJob.findUniqueOrThrow({
+          where: { id: job.id },
+        });
+        this.logger.log(`Job ${job.id} was re-queued by another trigger, not re-queueing`);
+        return { id: job.id, status: current.status, queued: false };
+      }
+    }
+
     const jobData: MigrationJobData = {
       jobId: job.id,
       repoUrl: input.repoUrl,

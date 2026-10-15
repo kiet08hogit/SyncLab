@@ -85,22 +85,46 @@ function setup() {
       ),
       findUniqueOrThrow: jest.fn(
         (args: {
-          where: {
-            repositoryId_dependencyName_targetVersion: {
-              repositoryId: string;
-              dependencyName: string;
-              targetVersion: string;
-            };
-          };
+          where:
+            | { id: string }
+            | {
+                repositoryId_dependencyName_targetVersion: {
+                  repositoryId: string;
+                  dependencyName: string;
+                  targetVersion: string;
+                };
+              };
         }) => {
-          const key = args.where.repositoryId_dependencyName_targetVersion;
-          const row = jobs.find(
-            (job) =>
-              job.repositoryId === key.repositoryId &&
-              job.dependencyName === key.dependencyName &&
-              job.targetVersion === key.targetVersion,
+          const where = args.where;
+          const row =
+            'id' in where
+              ? jobs.find((job) => job.id === where.id)
+              : jobs.find(
+                  (job) =>
+                    job.repositoryId ===
+                      where.repositoryId_dependencyName_targetVersion.repositoryId &&
+                    job.dependencyName ===
+                      where.repositoryId_dependencyName_targetVersion.dependencyName &&
+                    job.targetVersion ===
+                      where.repositoryId_dependencyName_targetVersion.targetVersion,
+                );
+          // A copy, as Prisma returns: later writes must not show through it.
+          return row ? Promise.resolve({ ...row }) : Promise.reject(knownError('P2025'));
+        },
+      ),
+      // Conditional, like the database: only rows still matching the filter change.
+      updateMany: jest.fn(
+        (args: {
+          where: { id: string; status: string };
+          data: { status: string; errorMessage: string | null };
+        }) => {
+          const matching = jobs.filter(
+            (job) => job.id === args.where.id && job.status === args.where.status,
           );
-          return row ? Promise.resolve(row) : Promise.reject(knownError('P2025'));
+          for (const row of matching) {
+            Object.assign(row, args.data);
+          }
+          return Promise.resolve({ count: matching.length });
         },
       ),
       update: jest.fn(
@@ -230,22 +254,51 @@ describe('MigrationJobsService.enqueue', () => {
     );
   });
 
-  // Known bug: the FAILED row is queued without being moved back to QUEUED, so
-  // a second trigger before the worker claims it queues a duplicate run.
-  // Remove `.failing` once enqueue claims the retry atomically.
-  it.failing(
-    'queues a FAILED job once when it is retried twice before the worker runs',
-    async () => {
-      const { service, queue, jobs } = setup();
-      await service.enqueue(INPUT);
-      jobs[0].status = JobStatus.FAILED;
+  it('queues a FAILED job once when it is retried twice before the worker runs', async () => {
+    const { service, queue, jobs } = setup();
+    await service.enqueue(INPUT);
+    jobs[0].status = JobStatus.FAILED;
+    jobs[0].errorMessage = 'tests failed';
 
-      await service.enqueue(INPUT);
-      await service.enqueue(INPUT);
+    await expect(service.enqueue(INPUT)).resolves.toMatchObject({ queued: true });
+    await expect(service.enqueue(INPUT)).resolves.toEqual({
+      id: 'job-1',
+      status: JobStatus.QUEUED,
+      queued: false,
+    });
 
-      expect(queue.add).toHaveBeenCalledTimes(2);
-    },
-  );
+    expect(queue.add).toHaveBeenCalledTimes(2);
+    expect(jobs[0]).toMatchObject({ status: JobStatus.QUEUED, errorMessage: null });
+  });
+
+  it('queues a FAILED job once when two triggers race for it', async () => {
+    const { service, queue, jobs } = setup();
+    await service.enqueue(INPUT);
+    jobs[0].status = JobStatus.FAILED;
+
+    const results = await Promise.all([service.enqueue(INPUT), service.enqueue(INPUT)]);
+
+    expect(results.filter((result) => result.queued)).toHaveLength(1);
+    expect(queue.add).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports the current status when another trigger already took the retry', async () => {
+    const { service, prisma, queue, jobs } = setup();
+    await service.enqueue(INPUT);
+    jobs[0].status = JobStatus.FAILED;
+    // A worker claims the job between this trigger's read and its update.
+    prisma.migrationJob.updateMany.mockImplementationOnce(() => {
+      jobs[0].status = JobStatus.IN_PROGRESS;
+      return Promise.resolve({ count: 0 });
+    });
+
+    await expect(service.enqueue(INPUT)).resolves.toEqual({
+      id: 'job-1',
+      status: JobStatus.IN_PROGRESS,
+      queued: false,
+    });
+    expect(queue.add).toHaveBeenCalledTimes(1);
+  });
 
   it('marks the job FAILED when the queue rejects it, so a later trigger can retry', async () => {
     const { service, queue, jobs } = setup();
