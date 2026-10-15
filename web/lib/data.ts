@@ -2,6 +2,7 @@ import "server-only";
 
 import { connection } from "next/server";
 
+import { apiConfigured, fetchJob } from "@/lib/api";
 import type {
   ExecutionLog,
   JobDetail,
@@ -13,9 +14,10 @@ import type {
   RepositorySummary,
 } from "@/lib/types";
 
-// The API has no read endpoints yet, so every getter below serves sample data
+// The API has no list endpoints yet, so the getters below serve sample data
 // shaped exactly like the Prisma models. Swapping in real requests only means
 // rewriting these functions; nothing that renders them has to change.
+// getJob already reads real jobs from the API, falling back to the samples.
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -307,7 +309,9 @@ export async function getJobs(
 
 export async function getJob(id: string): Promise<JobDetail | null> {
   await connection();
-  return allJobs().find((job) => job.id === id) ?? null;
+  const sample = allJobs().find((job) => job.id === id);
+  if (sample) return sample;
+  return apiConfigured() ? fetchJob(id) : null;
 }
 
 export async function getStatusCounts(): Promise<Record<JobStatus, number>> {

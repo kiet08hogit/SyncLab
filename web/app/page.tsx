@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Search, SearchX, X } from "lucide-react";
+import { Plus, Search, SearchX, X } from "lucide-react";
 
 import { JobsTable } from "@/components/jobs-table";
 import { RunningJobs } from "@/components/running-jobs";
@@ -18,12 +18,20 @@ function first(value: string | string[] | undefined) {
 export default function MigrationsPage({ searchParams }: PageProps<"/">) {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Migrations</h1>
-        <p className="max-w-2xl text-pretty text-muted-foreground">
-          Every published release SyncLab picks up becomes a job: cloned, upgraded, refactored, tested in a sandbox, and
-          opened as a pull request.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Migrations</h1>
+          <p className="max-w-2xl text-pretty text-muted-foreground">
+            Every published release SyncLab picks up becomes a job: cloned, upgraded, refactored, tested in a sandbox,
+            and opened as a pull request.
+          </p>
+        </div>
+        <Button asChild size="lg" className="h-10 w-fit shrink-0 px-4">
+          <Link href="/migrations/new">
+            <Plus aria-hidden />
+            New migration
+          </Link>
+        </Button>
       </header>
       <Suspense fallback={<OverviewSkeleton />}>
         <Overview searchParams={searchParams} />
