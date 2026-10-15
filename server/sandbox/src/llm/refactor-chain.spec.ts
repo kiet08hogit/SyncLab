@@ -92,9 +92,9 @@ function stubOllama(t: TestContext, reply: string, doneReason: string) {
   return requests;
 }
 
-function request(contents: string) {
+function request(contents: string, relativePath = 'src/users.js') {
   return {
-    relativePath: 'src/users.js',
+    relativePath,
     contents,
     usage: { importedNames: ['_'], usageLines: [3] },
   };
@@ -127,10 +127,15 @@ describe('the Ollama refactor chain', () => {
   it('refuses a reply that hit the output limit after a fence inside the file', async (t) => {
     stubOllama(t, cutOff, 'length');
 
-    await assert.rejects(
-      createRefactorChain(ollamaConfig(32_768))(request(ORIGINAL)),
-      /reached its output limit, so the file was cut off/,
+    const error = await createRefactorChain(ollamaConfig(32_768))(
+      request(ORIGINAL, 'src/rate limit/429.js'),
+    ).then(
+      () => assert.fail('expected the reply to be refused'),
+      (reason: unknown) => reason,
     );
+
+    assert.match(String(error), /reached its output limit, so the file was cut off/);
+    assert.equal(isRetryableModelError(error), false);
   });
 
   it('keeps the output cap inside the room the prompt leaves', async (t) => {
@@ -150,15 +155,14 @@ describe('the Ollama refactor chain', () => {
     const requests = stubOllama(t, 'Nothing to change.', 'stop');
     const contents = `${ORIGINAL}${'// filler line for the context budget\n'.repeat(400)}`;
 
-    const error = await createRefactorChain(ollamaConfig(8_192))(request(contents)).then(
+    const error = await createRefactorChain(ollamaConfig(8_192))(
+      request(contents, 'src/billing/quota.ts'),
+    ).then(
       () => assert.fail('expected the file to be refused'),
       (reason: unknown) => reason,
     );
 
-    assert.match(
-      String(error),
-      /src\/users\.js is too large to rewrite within the 8192 token context window/,
-    );
+    assert.match(String(error), /too large to rewrite within the 8192 token context window/);
     assert.equal(isRetryableModelError(error), false);
     assert.equal(requests.length, 0);
   });
