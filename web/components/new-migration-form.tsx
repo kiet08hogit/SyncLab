@@ -54,7 +54,9 @@ export function NewMigrationForm({
   const latestRequest = useRef(0);
 
   // React resets a form after its action runs, and Radix reports that as a change
-  // to "". Ignoring it keeps the user's choices on screen next to the error.
+  // to "". Ignoring it keeps the user's choices on screen next to the error. The
+  // values are submitted through hidden inputs, which a reset leaves alone, so
+  // a retry sends what the form shows rather than the native selects' defaults.
   async function pickRepository(value: string) {
     if (!value) return;
     const request = ++latestRequest.current;
@@ -95,6 +97,9 @@ export function NewMigrationForm({
 
   return (
     <form action={action} className="corner-mark flex flex-col border bg-card">
+      <input type="hidden" name="repository" value={repository} />
+      <input type="hidden" name="dependency" value={dependency} />
+      <input type="hidden" name="version" value={version} />
       <div className="flex flex-col gap-6 p-5 sm:p-6">
         <Field
           id="repository"
@@ -102,7 +107,7 @@ export function NewMigrationForm({
           label="Repository"
           hint={`${repositories.length} available through your installations`}
         >
-          <Select name="repository" value={repository} onValueChange={pickRepository} disabled={pending}>
+          <Select value={repository} onValueChange={pickRepository} disabled={pending}>
             <SelectTrigger id="repository" className={TRIGGER}>
               <SelectValue placeholder="Choose a repository" />
             </SelectTrigger>
@@ -119,7 +124,6 @@ export function NewMigrationForm({
 
         <Field id="dependency" step="02" label="Dependency" hint={dependencyHint(dependencies, current)}>
           <Select
-            name="dependency"
             value={dependency}
             onValueChange={pickDependency}
             disabled={pending || dependencies.state !== "ready" || !dependencies.data?.length}
@@ -144,7 +148,6 @@ export function NewMigrationForm({
 
         <Field id="version" step="03" label="Target version" hint={versionHint(versions, current, version)}>
           <Select
-            name="version"
             value={version}
             onValueChange={(value) => value && setVersion(value)}
             disabled={pending || versions.state !== "ready" || versions.data.versions.length === 0}
