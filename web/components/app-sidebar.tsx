@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { usePathname } from "next/navigation";
 import { FolderGit2, GitPullRequestArrow } from "lucide-react";
 
+import { Mascot } from "@/components/mascot";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
@@ -71,19 +72,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string | null; onNavigat
 function Brand() {
   return (
     <div className="flex items-center gap-2.5 px-1">
-      <svg
-        aria-hidden
-        viewBox="0 0 24 24"
-        className="size-6 text-sidebar-primary"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.25}
-        strokeLinecap="round"
-      >
-        <path d="M4 8h11a4 4 0 0 1 0 8H9" />
-        <path d="M7 5 4 8l3 3" />
-        <path d="m12 13-3 3 3 3" />
-      </svg>
+      <Mascot className="size-8" />
       <span className="text-base font-semibold tracking-tight">SyncLab</span>
     </div>
   );
