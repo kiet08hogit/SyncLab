@@ -1,4 +1,11 @@
 /**
+ * A failure the refactor chain raises itself about a file or a reply. It says
+ * nothing about the provider's availability, and its message can carry text
+ * from the repository, so it is never read for retry hints.
+ */
+export class PermanentModelError extends Error {}
+
+/**
  * Only transient model failures are worth retrying at the job level: the work
  * is still valid, the provider just cannot serve it right now. That is a rate
  * limit from a hosted provider, or a local Ollama server that is not running
@@ -6,6 +13,10 @@
  * repeats identically on a retry.
  */
 export function isRetryableModelError(error: unknown): boolean {
+  if (error instanceof PermanentModelError) {
+    return false;
+  }
+
   const candidate = error as { status?: unknown; code?: unknown; cause?: unknown } | null;
 
   if (candidate?.status === 429 || candidate?.code === 429) {

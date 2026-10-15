@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { SandboxConfig } from '../config.js';
 import type { DependencyUsage } from '../analysis/imports.js';
+import { PermanentModelError } from './errors.js';
 import { createGeminiModel, createOllamaModel } from './model.js';
 
 /**
@@ -142,8 +143,8 @@ function createFencedChain(config: SandboxConfig): RefactorChain {
       config.llm.numCtx - estimateTokens(FENCED_SYSTEM_PROMPT) - estimateTokens(userPrompt);
 
     if (roomLeft < estimateTokens(request.contents) + OUTPUT_TOKEN_HEADROOM) {
-      throw new Error(
-        `${request.relativePath} is too large to rewrite within the ${config.llm.numCtx} token context window. Raise LLM_NUM_CTX or lower LLM_MAX_FILE_BYTES.`,
+      throw new PermanentModelError(
+        `The file is too large to rewrite within the ${config.llm.numCtx} token context window. Raise LLM_NUM_CTX or lower LLM_MAX_FILE_BYTES.`,
       );
     }
 
@@ -160,7 +161,9 @@ function createFencedChain(config: SandboxConfig): RefactorChain {
     // A fence inside the file can pass for the closing one, so only Ollama
     // knows for sure that the reply ran out of room.
     if (reply.response_metadata?.done_reason === 'length') {
-      throw new Error('The model reply reached its output limit, so the file was cut off.');
+      throw new PermanentModelError(
+        'The model reply reached its output limit, so the file was cut off.',
+      );
     }
 
     return parseFencedReply(reply.text, request.contents);
@@ -186,7 +189,7 @@ export function parseFencedReply(reply: string, original: string): RefactorOutco
   const close = reply.lastIndexOf(FENCE);
 
   if (bodyStart === -1 || close <= bodyStart) {
-    throw new Error(
+    throw new PermanentModelError(
       'The model reply opened a code block but never closed it, so the file was cut off.',
     );
   }

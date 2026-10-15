@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { isRetryableModelError } from './errors.js';
+import { isRetryableModelError, PermanentModelError } from './errors.js';
 
 describe('isRetryableModelError', () => {
   it('recognises a numeric status on the error object', () => {
@@ -31,6 +31,13 @@ describe('isRetryableModelError', () => {
     assert.equal(isRetryableModelError(new Error('model not found')), false);
     assert.equal(
       isRetryableModelError(new Error('model "qwen2.5-coder:14b" not found, try pulling it first')),
+      false,
+    );
+  });
+
+  it('never retries a failure the chain raised itself, whatever its text says', () => {
+    assert.equal(
+      isRetryableModelError(new PermanentModelError('src/billing/quota.ts hit a 429 rate limit')),
       false,
     );
   });
