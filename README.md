@@ -414,10 +414,12 @@ See [`server/api/README.md`](server/api/README.md) for every environment variabl
 
 ```bash
 cd server/api && npm run typecheck && npm test   # unit tests
-cd server/api && npm run test:e2e                # needs PostgreSQL and Redis running
-cd server/sandbox && npm test                    # analyzer, upgrade and rate-limit tests
+cd server/api && npm run test:e2e                # signed webhook, no PostgreSQL or Redis needed
+cd server/sandbox && npm test                    # phase and helper tests, no network or Docker
 cd web && npm run lint && npm run build          # dashboard lint, typecheck and production build
 ```
+
+`.github/workflows/verify.yml` runs these checks, plus the sandbox image build and a dependency review, on every pull request and on pushes to `main` and `develop`.
 
 `benchmarks/` holds synthetic migration cases (lodash, ramda, ajv, node-fetch, query-string, uuid) at easy, medium and hard difficulty.
 The runner drives the real sandbox `refactor` and `test` code for up to 3 attempts and checks AST targeting, removed APIs, `npm run build` and `npm test`.

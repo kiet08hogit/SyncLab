@@ -114,8 +114,11 @@ The gateway looks the repository up on GitHub (404 if it does not exist or the A
 | `npm run start:gateway` | webhooks and `POST /migrations` only (`APP_ROLE=gateway`) |
 | `npm run start:worker` | sandbox jobs only (`APP_ROLE=worker`) |
 | `npm run sandbox:build` | build the sandbox container image |
+| `npm run db:generate` | generate the Prisma client |
 | `npm run typecheck` | type-check without emitting |
+| `npm run lint` | lint and auto-fix |
+| `npm run lint:check` | lint without fixing, as CI runs it |
 | `npm test` | unit tests |
-| `npm run test:e2e` | end-to-end tests (needs Postgres and Redis from `server/docker-compose.yml`) |
+| `npm run test:e2e` | end-to-end tests (no Postgres or Redis needed) |
 
-The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the dependency analyzer and the rate-limit classifier.
+The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the `prepare`, `test` and `publish` phases and their helpers against local git repositories and a stub npm registry.
