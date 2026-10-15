@@ -85,6 +85,27 @@ const seeds: JobSeed[] = [
     ],
   },
   {
+    id: "b7d9f1a3-5c7e-4a9b-8d1f-3a5c7e9b1d11",
+    repo: 2,
+    dependencyName: "ioredis",
+    targetVersion: "v5.6.1",
+    status: "FAILED",
+    createdAgo: 7 * HOUR,
+    error: "Installation token request failed: the GitHub App is no longer installed on northwind/billing-worker.",
+    logs: [
+      ["STARTED", "Starting migration for northwind/billing-worker"],
+      ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 1,388 objects, done."],
+      ["INSTALL", "[exit 0]\nchanged 1 package in 5s"],
+      ["CHANGELOG", "Fetched release notes for ioredis v5.4.2 → v5.6.1 (4 releases, no breaking changes)."],
+      ["REFACTOR", "Attempt 1/3 using gemini-2.5-flash\n429 Too Many Requests: quota exceeded, retry in 60s"],
+      ["FAILED", "model call failed on src/queue/redis.ts: 429 Too Many Requests: quota exceeded, retry in 60s"],
+      [
+        "FAILED",
+        "Installation token request failed: the GitHub App is no longer installed on northwind/billing-worker.",
+      ],
+    ],
+  },
+  {
     id: "2a7c5e9b-1d3f-4b6a-8e0c-4f2d6b8a0c03",
     repo: 2,
     dependencyName: "bullmq",
