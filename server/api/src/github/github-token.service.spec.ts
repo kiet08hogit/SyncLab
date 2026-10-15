@@ -27,13 +27,65 @@ function service(github: Partial<GithubConfig>) {
   return svc;
 }
 
+describe('GithubTokenService.getInstallationToken', () => {
+  beforeEach(() => {
+    auth.mockClear();
+  });
+
+  it('exchanges the App credentials for an installation token', async () => {
+    await expect(
+      service({ appId: '1', privateKey: 'key', token: 'pat' }).getInstallationToken(7n),
+    ).resolves.toBe('installation-token');
+
+    expect(auth).toHaveBeenCalledWith({ type: 'installation', installationId: 7 });
+  });
+
+  it('falls back to GITHUB_TOKEN when no App is configured', async () => {
+    await expect(service({ token: 'pat' }).getInstallationToken(7n)).resolves.toBe('pat');
+    expect(auth).not.toHaveBeenCalled();
+  });
+
+  it('uses GITHUB_TOKEN for installation id 0 even when an App is configured', async () => {
+    await expect(
+      service({ appId: '1', privateKey: 'key', token: 'pat' }).getInstallationToken(0n),
+    ).resolves.toBe('pat');
+    expect(auth).not.toHaveBeenCalled();
+  });
+
+  it('does not use a half-configured App', async () => {
+    await expect(service({ appId: '1', token: 'pat' }).getInstallationToken(7n)).resolves.toBe(
+      'pat',
+    );
+    expect(auth).not.toHaveBeenCalled();
+  });
+
+  it('fails when there are no credentials at all', async () => {
+    await expect(service({}).getInstallationToken(7n)).rejects.toThrow(
+      'No GitHub credentials available',
+    );
+  });
+
+  it('propagates a failed token exchange', async () => {
+    auth.mockRejectedValueOnce(new Error('401 Bad credentials'));
+
+    await expect(
+      service({ appId: '1', privateKey: 'key' }).getInstallationToken(7n),
+    ).rejects.toThrow('401 Bad credentials');
+  });
+});
+
 describe('GithubTokenService.lookupRepository', () => {
   const fetchMock = jest.fn();
+  const originalFetch = global.fetch;
 
   beforeEach(() => {
     fetchMock.mockReset();
     auth.mockClear();
     global.fetch = fetchMock as never;
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
   });
 
   it('finds the installation with the App JWT, then reads the repo with its token', async () => {
@@ -114,6 +166,22 @@ describe('GithubTokenService.lookupRepository', () => {
     await expect(service({ token: 'pat' }).lookupRepository('acme/widgets')).rejects.toBeInstanceOf(
       BadGatewayException,
     );
+  });
+
+  it('reports a failed App JWT signing as a bad gateway without calling GitHub', async () => {
+    auth.mockRejectedValueOnce(new Error('invalid private key'));
+
+    await expect(
+      service({ appId: '1', privateKey: 'key' }).lookupRepository('acme/widgets'),
+    ).rejects.toBeInstanceOf(BadGatewayException);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails without calling GitHub when there are no credentials at all', async () => {
+    await expect(service({}).lookupRepository('acme/widgets')).rejects.toThrow(
+      'No GitHub credentials available',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('reports a failed installation token exchange as a bad gateway', async () => {
