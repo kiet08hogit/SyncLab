@@ -9,17 +9,19 @@ import type { JobWithRepository } from "@/lib/types";
 
 export function JobsTable({ jobs }: { jobs: JobWithRepository[] }) {
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="corner-mark border bg-card">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="h-10 pl-4 text-xs font-medium text-muted-foreground">Upgrade</TableHead>
-            <TableHead className="h-10 text-xs font-medium text-muted-foreground max-xl:hidden">Repository</TableHead>
-            <TableHead className="h-10 text-xs font-medium text-muted-foreground max-lg:hidden">Pipeline</TableHead>
-            <TableHead className="h-10 text-xs font-medium text-muted-foreground">Status</TableHead>
-            <TableHead className="h-10 text-xs font-medium text-muted-foreground max-sm:hidden">Updated</TableHead>
-            <TableHead className="h-10 pr-4 text-right text-xs font-medium text-muted-foreground">
-              <span aria-hidden className="sm:hidden">PR</span>
+            <TableHead className="h-10 pl-4 label-mono text-muted-foreground">Upgrade</TableHead>
+            <TableHead className="h-10 label-mono text-muted-foreground max-xl:hidden">Repository</TableHead>
+            <TableHead className="h-10 label-mono text-muted-foreground max-lg:hidden">Pipeline</TableHead>
+            <TableHead className="h-10 label-mono text-muted-foreground">Status</TableHead>
+            <TableHead className="h-10 label-mono text-muted-foreground max-sm:hidden">Updated</TableHead>
+            <TableHead className="h-10 pr-4 text-right label-mono text-muted-foreground">
+              <span aria-hidden className="sm:hidden">
+                PR
+              </span>
               <span className="max-sm:sr-only">Pull request</span>
             </TableHead>
           </TableRow>

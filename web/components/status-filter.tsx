@@ -43,10 +43,7 @@ export function StatusFilter({
   ];
 
   return (
-    <nav
-      aria-label="Filter by status"
-      className="grid grid-cols-2 overflow-hidden rounded-lg border bg-card sm:grid-cols-5"
-    >
+    <nav aria-label="Filter by status" className="corner-mark grid grid-cols-2 border bg-card sm:grid-cols-5">
       {items.map((item, index) => {
         const Icon = item.icon;
         return (

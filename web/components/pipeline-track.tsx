@@ -20,7 +20,7 @@ export function PipelineTrackCompact({ steps, status }: { steps: LogStep[]; stat
     <div className="flex flex-col gap-1.5">
       <div role="img" aria-label={description} className="flex w-36 gap-1">
         {stages.map((stage) => (
-          <span key={stage.stage} className={cn("h-1.5 flex-1 rounded-full", SEGMENT[stage.state])} />
+          <span key={stage.stage} className={cn("h-1.5 flex-1", SEGMENT[stage.state])} />
         ))}
       </div>
       <span className="text-xs text-muted-foreground">{description}</span>
@@ -65,7 +65,7 @@ export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: Job
           )}
           <span
             className={cn(
-              "relative z-10 grid size-7 place-items-center rounded-full border-2 text-xs font-semibold",
+              "relative z-10 grid size-7 place-items-center border-2 text-xs font-semibold",
               STOP[stage.state],
             )}
           >
@@ -75,8 +75,8 @@ export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: Job
               <X aria-hidden className="size-3.5" strokeWidth={3} />
             ) : stage.state === "running" ? (
               <span aria-hidden className="relative size-2.5">
-                <span className="absolute inset-0 rounded-full bg-status-running/60 motion-safe:animate-ping" />
-                <span className="absolute inset-0 rounded-full bg-status-running" />
+                <span className="absolute inset-0 bg-status-running/60 motion-safe:animate-ping" />
+                <span className="absolute inset-0 bg-status-running" />
               </span>
             ) : (
               <span aria-hidden className="tabular-nums">

@@ -19,7 +19,7 @@ export default function MigrationsPage({ searchParams }: PageProps<"/">) {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Migrations</h1>
+        <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Migrations</h1>
         <p className="max-w-2xl text-pretty text-muted-foreground">
           Every published release SyncLab picks up becomes a job: cloned, upgraded, refactored, tested in a sandbox, and
           opened as a pull request.
@@ -69,13 +69,13 @@ async function Overview({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
       <section aria-labelledby="jobs-heading" className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 id="jobs-heading" className="text-base font-semibold">
+            <h2 id="jobs-heading" className="label-mono text-muted-foreground">
               {filtered ? `${jobs.length} matching ${jobs.length === 1 ? "job" : "jobs"}` : "All jobs"}
             </h2>
             {repository && (
               <Link
                 href={hrefFor({ status, q: query })}
-                className="inline-flex h-7 items-center gap-1 rounded-md border bg-secondary px-2 text-xs text-secondary-foreground hover:bg-accent"
+                className="inline-flex h-7 items-center gap-1 border bg-secondary px-2 text-xs text-secondary-foreground hover:bg-accent"
               >
                 {repository}
                 <X aria-hidden className="size-3" />
@@ -107,7 +107,7 @@ async function Overview({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
         {jobs.length > 0 ? (
           <JobsTable jobs={jobs} />
         ) : (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-16 text-center">
+          <div className="flex flex-col items-center gap-3 border border-dashed px-6 py-16 text-center">
             <SearchX aria-hidden className="size-6 text-muted-foreground" />
             <div className="flex flex-col gap-1">
               <p className="font-medium">No jobs match these filters</p>

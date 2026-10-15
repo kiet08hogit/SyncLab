@@ -53,7 +53,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="flex items-baseline gap-2.5 text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="flex items-baseline gap-2.5 font-serif text-3xl font-normal tracking-tight sm:text-4xl">
               {job.dependencyName}
               <span className="font-mono text-lg font-normal text-muted-foreground sm:text-xl">
                 {job.targetVersion}
@@ -103,7 +103,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
       </header>
 
       {job.status === "FAILED" && job.errorMessage && (
-        <div className="flex gap-3 rounded-lg border border-status-failed/30 bg-status-failed/10 p-4">
+        <div className="flex gap-3 border border-status-failed/30 bg-status-failed/10 p-4">
           <CircleX aria-hidden className="mt-0.5 size-5 shrink-0 text-status-failed" />
           <div className="flex flex-col gap-1">
             <p className="font-medium">Migration failed</p>
@@ -112,24 +112,24 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
         </div>
       )}
 
-      <section aria-labelledby="pipeline-heading" className="flex flex-col gap-4 rounded-lg border bg-card p-5 sm:p-6">
-        <h2 id="pipeline-heading" className="text-base font-semibold">
+      <section aria-labelledby="pipeline-heading" className="corner-mark flex flex-col gap-5 border bg-card p-5 sm:p-6">
+        <h2 id="pipeline-heading" className="label-mono text-muted-foreground">
           Pipeline
         </h2>
         <PipelineTrack steps={job.steps} status={job.status} />
       </section>
 
       <section aria-labelledby="log-heading" className="flex flex-col gap-3">
-        <h2 id="log-heading" className="text-base font-semibold">
+        <h2 id="log-heading" className="label-mono text-muted-foreground">
           Execution log
         </h2>
         {job.executionLogs.length === 0 ? (
-          <div className="flex items-center gap-3 rounded-lg border border-dashed px-5 py-8 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3 border border-dashed px-5 py-8 text-sm text-muted-foreground">
             <Hourglass aria-hidden className="size-5 shrink-0" />
             Waiting for a worker to claim this job. Log entries appear here as each stage starts.
           </div>
         ) : (
-          <ol className="flex flex-col overflow-hidden rounded-lg border bg-card">
+          <ol className="corner-mark flex flex-col border bg-card">
             {job.executionLogs.map((log) => {
               const { exitCode, body } = splitExitCode(log.output);
               const failed = log.step === "FAILED" || (exitCode !== null && exitCode !== 0);
@@ -149,7 +149,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
                     {exitCode !== null && (
                       <span
                         className={cn(
-                          "rounded px-1.5 py-0.5 font-mono text-xs",
+                          "px-1.5 py-0.5 font-mono text-xs",
                           exitCode === 0
                             ? "bg-status-completed/12 text-status-completed"
                             : "bg-status-failed/12 text-status-failed",
@@ -160,7 +160,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
                     )}
                   </div>
                   {body && (
-                    <pre className="overflow-x-auto rounded-md bg-background/70 px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-foreground/85">
+                    <pre className="overflow-x-auto bg-log px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-foreground/85">
                       {body}
                     </pre>
                   )}

@@ -1,20 +1,15 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Geist, JetBrains_Mono, Lora } from "next/font/google";
+import { ThemeProvider } from "next-themes";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import "./globals.css";
 
-const plexSans = IBM_Plex_Sans({
-  variable: "--font-plex-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
+const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
 
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-});
+const lora = Lora({ variable: "--font-lora", subsets: ["latin"], weight: ["400", "500"] });
+
+const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], weight: ["400", "500"] });
 
 export const metadata: Metadata = {
   title: { default: "SyncLab", template: "%s · SyncLab" },
@@ -23,18 +18,25 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`dark ${plexSans.variable} ${plexMono.variable} h-full antialiased`}>
+    // next-themes sets the theme class before hydration, so the server markup cannot match it.
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geist.variable} ${lora.variable} ${jetbrains.variable} h-full antialiased`}
+    >
       <body className="flex min-h-dvh flex-col md:h-dvh md:flex-row">
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
-        >
-          Skip to content
-        </a>
-        <AppSidebar />
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none md:overflow-y-auto">
-          {children}
-        </main>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
+          >
+            Skip to content
+          </a>
+          <AppSidebar />
+          <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none md:overflow-y-auto">
+            {children}
+          </main>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { usePathname } from "next/navigation";
 import { FolderGit2, GitPullRequestArrow } from "lucide-react";
 
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
@@ -26,9 +27,12 @@ export function AppSidebar() {
             <CurrentNavLinks onNavigate={close} />
           </Suspense>
         </div>
-        <p className="rounded-md border border-sidebar-border px-3 py-2.5 text-xs leading-relaxed text-sidebar-foreground/70">
-          Showing sample data. The API has no read endpoints yet.
-        </p>
+        <div className="flex flex-col gap-3">
+          <ThemeToggle />
+          <p className="border border-sidebar-border px-3 py-2.5 text-xs leading-relaxed text-sidebar-foreground/70">
+            Showing sample data. The API has no read endpoints yet.
+          </p>
+        </div>
       </SidebarBody>
     </Sidebar>
   );
@@ -40,7 +44,7 @@ function CurrentNavLinks({ onNavigate }: { onNavigate: () => void }) {
 
 function NavLinks({ pathname, onNavigate }: { pathname: string | null; onNavigate: () => void }) {
   return (
-    <nav aria-label="Main" className="flex flex-col gap-1">
+    <nav aria-label="Main" className="flex flex-col gap-0.5">
       {NAV.map((item) => {
         const active =
           pathname !== null &&
@@ -53,8 +57,9 @@ function NavLinks({ pathname, onNavigate }: { pathname: string | null; onNavigat
             onClick={onNavigate}
             link={{ label: item.label, href: item.href, icon: <Icon aria-hidden className="size-4 shrink-0" /> }}
             className={cn(
-              "min-h-10 rounded-md px-3 font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
-              active && "bg-sidebar-accent text-sidebar-foreground",
+              "relative min-h-10 px-3 text-xs font-medium tracking-[0.08em] text-sidebar-foreground/70 uppercase transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              active &&
+                "bg-sidebar-accent text-sidebar-foreground before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-sidebar-primary",
             )}
           />
         );

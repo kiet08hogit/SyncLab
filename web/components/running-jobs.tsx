@@ -10,12 +10,12 @@ import type { JobWithRepository } from "@/lib/types";
 export function RunningJobs({ jobs }: { jobs: JobWithRepository[] }) {
   return (
     <section aria-labelledby="running-heading" className="flex flex-col gap-3">
-      <h2 id="running-heading" className="text-base font-semibold">
+      <h2 id="running-heading" className="label-mono text-muted-foreground">
         Running now
       </h2>
       <ul className="grid gap-3 lg:grid-cols-2">
         {jobs.map((job) => (
-          <li key={job.id} className="relative overflow-hidden rounded-lg border bg-card">
+          <li key={job.id} className="corner-mark border bg-card">
             <Link
               href={`/jobs/${job.id}`}
               className="group flex flex-col gap-5 p-4 sm:p-5 transition-colors hover:bg-accent/40 focus-visible:-outline-offset-2"
@@ -43,8 +43,8 @@ export function RunningJobs({ jobs }: { jobs: JobWithRepository[] }) {
             <BorderBeam
               size={80}
               duration={7}
-              colorFrom="var(--status-running)"
-              colorTo="var(--status-completed)"
+              colorFrom="var(--primary)"
+              colorTo="#58cdff"
               className="motion-reduce:hidden"
             />
           </li>

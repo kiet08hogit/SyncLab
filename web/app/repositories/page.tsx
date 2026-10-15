@@ -13,7 +13,7 @@ export default function RepositoriesPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Repositories</h1>
+        <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Repositories</h1>
         <p className="max-w-2xl text-pretty text-muted-foreground">
           Repositories where the SyncLab GitHub App is installed. A repository appears here after its first release
           webhook.
@@ -31,24 +31,16 @@ async function RepositoryTable() {
   const repositories = await getRepositories();
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
+    <div className="corner-mark border bg-card">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="h-10 pl-4 text-xs font-medium text-muted-foreground">Repository</TableHead>
-            <TableHead className="h-10 text-right text-xs font-medium text-muted-foreground">Jobs</TableHead>
-            <TableHead className="h-10 text-right text-xs font-medium text-muted-foreground max-md:hidden">
-              Active
-            </TableHead>
-            <TableHead className="h-10 text-right text-xs font-medium text-muted-foreground max-md:hidden">
-              Completed
-            </TableHead>
-            <TableHead className="h-10 text-right text-xs font-medium text-muted-foreground max-md:hidden">
-              Failed
-            </TableHead>
-            <TableHead className="h-10 pr-4 text-right text-xs font-medium text-muted-foreground">
-              Last activity
-            </TableHead>
+            <TableHead className="h-10 pl-4 label-mono text-muted-foreground">Repository</TableHead>
+            <TableHead className="h-10 text-right label-mono text-muted-foreground">Jobs</TableHead>
+            <TableHead className="h-10 text-right label-mono text-muted-foreground max-md:hidden">Active</TableHead>
+            <TableHead className="h-10 text-right label-mono text-muted-foreground max-md:hidden">Completed</TableHead>
+            <TableHead className="h-10 text-right label-mono text-muted-foreground max-md:hidden">Failed</TableHead>
+            <TableHead className="h-10 pr-4 text-right label-mono text-muted-foreground">Last activity</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

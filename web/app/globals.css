@@ -7,9 +7,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-plex-sans);
-  --font-mono: var(--font-plex-mono);
-  --font-heading: var(--font-plex-sans);
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-jetbrains);
+  --font-serif: var(--font-lora);
+  --font-heading: var(--font-lora);
+  --color-log: var(--log);
   --color-status-queued: var(--status-queued);
   --color-status-running: var(--status-running);
   --color-status-completed: var(--status-completed);
@@ -53,44 +55,86 @@
 }
 
 :root {
-  --background: oklch(0.165 0.012 205);
-  --foreground: oklch(0.96 0.006 205);
-  --card: oklch(0.2 0.014 205);
-  --card-foreground: oklch(0.96 0.006 205);
-  --popover: oklch(0.22 0.016 205);
-  --popover-foreground: oklch(0.96 0.006 205);
-  --primary: oklch(0.86 0.15 162);
-  --primary-foreground: oklch(0.2 0.04 170);
-  --secondary: oklch(0.25 0.016 205);
-  --secondary-foreground: oklch(0.94 0.006 205);
-  --muted: oklch(0.24 0.014 205);
-  --muted-foreground: oklch(0.74 0.018 205);
-  --accent: oklch(0.26 0.02 195);
-  --accent-foreground: oklch(0.96 0.006 205);
-  --destructive: oklch(0.7 0.18 25);
-  --border: oklch(0.96 0.02 205 / 10%);
-  --input: oklch(0.96 0.02 205 / 14%);
-  --ring: oklch(0.86 0.15 162 / 70%);
-  --chart-1: oklch(0.86 0.15 162);
-  --chart-2: oklch(0.82 0.14 80);
-  --chart-3: oklch(0.76 0.09 240);
-  --chart-4: oklch(0.7 0.18 25);
-  --chart-5: oklch(0.6 0.02 205);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.205 0.03 188);
-  --sidebar-foreground: oklch(0.93 0.012 188);
-  --sidebar-primary: oklch(0.86 0.15 162);
-  --sidebar-primary-foreground: oklch(0.2 0.04 170);
-  --sidebar-accent: oklch(0.27 0.04 185);
-  --sidebar-accent-foreground: oklch(0.97 0.01 188);
-  --sidebar-border: oklch(0.93 0.03 188 / 10%);
-  --sidebar-ring: oklch(0.86 0.15 162 / 70%);
+  /* Palette from meuze.ai: white and cloud grays, near-black ink, electric blue. */
+  --background: #ffffff;
+  --foreground: #0b1014;
+  --card: #ffffff;
+  --card-foreground: #0b1014;
+  --popover: #ffffff;
+  --popover-foreground: #0b1014;
+  --primary: #2c63ff;
+  --primary-foreground: #ffffff;
+  --secondary: #edeff7;
+  --secondary-foreground: #0b1014;
+  --muted: #edeff7;
+  --muted-foreground: #5c606d;
+  --accent: #f4f5fa;
+  --accent-foreground: #0b1014;
+  --destructive: #e5484d;
+  --border: #d3d6e0;
+  --input: #bcbfcc;
+  --ring: #2c63ff;
+  --chart-1: #2c63ff;
+  --chart-2: #1f8a4c;
+  --chart-3: #d98200;
+  --chart-4: #e5484d;
+  --chart-5: #6e7180;
+  --radius: 0rem;
+  --sidebar: #f7f8fb;
+  --sidebar-foreground: #0b1014;
+  --sidebar-primary: #2c63ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4eaff;
+  --sidebar-accent-foreground: #0b1014;
+  --sidebar-border: #d3d6e0;
+  --sidebar-ring: #2c63ff;
+  --log: #f4f5fa;
 
   /* Job states. Each is always paired with an icon and a label, never color alone. */
-  --status-queued: oklch(0.78 0.08 240);
-  --status-running: oklch(0.84 0.15 80);
-  --status-completed: oklch(0.86 0.15 162);
-  --status-failed: oklch(0.72 0.18 25);
+  --status-queued: #5c606d;
+  --status-running: #2c63ff;
+  --status-completed: #1f8a4c;
+  --status-failed: #d93a40;
+}
+
+.dark {
+  --background: #0b1014;
+  --foreground: #edeff7;
+  --card: #10161b;
+  --card-foreground: #edeff7;
+  --popover: #10161b;
+  --popover-foreground: #edeff7;
+  --primary: #2c63ff;
+  --primary-foreground: #ffffff;
+  --secondary: #1e1e24;
+  --secondary-foreground: #edeff7;
+  --muted: #1e1e24;
+  --muted-foreground: #9da2b3;
+  --accent: #151c22;
+  --accent-foreground: #edeff7;
+  --destructive: #ff6b70;
+  --border: #283038;
+  --input: #40424d;
+  --ring: #5a83ff;
+  --chart-1: #5a83ff;
+  --chart-2: #3fbf73;
+  --chart-3: #f0a43a;
+  --chart-4: #ff6b70;
+  --chart-5: #9da2b3;
+  --sidebar: #080c0f;
+  --sidebar-foreground: #edeff7;
+  --sidebar-primary: #5a83ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #14213f;
+  --sidebar-accent-foreground: #edeff7;
+  --sidebar-border: #1e252c;
+  --sidebar-ring: #5a83ff;
+  --log: #080c0f;
+
+  --status-queued: #9da2b3;
+  --status-running: #6f93ff;
+  --status-completed: #3fbf73;
+  --status-failed: #ff6b70;
 }
 
 @layer base {
@@ -106,11 +150,14 @@
   }
   html {
     @apply font-sans;
+    color-scheme: light;
+    scrollbar-color: var(--border) transparent;
+  }
+  .dark {
     color-scheme: dark;
-    scrollbar-color: var(--muted) transparent;
   }
   ::selection {
-    background: oklch(0.86 0.15 162 / 30%);
+    background: color-mix(in oklab, var(--primary) 25%, transparent);
     color: var(--foreground);
   }
   :focus-visible {
@@ -120,4 +167,28 @@
   a {
     text-underline-offset: 3px;
   }
+}
+
+/* meuze's signature: a small solid square pinned to a panel's top-left corner. */
+@utility corner-mark {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 7px;
+    height: 7px;
+    background: var(--foreground);
+    z-index: 1;
+  }
+}
+
+/* Uppercase, letter-spaced mono for labels, matching meuze's section tags. */
+@utility label-mono {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
