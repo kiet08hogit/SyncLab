@@ -33,7 +33,7 @@ Every variable is optional: without them the dashboard runs on sample data, and 
 
 | Variable | Enables |
 | --- | --- |
-| `SYNCLAB_API_URL`, `MIGRATIONS_API_TOKEN` | Starting migrations from the form, and reading real jobs on `/jobs/[id]`. Use the gateway's own `MIGRATIONS_API_TOKEN`. |
+| `SYNCLAB_API_URL`, `MIGRATIONS_API_TOKEN` | Starting migrations from the form, and reading real jobs on `/jobs/[id]` (which also needs sign-in). Use the gateway's own `MIGRATIONS_API_TOKEN`. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in through the SyncLab GitHub App. Set the App's callback URL to `http://localhost:3001/auth/github/callback`. |
 | `GITHUB_APP_SLUG` | The Install SyncLab link, `https://github.com/apps/<slug>/installations/new`. |
 | `SESSION_SECRET` | Encrypting the session cookie (`openssl rand -base64 32`). |
@@ -46,7 +46,8 @@ The form's server action checks the chosen repository against that list again be
 
 ## Data
 
-`/jobs/[id]` reads a job through `GET /migrations/:id`, and falls back to the built-in samples for their ids.
+`/jobs/[id]` shows the built-in samples to anyone, and reads any other job through `GET /migrations/:id`.
+A real job is only shown to a signed-in user whose installations reach its repository; everyone else gets a 404, so the job's existence is not revealed.
 The API has no list endpoints yet, so the other getters in `lib/data.ts` serve sample data shaped like the Prisma models in `server/api/prisma/schema.prisma`.
 To connect them, rewrite the getters in `lib/data.ts`; the pages and components only depend on the types in `lib/types.ts`.
 
