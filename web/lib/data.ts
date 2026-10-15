@@ -1,6 +1,7 @@
 import "server-only";
 
 import { connection } from "next/server";
+import { cache } from "react";
 
 import { apiConfigured, fetchJob } from "@/lib/api";
 import { getAccessibleRepositories, GithubUnauthorizedError } from "@/lib/github";
@@ -310,7 +311,7 @@ export async function getJobs(
     );
 }
 
-export async function getJob(id: string): Promise<JobDetail | null> {
+export const getJob = cache(async (id: string): Promise<JobDetail | null> => {
   await connection();
   const sample = allJobs().find((job) => job.id === id);
   if (sample) return sample;
@@ -329,7 +330,7 @@ export async function getJob(id: string): Promise<JobDetail | null> {
     if (error instanceof GithubUnauthorizedError) return null;
     throw error;
   }
-}
+});
 
 export async function getStatusCounts(): Promise<Record<JobStatus, number>> {
   await connection();
