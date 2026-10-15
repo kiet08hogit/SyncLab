@@ -299,8 +299,11 @@ function applyEnv(repoDir, stateDir, spec) {
   process.env.LLM_MAX_FILES = process.env.LLM_MAX_FILES || '20';
   process.env.LLM_MAX_FILE_BYTES = process.env.LLM_MAX_FILE_BYTES || '60000';
   if (!process.env.LLM_MODEL) {
-    process.env.LLM_MODEL = 'gemini-3.1-pro-preview';
+    process.env.LLM_MODEL = DEFAULT_MODELS[process.env.LLM_PROVIDER];
   }
+  // The benchmark runs on the host, not in a sandbox container, so Ollama is
+  // on localhost rather than host.docker.internal.
+  process.env.LLM_BASE_URL = process.env.BENCHMARK_LLM_BASE_URL || 'http://localhost:11434';
   void stateDir;
 }
 
@@ -335,7 +338,7 @@ function report(results, meta) {
     'A case counts as successful only when AST targeting matches, every file that must change was rewritten, removed APIs are gone, `npm run build` passes, and `npm test` passes within 3 attempts.',
     '',
     `- Started: ${meta.startedAt}`,
-    `- Model: ${meta.model}`,
+    `- Model: ${meta.provider}/${meta.model}`,
     `- Max attempts: ${MAX_ATTEMPTS}`,
     '',
     '## Summary',
@@ -386,14 +389,20 @@ function report(results, meta) {
   lines.push('cd ../.. && node benchmarks/run.mjs');
   lines.push('```');
   lines.push('');
-  lines.push('Requires `GEMINI_API_KEY` in the environment or in `server/api/.env`.');
+  lines.push(
+    'Uses `LLM_PROVIDER` (default `ollama`, with Ollama running on localhost). With `gemini`, requires `GEMINI_API_KEY` in the environment or in `server/api/.env`.',
+  );
   lines.push('');
   return lines.join('\n');
 }
 
 const startedAt = new Date().toISOString();
 await loadEnvFile(path.join(root, 'server', 'api', '.env')).catch(() => undefined);
-if (!process.env.GEMINI_API_KEY) {
+const DEFAULT_MODELS = { ollama: 'qwen2.5-coder:14b', gemini: 'gemini-3.1-pro-preview' };
+if (process.env.LLM_PROVIDER !== 'gemini') {
+  process.env.LLM_PROVIDER = 'ollama';
+}
+if (process.env.LLM_PROVIDER === 'gemini' && !process.env.GEMINI_API_KEY) {
   throw new Error('GEMINI_API_KEY is not set. Refusing to invent benchmark results.');
 }
 
@@ -420,6 +429,7 @@ const payload = {
   kind: 'local-synthetic',
   startedAt,
   finishedAt: new Date().toISOString(),
+  provider: process.env.LLM_PROVIDER,
   model: process.env.LLM_MODEL,
   maxAttempts: MAX_ATTEMPTS,
   results,

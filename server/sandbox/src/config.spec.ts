@@ -18,6 +18,7 @@ const REQUIRED = {
   DEPENDENCY_NAME: 'lodash',
   TARGET_VERSION: '4.17.21',
   BRANCH_NAME: 'synclab/lodash-4.17.21',
+  LLM_MODEL: 'qwen2.5-coder:14b',
 };
 
 describe('config', () => {
@@ -45,6 +46,7 @@ describe('config', () => {
       assert.equal(config.dependencyName, REQUIRED.DEPENDENCY_NAME);
       assert.equal(config.targetVersion, REQUIRED.TARGET_VERSION);
       assert.equal(config.branchName, REQUIRED.BRANCH_NAME);
+      assert.equal(config.llm.model, REQUIRED.LLM_MODEL);
     });
 
     it('fails on each missing or empty required variable', () => {

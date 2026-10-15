@@ -81,6 +81,7 @@ describe('publish phase', () => {
       DEPENDENCY_NAME: 'lodash',
       TARGET_VERSION: '4.17.21',
       BRANCH_NAME: BRANCH,
+      LLM_MODEL: 'qwen2.5-coder:14b',
       GITHUB_API_URL: GITHUB_API,
       GITHUB_TOKEN: TOKEN,
     });

@@ -53,9 +53,9 @@ export class MigrationProcessor extends WorkerHost {
       const token = await this.githubToken.getInstallationToken(record.repository.installationId);
       const llm = this.config.get('llm', { infer: true });
 
-      if (!llm.apiKey) {
+      if (llm.provider === 'gemini' && !llm.apiKey) {
         throw new UnrecoverableError(
-          'GEMINI_API_KEY is not set, so the refactoring phase cannot run.',
+          'LLM_PROVIDER is gemini but GEMINI_API_KEY is not set, so the refactoring phase cannot run.',
         );
       }
 

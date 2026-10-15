@@ -54,7 +54,7 @@ flowchart LR
         PB["publish"]
     end
 
-    LLM["Gemini<br/>via LangChain.js"]
+    LLM["Ollama (local) or Gemini<br/>via LangChain.js"]
     NPM["npm registry"]
     REPO["Target GitHub repository"]
 
@@ -87,7 +87,7 @@ sequenceDiagram
     participant Q as Redis (BullMQ)
     participant WK as Worker
     participant SB as Sandbox containers
-    participant LLM as Gemini
+    participant LLM as Model (Ollama or Gemini)
     participant GH as GitHub
 
     Src->>GW: release webhook or POST /migrations
@@ -184,7 +184,7 @@ For each job the worker:
    If the job is already `COMPLETED`, it writes a `SKIPPED` log and stops; otherwise it sets `IN_PROGRESS`.
 2. Mints a GitHub App installation token (or falls back to `GITHUB_TOKEN` for local development).
    The App private key never leaves the worker.
-3. Refuses to start without `GEMINI_API_KEY` (unrecoverable).
+3. With `LLM_PROVIDER=gemini`, refuses to start without `GEMINI_API_KEY` (unrecoverable).
 4. Checks the sandbox image exists locally, creates a named volume `synclab-job-<jobId>`, and runs the phases below.
 5. Appends every phase's step logs to `execution_logs`, then removes every container and the volume, whatever the outcome.
 
@@ -214,7 +214,7 @@ State passes between phases only through the shared `/workspace` volume: the rep
 
 #### Phase isolation
 
-| Phase | Network | GitHub token | Gemini key | Runs repository code |
+| Phase | Network | GitHub token | Model access | Runs repository code |
 | --- | --- | --- | --- | --- |
 | `prepare` | yes | yes | no | install scripts during `npm ci` |
 | `refactor` | yes | no | yes | no |
@@ -242,7 +242,9 @@ These rules live in `server/api/src/worker/sandbox/container-options.ts`.
 1. Walks the repository's `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
 2. Parses each file with Babel and keeps only the files that `import` or `require` the dependency (including deep imports such as `pkg/sub`), recording the imported names and the lines that use them.
 3. Caps the work at `LLM_MAX_FILES` files of at most `LLM_MAX_FILE_BYTES` each, and reports anything it skipped.
-4. Sends each candidate file to Gemini with structured output `{changed, contents, reason}`.
+4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Ollama by default).
+   Gemini answers with structured output `{changed, contents, reason}`.
+   Ollama answers with a one-sentence reason followed by the file in a fenced block, because small local models do not reliably end a whole file inside a JSON string, and its output is capped relative to the file size.
    The prompt includes the dependency, target version, release notes, the imported names and usage lines, and, on a retry, the previous failing test output.
    The model returns the complete file rather than a diff, because diffs fail to apply too often.
 5. Writes back only files the model actually changed.
@@ -326,8 +328,9 @@ Only failures that could succeed on a later try are retried; everything else is 
 | Failure | Job status | Retried by BullMQ |
 | --- | --- | --- |
 | Gemini rate limit (429, quota or resource exhausted) | `FAILED` | yes |
+| Ollama server not reachable (connection refused) | `FAILED` | yes |
 | Other model errors (bad key, unknown model, malformed output) | `FAILED` | no |
-| `GEMINI_API_KEY` missing | `FAILED` | no |
+| `GEMINI_API_KEY` missing with `LLM_PROVIDER=gemini` | `FAILED` | no |
 | Clone, install or dependency upgrade failed | `FAILED` | no |
 | Tests still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
 | Refactor produced no changes | `FAILED` | no |
@@ -357,14 +360,14 @@ SyncLab/
 │       └── src/
 │           ├── phases/        prepare, refactor, test, publish
 │           ├── analysis/      Babel import and usage analysis
-│           ├── llm/           Gemini model, refactor chain, rate-limit classification
+│           ├── llm/           Ollama and Gemini models, refactor chain, retryable error classification
 │           └── upgrade.ts     dependency upgrade used by prepare
 └── benchmarks/                synthetic migration cases and runner for the refactor and test loop
 ```
 
 ## Getting started
 
-Prerequisites: Node.js 22 or later, Docker, and a Gemini API key.
+Prerequisites: Node.js 22 or later, Docker, and either [Ollama](https://ollama.com) with `qwen2.5-coder:14b` pulled (the default) or a Gemini API key.
 For real repositories you also need a GitHub App (or a personal access token for local experiments).
 
 ```bash
@@ -374,7 +377,7 @@ docker compose up -d
 
 # 2. API: configuration, database, sandbox image
 cd api
-cp .env.example .env          # fill in GITHUB_WEBHOOK_SECRET, GEMINI_API_KEY, GitHub credentials, MIGRATIONS_API_TOKEN
+cp .env.example .env          # fill in GITHUB_WEBHOOK_SECRET, GitHub credentials, MIGRATIONS_API_TOKEN (and GEMINI_API_KEY if LLM_PROVIDER=gemini)
 npm install
 npx prisma migrate deploy
 npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
@@ -410,6 +413,25 @@ npm run dev                   # http://localhost:3001
 
 See [`server/api/README.md`](server/api/README.md) for every environment variable, registering the GitHub App, signing a test webhook, and the full script list.
 
+### Hosting a local LLM for development
+
+Local development runs the model on your own machine with [Ollama](https://ollama.com), so no API key or per-call cost is involved.
+`LLM_PROVIDER` defaults to `ollama`, so a fresh `.env` needs nothing else.
+
+```bash
+brew install ollama
+brew services start ollama    # serves on localhost:11434 and starts again at login
+ollama pull qwen2.5-coder:14b # about 9 GB
+```
+
+The refactor container reaches the host's Ollama at `http://host.docker.internal:11434` (`LLM_BASE_URL`).
+`qwen2.5-coder:14b` needs about 12 GB of memory with the default 32k context (`LLM_NUM_CTX`), which fits on the GPU of a 24 GB Apple Silicon Mac alongside Docker.
+Larger models are stronger at migrations but will not fit next to Docker on that machine.
+Set `LLM_MODEL` to try another model you have pulled.
+
+Deployed environments will use a hosted API provider such as OpenAI or Claude instead of a local model.
+Gemini is the hosted provider wired in today (`LLM_PROVIDER=gemini` with `GEMINI_API_KEY`).
+
 ## Testing and benchmarks
 
 ```bash
@@ -424,7 +446,7 @@ cd web && npm run lint && npm run build          # dashboard lint, typecheck and
 `benchmarks/` holds synthetic migration cases (lodash, ramda, ajv, node-fetch, query-string, uuid) at easy, medium and hard difficulty.
 The runner drives the real sandbox `refactor` and `test` code for up to 3 attempts and checks AST targeting, removed APIs, `npm run build` and `npm test`.
 Cases marked `"upgrade": true` start on the old version and also exercise the dependency upgrade step.
-It needs `GEMINI_API_KEY` and calls the live model, so it is not part of CI.
+It calls a live model (local Ollama by default, or Gemini with `LLM_PROVIDER=gemini`), so it is not part of CI.
 See [`benchmarks/README.md`](benchmarks/README.md).
 
 ## Current limitations and roadmap

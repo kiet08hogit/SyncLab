@@ -42,6 +42,7 @@ describe('test phase', () => {
       DEPENDENCY_NAME: 'lodash',
       TARGET_VERSION: '4.17.21',
       BRANCH_NAME: 'synclab/lodash-4.17.21',
+      LLM_MODEL: 'qwen2.5-coder:14b',
     });
     // The test container never receives credentials.
     delete process.env.GITHUB_TOKEN;

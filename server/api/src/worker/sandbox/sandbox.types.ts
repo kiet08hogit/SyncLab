@@ -1,8 +1,11 @@
+import type { LlmProvider } from '../../config/configuration';
+
 /**
  * Mirror of the contract emitted by the synclab-sandbox image. The sandbox is a
  * separate package built into its own container, so the two sides share this
  * shape by agreement rather than by import.
  */
+
 export const RESULT_SENTINEL = '##SYNCLAB_RESULT##';
 
 export const SANDBOX_PHASES = ['prepare', 'refactor', 'test', 'publish'] as const;
@@ -24,7 +27,10 @@ export interface PhaseResult {
 }
 
 export interface SandboxLlmParams {
+  provider: LlmProvider;
   apiKey: string;
+  baseUrl: string;
+  numCtx: number;
   model: string;
   maxAttempts: number;
   maxFiles: number;
