@@ -9,8 +9,8 @@ export class PermanentModelError extends Error {}
  * Only transient model failures are worth retrying at the job level: the work
  * is still valid, the provider just cannot serve it right now. That is a rate
  * limit from a hosted provider, Anthropic reporting itself overloaded (529),
- * or a local Ollama server that is not running yet. Everything else - a bad key, an unknown model, a malformed response -
- * repeats identically on a retry.
+ * or a local Ollama server that is not running yet. Everything else - a bad
+ * key, an unknown model, a malformed response - repeats identically on a retry.
  */
 export function isRetryableModelError(error: unknown): boolean {
   if (error instanceof PermanentModelError) {
