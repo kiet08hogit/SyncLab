@@ -21,7 +21,7 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 
 ## How it works in one minute
 
-1. A trigger arrives: a signed GitHub `release` webhook, or an authenticated `POST /migrations` request.
+1. A trigger arrives: a signed `pull_request` webhook for a Dependabot or Renovate npm update, or an authenticated `POST /migrations` request.
 2. The **gateway** records a `MigrationJob` in PostgreSQL and enqueues it on a BullMQ queue in Redis.
 3. A **worker** claims the job and runs the **sandbox** image as a sequence of containers over one shared Docker volume:
    `prepare` (clone, install, upgrade the dependency, fetch release notes), then `refactor` and `test` in a loop, then `publish`.
@@ -34,8 +34,8 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 ```mermaid
 flowchart LR
     subgraph Triggers
-        GH["GitHub release webhook"]
-        API["POST /migrations<br/>(bearer token)"]
+        GH["Dependabot / Renovate<br/>pull_request webhook"]
+        API["POST /migrations<br/>(user or service token)"]
     end
 
     subgraph Server["server/api (NestJS)"]
@@ -90,8 +90,8 @@ sequenceDiagram
     participant LLM as Model (Ollama or Gemini)
     participant GH as GitHub
 
-    Src->>GW: release webhook or POST /migrations
-    GW->>GW: verify HMAC signature or bearer token
+    Src->>GW: bot pull_request webhook or POST /migrations
+    GW->>GW: verify HMAC signature, or resolve the bearer token to a user or the service
     GW->>DB: upsert Repository, create MigrationJob (unique per repo, dependency, version)
     GW->>Q: add process-migration job (3 attempts, exponential backoff)
     GW-->>Src: 202 Accepted {id, status, queued}
@@ -134,17 +134,21 @@ flowchart TD
     B -- no --> X1["401 Unauthorized"]
     B -- yes --> C{"x-github-event"}
     C -- ping --> OK1["202 {ok: true}"]
-    C -- "not a published release" --> IGN["202 {ignored: true}"]
-    C -- "release / published" --> D{"repository.id, full_name,<br/>release.tag_name, installation.id present?"}
+    C -- "pull_request" --> P{"opened by Dependabot or Renovate,<br/>one npm dependency at the root,<br/>exact version readable?"}
+    C -- other --> IGN["202 {ignored: true, reason}"]
+    P -- no --> IGN
+    P -- yes --> D{"repository.id, full_name,<br/>installation.id present?"}
     D -- no --> X2["400 Bad Request"]
     D -- yes --> E["MigrationJobsService.enqueue"]
 
-    M["POST /migrations"] --> MB{"Authorization: Bearer<br/>matches MIGRATIONS_API_TOKEN?"}
+    M["POST /migrations"] --> MB{"Bearer token is MIGRATIONS_API_TOKEN,<br/>or a GitHub user token GitHub accepts?"}
     MB -- no --> X3["401 Unauthorized"]
     MB -- yes --> MV{"repoFullName is owner/repo,<br/>dependencyName and targetVersion valid?"}
     MV -- no --> X4["400 Bad Request"]
     MV -- yes --> ML["Look up repo id, installation id<br/>and clone URL on GitHub"]
-    ML --> E
+    ML --> MA{"service token, or the user's<br/>installations reach the repo?"}
+    MA -- no --> X5["404 Not Found"]
+    MA -- yes --> E
 
     E --> U["Upsert Repository by github_repo_id"]
     U --> J{"INSERT MigrationJob<br/>unique (repo, dependency, version)"}
@@ -160,7 +164,10 @@ flowchart TD
 Key details:
 
 - Signatures are checked over the raw request body with a constant-time comparison, so a forged or re-serialized payload is rejected.
-- Deduplication relies on the database unique constraint rather than read-then-write, so two concurrent deliveries of the same release cannot both create a job.
+- Deduplication relies on the database unique constraint rather than read-then-write, so two concurrent deliveries of the same update cannot both create a job.
+- The webhook reads the dependency and exact version from the bot's pull request title (Renovate's shortened `to v5` from the change table in its body), and ignores grouped updates, other ecosystems, subdirectories, forks and anything not authored by the bot account.
+  See [`server/api/README.md`](server/api/README.md#automatic-trigger-dependabot-and-renovate-pull-requests).
+- A user's bearer token is resolved through GitHub to the repositories their installations reach, and every read and write is limited to those repositories by GitHub repository id.
 - A redelivered webhook never opens a second pull request, but a job that previously `FAILED` is queued again.
   The conditional `FAILED` to `QUEUED` update is the claim on that retry, so concurrent triggers queue it only once.
 - Both triggers share `MigrationJobsService`, so they deduplicate and retry identically.
@@ -276,13 +283,13 @@ If no result line appears (for example, the container was killed), the raw log b
 | --- | --- |
 | `/` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
 | `/jobs/[id]` | One job's pipeline track (clone, install, upgrade, changelog, refactor, test, pull request), failure reason, and execution log |
-| `/repositories` | Repositories with the GitHub App installed, with job totals and last activity |
+| `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
 
-Job pages read real jobs through `GET /migrations/:id`.
-The API has no list endpoints yet, so the overview and repository pages still serve sample data shaped like the Prisma models.
-See [`web/README.md`](web/README.md) for the environment variables that enable sign-in and the form.
+Signed in, every page reads the API with the user's own GitHub token (`GET /migrations`, `/migrations/counts`, `/migrations/:id`, `/repositories`), and the API limits each answer to that user's repositories.
+Signed out, the pages show sample data shaped like the API's answers, with a prompt to sign in.
+See [`web/README.md`](web/README.md) for the environment variables that enable sign-in.
 
 ## Data model
 
@@ -458,8 +465,8 @@ See [`benchmarks/README.md`](benchmarks/README.md).
 
 Known gaps in the current implementation:
 
-- The `release` webhook fires when the *installed repository* publishes a release, not when one of its dependencies does, and the dependency name is taken from the release name.
-  Until a real dependency-release trigger exists (for example, Dependabot or Renovate pull requests, or npm registry polling), use `POST /migrations`.
+- Automatic migrations need Dependabot or Renovate running on the repository; SyncLab does not watch npm itself.
+  It opens its own pull request next to the bot's rather than pushing onto the bot's branch.
 - `npm ci` in `prepare` runs repository install scripts while the GitHub token is present.
 - With `--ignore-scripts`, an upgraded package that needs a native build step is not built, so its tests fail.
 - Only npm is supported; repositories using `yarn.lock` or `pnpm-lock.yaml` are installed with npm.
@@ -469,4 +476,4 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 
 - Metrics for queue depth, sandbox start time and LLM token usage.
 - Auto-scaling worker deployment (for example, ECS or EKS).
-- List endpoints in the API so the dashboard overview in `web/` shows live jobs instead of sample data.
+- Pagination beyond the first 500 jobs in `GET /migrations`.

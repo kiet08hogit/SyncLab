@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus, Search, SearchX, X } from "lucide-react";
+import { GitPullRequestArrow, Plus, Search, SearchX, X } from "lucide-react";
 
 import { JobsTable } from "@/components/jobs-table";
 import { RunningJobs } from "@/components/running-jobs";
+import { SampleDataNotice } from "@/components/sample-data-notice";
 import { OverviewSkeleton } from "@/components/skeletons";
 import { StatusFilter } from "@/components/status-filter";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,8 @@ export default function MigrationsPage({ searchParams }: PageProps<"/">) {
         <div className="flex flex-col gap-2">
           <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Migrations</h1>
           <p className="max-w-2xl text-pretty text-muted-foreground">
-            Every published release SyncLab picks up becomes a job: cloned, upgraded, refactored, tested in a sandbox,
-            and opened as a pull request.
+            Every Dependabot or Renovate update SyncLab picks up, and every migration you start by hand, becomes a job:
+            cloned, upgraded, refactored, tested in a sandbox, and opened as a pull request.
           </p>
         </div>
         <Button asChild size="lg" className="h-10 w-fit shrink-0 px-4">
@@ -66,6 +67,7 @@ async function Overview({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
 
   return (
     <>
+      <SampleDataNotice returnTo="/" />
       <StatusFilter
         counts={counts}
         active={status}
@@ -114,6 +116,23 @@ async function Overview({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
 
         {jobs.length > 0 ? (
           <JobsTable jobs={jobs} />
+        ) : !filtered ? (
+          <div className="flex flex-col items-center gap-3 border border-dashed px-6 py-16 text-center">
+            <GitPullRequestArrow aria-hidden className="size-6 text-muted-foreground" />
+            <div className="flex flex-col gap-1">
+              <p className="font-medium">No migrations yet</p>
+              <p className="max-w-md text-sm text-pretty text-muted-foreground">
+                SyncLab starts one when Dependabot or Renovate opens an npm update on one of your repositories. You can
+                also start one yourself.
+              </p>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/migrations/new">
+                <Plus aria-hidden />
+                New migration
+              </Link>
+            </Button>
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-3 border border-dashed px-6 py-16 text-center">
             <SearchX aria-hidden className="size-6 text-muted-foreground" />

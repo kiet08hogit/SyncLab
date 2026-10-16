@@ -1,27 +1,32 @@
 import "server-only";
 
-import type { ExecutionLog, JobDetail, MigrationJob, Repository } from "@/lib/types";
+import type {
+  ExecutionLog,
+  JobDetail,
+  JobStatus,
+  JobWithRepository,
+  MigrationJob,
+  Repository,
+  RepositorySummary,
+} from "@/lib/types";
 
-// The NestJS gateway in server/api. Its /migrations routes take the shared
-// MIGRATIONS_API_TOKEN, so they are only ever called from the server.
+// The NestJS gateway in server/api. Every call carries the signed-in user's
+// GitHub token, and the API itself limits the answer to repositories that
+// user's installations reach.
 
-function apiConfig(): { url: string; token: string } | null {
-  const token = process.env.MIGRATIONS_API_TOKEN;
-  return token ? { url: process.env.SYNCLAB_API_URL ?? "http://localhost:3000", token } : null;
-}
+const API_URL = process.env.SYNCLAB_API_URL ?? "http://localhost:3000";
 
-export function apiConfigured(): boolean {
-  return apiConfig() !== null;
-}
+/** The API no longer accepts the token, so the user has to sign in again. */
+export class ApiUnauthorizedError extends Error {}
 
-async function request(path: string, init: RequestInit = {}): Promise<Response> {
-  const config = apiConfig();
-  if (!config) throw new Error("MIGRATIONS_API_TOKEN is not set");
-  return fetch(`${config.url}${path}`, {
+async function request(token: string, path: string, init: RequestInit = {}): Promise<Response> {
+  const response = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}`, ...init.headers },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...init.headers },
     cache: "no-store",
   });
+  if (response.status === 401) throw new ApiUnauthorizedError(await errorMessage(response));
+  return response;
 }
 
 /** Nest answers errors as `{ message }`, where message may be a list of validation errors. */
@@ -31,23 +36,45 @@ async function errorMessage(response: Response): Promise<string> {
   return message || `The SyncLab API answered ${response.status}`;
 }
 
-export async function createMigration(input: {
-  repoFullName: string;
-  dependencyName: string;
-  targetVersion: string;
-}): Promise<{ id: string } | { error: string }> {
-  const response = await request("/migrations", { method: "POST", body: JSON.stringify(input) });
-  if (!response.ok) return { error: await errorMessage(response) };
-  return { id: ((await response.json()) as { id: string }).id };
+async function json<T>(response: Response): Promise<T> {
+  if (!response.ok) throw new Error(await errorMessage(response));
+  return (await response.json()) as T;
+}
+
+export async function listJobs(
+  token: string,
+  filter: { status?: JobStatus; repository?: string; query?: string },
+): Promise<JobWithRepository[]> {
+  const search = new URLSearchParams();
+  if (filter.status) search.set("status", filter.status);
+  if (filter.repository) search.set("repo", filter.repository);
+  if (filter.query) search.set("q", filter.query);
+  return json(await request(token, `/migrations?${search}`));
+}
+
+export async function countJobs(token: string): Promise<Record<JobStatus, number>> {
+  return json(await request(token, "/migrations/counts"));
+}
+
+export async function listRepositories(token: string): Promise<RepositorySummary[]> {
+  return json(await request(token, "/repositories"));
 }
 
 type ApiJob = MigrationJob & { repository: Repository; executionLogs: ExecutionLog[] };
 
-export async function fetchJob(id: string): Promise<JobDetail | null> {
-  const response = await request(`/migrations/${encodeURIComponent(id)}`);
-  // 400 is the gateway rejecting an id that is not a UUID.
+export async function fetchJob(token: string, id: string): Promise<JobDetail | null> {
+  const response = await request(token, `/migrations/${encodeURIComponent(id)}`);
+  // 404 also covers a job outside the user's repositories; 400 is an id that is not a UUID.
   if (response.status === 404 || response.status === 400) return null;
-  if (!response.ok) throw new Error(await errorMessage(response));
-  const job = (await response.json()) as ApiJob;
+  const job = await json<ApiJob>(response);
   return { ...job, steps: job.executionLogs.map((log) => log.step) };
+}
+
+export async function createMigration(
+  token: string,
+  input: { repoFullName: string; dependencyName: string; targetVersion: string },
+): Promise<{ id: string } | { error: string }> {
+  const response = await request(token, "/migrations", { method: "POST", body: JSON.stringify(input) });
+  if (!response.ok) return { error: await errorMessage(response) };
+  return { id: ((await response.json()) as { id: string }).id };
 }
