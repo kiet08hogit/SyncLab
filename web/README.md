@@ -16,6 +16,11 @@ The dashboard uses port 3001 because the API in `server/api` listens on 3000.
 
 `npm test` runs the Vitest unit tests (`lib/*.test.ts`) for the pipeline, formatting, and sign-in redirect helpers.
 
+`npm run test:e2e` runs the Playwright suite in `e2e/` in Chromium.
+It needs Docker and the API's dependencies (`npm install && npm run db:generate` in `server/api`); install the browser once with `npx playwright install chromium`.
+Its global setup starts throwaway PostgreSQL and Redis containers, builds and starts the real API (gateway only, so jobs stay queued) and this app, and stubs GitHub and the npm registry in `e2e/stub.ts`.
+Tests sign in through the real OAuth redirect, seed jobs straight into the database, and cover the dashboard, the new-migration form, retry, live refresh, log folding, and pipeline label layout from 390 to 1440 pixels.
+
 ## Pages
 
 | Route | Shows |
@@ -39,6 +44,8 @@ Every variable is optional: without them the dashboard runs on sample data, and 
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in through the SyncLab GitHub App. Set the App's callback URL to `http://localhost:3001/auth/github/callback`. `npm run github-app:register` in `server/api` registers the App and writes these, `GITHUB_APP_SLUG` and `SESSION_SECRET` for you. |
 | `GITHUB_APP_SLUG` | The Install SyncLab link, `https://github.com/apps/<slug>/installations/new`. |
 | `SESSION_SECRET` | Encrypting the session cookie (`openssl rand -base64 32`). |
+| `GITHUB_API_URL`, `GITHUB_URL` | GitHub Enterprise Server: its REST API and its web host, where users sign in. Default to GitHub.com. |
+| `NPM_REGISTRY_URL` | A registry mirror for the new-migration form's version list. Defaults to `https://registry.npmjs.org`. |
 
 ## Sign-in
 

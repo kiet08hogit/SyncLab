@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { safeReturnTo, signInConfigured, STATE_COOKIE } from "@/lib/auth";
-import { githubAppConfig } from "@/lib/github";
+import { GITHUB_URL, githubAppConfig } from "@/lib/github";
 import { seal } from "@/lib/session";
 
 /** Starts the GitHub App's web sign-in flow. */
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   }
 
   const state = randomBytes(32).toString("base64url");
-  const authorize = new URL("https://github.com/login/oauth/authorize");
+  const authorize = new URL(`${GITHUB_URL}/login/oauth/authorize`);
   authorize.searchParams.set("client_id", config.clientId);
   authorize.searchParams.set("redirect_uri", new URL("/auth/github/callback", request.url).toString());
   authorize.searchParams.set("state", state);
