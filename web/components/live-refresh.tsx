@@ -10,7 +10,7 @@ const INTERVAL_MS = 5_000;
  * The worker writes log rows as each phase ends, so polling picks them up
  * without a streaming endpoint. Pauses while the tab is hidden and catches up
  * as soon as it is shown again. The page stops it by rendering `active={false}`
- * once the job reaches a final status.
+ * once nothing it shows is queued or running.
  */
 export function LiveRefresh({ active }: { active: boolean }) {
   const router = useRouter();
