@@ -21,7 +21,7 @@ The dashboard uses port 3001 because the API in `server/api` listens on 3000.
 | Route | Shows |
 | --- | --- |
 | `/` | Job counts per status, the jobs a worker is running now, and a searchable, filterable job table; refreshes every 5 seconds while any job is queued or running and no filter is set |
-| `/jobs/[id]` | One job's pipeline track, failure reason, branch name, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running |
+| `/jobs/[id]` | One job's pipeline track, failure reason, branch name, how long the latest run took, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running. A failed job has a **Retry migration** button when you are signed in. Output longer than 24 lines folds to its last 12, except on a failed step, and each step's output has a copy button |
 | `/repositories` | Installed repositories with job totals and last activity |
 | `/migrations/new` | Pick a repository, a dependency from its root `package.json`, and a stable npm version, then start the job and open its page |
 | `/settings` | Sign in with GitHub, and the App installations you can access, or an Install SyncLab button when there are none |
@@ -36,7 +36,7 @@ Every variable is optional: without them the dashboard runs on sample data, and 
 | Variable | Enables |
 | --- | --- |
 | `SYNCLAB_API_URL` | Where the gateway in `server/api` listens. Defaults to `http://localhost:3000`. |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in through the SyncLab GitHub App. Set the App's callback URL to `http://localhost:3001/auth/github/callback`. |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in through the SyncLab GitHub App. Set the App's callback URL to `http://localhost:3001/auth/github/callback`. `npm run github-app:register` in `server/api` registers the App and writes these, `GITHUB_APP_SLUG` and `SESSION_SECRET` for you. |
 | `GITHUB_APP_SLUG` | The Install SyncLab link, `https://github.com/apps/<slug>/installations/new`. |
 | `SESSION_SECRET` | Encrypting the session cookie (`openssl rand -base64 32`). |
 

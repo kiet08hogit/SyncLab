@@ -67,6 +67,96 @@ describe('test phase', () => {
     assert.match(result.steps[0].output, /all 3 tests passed/);
   });
 
+  it('labels a normal run with the refactor attempt and the npm command', async () => {
+    await writeTestScript('node -e "console.log(\'ok\')"');
+    Object.assign(process.env, { REFACTOR_ATTEMPT: '2', REFACTOR_MAX_ATTEMPTS: '3' });
+    delete process.env.TEST_BASELINE;
+
+    const result = await runTestPhase();
+
+    assert.equal(result.steps[0].step, 'TEST');
+    assert.ok(result.steps[0].output.startsWith('Attempt 2/3\n$ npm test\n'), result.steps[0].output);
+  });
+
+  it('labels the run before the upgrade as the baseline', async () => {
+    await writeTestScript('node -e "console.log(\'ok\')"');
+    process.env.TEST_BASELINE = 'true';
+
+    const result = await runTestPhase();
+
+    assert.equal(result.ok, true);
+    assert.equal(result.steps[0].step, 'BASELINE');
+    assert.ok(
+      result.steps[0].output.startsWith('Baseline run before the upgrade\n$ npm test\n'),
+      result.steps[0].output,
+    );
+  });
+
+  it('reports a failing baseline as a failed phase', async () => {
+    await writeTestScript('node -e "process.exit(3)"');
+    process.env.TEST_BASELINE = 'true';
+
+    const result = await runTestPhase();
+
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'test suite failed with exit code 3');
+    assert.equal(result.steps[0].step, 'BASELINE');
+    assert.equal(result.steps[0].exitCode, 3);
+  });
+
+  it('only treats exactly "true" as a baseline run', async () => {
+    await writeTestScript('node -e "console.log(\'ok\')"');
+    for (const value of ['1', 'TRUE', 'yes', '']) {
+      process.env.TEST_BASELINE = value;
+
+      const result = await runTestPhase();
+
+      assert.equal(result.steps[0].step, 'TEST', JSON.stringify(value));
+    }
+  });
+
+  describe('with pnpm or yarn', () => {
+    let bin: string;
+
+    // A stand-in for corepack, so no package manager is downloaded: it echoes
+    // the arguments and where corepack would keep its cache.
+    beforeEach(async () => {
+      bin = path.join(workspace, 'bin');
+      await fs.mkdir(bin);
+      await fs.writeFile(
+        path.join(bin, 'corepack'),
+        '#!/bin/sh\necho "fake corepack $* home=$COREPACK_HOME default-latest=$COREPACK_DEFAULT_TO_LATEST"\n',
+        { mode: 0o755 },
+      );
+      process.env.PATH = `${bin}${path.delimiter}${process.env.PATH ?? ''}`;
+    });
+
+    for (const [lockfile, packageManager, expected] of [
+      ['pnpm-lock.yaml', undefined, 'corepack pnpm test'],
+      ['yarn.lock', undefined, 'corepack yarn test'],
+      ['package-lock.json', 'yarn@4.5.0', 'corepack yarn test'],
+    ] as const) {
+      it(`runs ${expected} for ${packageManager ?? lockfile}`, async () => {
+        await fs.writeFile(
+          path.join(repoDir, 'package.json'),
+          JSON.stringify({ name: 'fixture-app', version: '1.0.0', packageManager, scripts: { test: 'exit 1' } }),
+        );
+        await fs.writeFile(path.join(repoDir, lockfile), '');
+
+        const result = await runTestPhase();
+
+        assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+        assert.match(result.steps[0].output, new RegExp(`^Attempt 1/1\\n\\$ ${expected}\\n`));
+        const [, ...args] = expected.split(' ');
+        assert.match(
+          result.steps[0].output,
+          new RegExp(`fake corepack ${args.join(' ')} home=${path.join(workspace, '.corepack')} default-latest=0`),
+        );
+        assert.match((await readTestOutput(stateDir)) ?? '', /fake corepack/);
+      });
+    }
+  });
+
   it('fails with the exit code when the repository test suite fails', async () => {
     await writeTestScript('node -e "console.error(\'expected 1 to equal 2\'); process.exit(7)"');
 

@@ -1,15 +1,123 @@
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { Octokit } from '@octokit/rest';
 import { run, redact, runOrThrow } from '../exec.js';
 import { configureGitCredentials, currentBranch, hasUncommittedChanges } from '../git.js';
 import { loadConfig, requireToken } from '../config.js';
 import type { PhaseResult, StepLog } from '../result.js';
 
-function splitFullName(fullName: string): { owner: string; repo: string } {
-  const [owner, repo] = fullName.split('/');
-  if (!owner || !repo) {
+// GitHub owner names are letters, digits and hyphens; repository names also
+// allow dots and underscores.
+const FULL_NAME = /^([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)$/;
+
+export function splitFullName(fullName: string): { owner: string; repo: string } {
+  const match = FULL_NAME.exec(fullName);
+  if (!match || match[2] === '.' || match[2] === '..') {
     throw new Error(`REPO_FULL_NAME must be in "owner/repo" form, received "${fullName}"`);
   }
-  return { owner, repo };
+  return { owner: match[1], repo: match[2] };
+}
+
+function requireBaseSha(): string {
+  const sha = process.env.BASE_SHA ?? '';
+  if (!/^[0-9a-f]{40}$/.test(sha)) {
+    throw new Error(`BASE_SHA must be the full commit prepare cloned, received "${sha}"`);
+  }
+  return sha;
+}
+
+// Belt and braces: the clone is fresh, but no hook should ever run beside the token.
+const GIT = ['-c', 'core.hooksPath=/dev/null'];
+
+/** Never descended into: git metadata is not content, and installed packages are not committed. */
+const SKIPPED = new Set(['.git', 'node_modules']);
+
+async function assertInside(root: string, dir: string): Promise<void> {
+  const real = await fs.realpath(dir);
+  if (real !== root && !real.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`Refusing to write through ${dir}, which resolves outside the publish checkout`);
+  }
+}
+
+/**
+ * Repository code could have replaced the checkout with a symlink to this
+ * container's home, where the credentials are written, so the checkout must
+ * be a real directory directly inside the workspace.
+ */
+async function requireRealRepoDir(workspace: string, repoDir: string): Promise<string> {
+  const expected = path.join(await fs.realpath(workspace), path.basename(repoDir));
+  const stat = await fs.lstat(repoDir).catch(() => undefined);
+  if (!stat?.isDirectory() || (await fs.realpath(repoDir)) !== expected) {
+    throw new Error(`Refusing to publish: ${repoDir} is not a real directory inside the workspace`);
+  }
+  return expected;
+}
+
+/**
+ * Copies the working tree the earlier phases produced onto the trusted clone.
+ * Symlinks are recreated as links, never followed, and a destination whose
+ * parent resolves outside the clone is refused, so a link planted by
+ * repository code cannot redirect a write into this container's home.
+ */
+async function copyWorkTree(from: string, to: string, root: string): Promise<void> {
+  for (const entry of await fs.readdir(from, { withFileTypes: true })) {
+    if (SKIPPED.has(entry.name)) {
+      continue;
+    }
+
+    const source = path.join(from, entry.name);
+    const target = path.join(to, entry.name);
+
+    if (entry.isDirectory()) {
+      const existing = await fs.lstat(target).catch(() => undefined);
+      if (existing && !existing.isDirectory()) {
+        await fs.rm(target, { force: true });
+      }
+      await fs.mkdir(target, { recursive: true });
+      await assertInside(root, target);
+      await copyWorkTree(source, target, root);
+      continue;
+    }
+
+    if (!entry.isFile() && !entry.isSymbolicLink()) {
+      continue;
+    }
+
+    await assertInside(root, to);
+    // Replace rather than write through whatever is at the destination.
+    await fs.rm(target, { recursive: true, force: true });
+
+    if (entry.isSymbolicLink()) {
+      await fs.symlink(await fs.readlink(source), target);
+    } else {
+      const { mode } = await fs.stat(source);
+      await fs.copyFile(source, target);
+      await fs.chmod(target, mode & 0o100 ? 0o755 : 0o644);
+    }
+  }
+}
+
+/**
+ * The copy only adds and overwrites, so a tracked file the earlier phases
+ * removed would survive. git rm runs in the trusted clone and refuses to
+ * delete through a symlinked directory.
+ */
+async function removeDeletedFiles(workTree: string, checkout: string): Promise<void> {
+  const tracked = await runOrThrow('git', [...GIT, 'ls-files', '-z'], { cwd: checkout });
+
+  for (const file of tracked.output.split('\0').filter(Boolean)) {
+    if (file.split('/').some((part) => SKIPPED.has(part))) {
+      continue;
+    }
+    const stillThere = await fs
+      .lstat(path.join(workTree, file))
+      .then(() => true)
+      .catch(() => false);
+    if (!stillThere) {
+      await runOrThrow('git', [...GIT, 'rm', '--quiet', '--', file], { cwd: checkout });
+    }
+  }
 }
 
 async function findExistingPullRequest(
@@ -27,72 +135,106 @@ async function findExistingPullRequest(
   return existing.data[0]?.html_url;
 }
 
+
+/**
+ * The checkout on the job volume has been writable by repository code since
+ * the install phase, so its .git directory cannot be trusted: a planted hook,
+ * fsmonitor command or filter driver would run here, next to the token. This
+ * phase never runs git in it. It clones afresh into the container's own
+ * temporary directory, at the commit prepare cloned, and copies the files
+ * across.
+ */
 export async function publish(): Promise<PhaseResult> {
   const config = loadConfig();
+  const { owner, repo } = splitFullName(config.repoFullName);
+  const baseSha = requireBaseSha();
   const token = requireToken();
   const steps: StepLog[] = [];
+  const workTree = await requireRealRepoDir(config.workspace, config.repoDir);
 
   await configureGitCredentials(token, config.repoUrl);
 
-  if (!(await hasUncommittedChanges(config.repoDir))) {
-    steps.push({
-      step: 'PR',
-      output: 'The refactor produced no changes, so no pull request was opened.',
-    });
-    return { phase: 'publish', ok: true, steps, data: { skipped: true } };
-  }
-
-  const baseBranch = await currentBranch(config.repoDir);
-
-  // -B and a force push keep BullMQ retries idempotent against a branch left
-  // behind by an earlier attempt.
-  await runOrThrow('git', ['checkout', '-B', config.branchName], { cwd: config.repoDir });
-  await runOrThrow('git', ['add', '--all'], { cwd: config.repoDir });
-
-  const commitMessage = `chore: migrate ${config.dependencyName} to ${config.targetVersion}`;
-  await runOrThrow('git', ['commit', '-m', commitMessage], { cwd: config.repoDir });
-
-  const push = await run(
-    'git',
-    ['push', '--force', 'origin', `HEAD:refs/heads/${config.branchName}`],
-    { cwd: config.repoDir },
-  );
-
-  if (push.code !== 0) {
-    steps.push({ step: 'PR', output: redact(push.output, [token]), exitCode: push.code });
-    return { phase: 'publish', ok: false, error: 'git push failed', steps };
-  }
-
-  const { owner, repo } = splitFullName(config.repoFullName);
-  const octokit = new Octokit({ auth: token, baseUrl: config.githubApiUrl });
-
-  let pullRequestUrl: string | undefined;
+  const checkout = await fs.mkdtemp(path.join(os.tmpdir(), 'synclab-publish-'));
 
   try {
-    const created = await octokit.pulls.create({
-      owner,
-      repo,
-      title: `Migrate ${config.dependencyName} to ${config.targetVersion}`,
-      head: config.branchName,
-      base: baseBranch,
-      body: [
-        `Automated migration of \`${config.dependencyName}\` to \`${config.targetVersion}\`.`,
-        '',
-        'Generated by SyncLab. The test suite passed inside an isolated sandbox before this pull request was opened.',
-      ].join('\n'),
-    });
-    pullRequestUrl = created.data.html_url;
-  } catch (error: unknown) {
-    pullRequestUrl = await findExistingPullRequest(octokit, owner, repo, config.branchName);
-    if (!pullRequestUrl) {
-      throw error;
+    const clone = await run('git', [...GIT, 'clone', config.repoUrl, checkout]);
+    if (clone.code !== 0) {
+      steps.push({ step: 'PR', output: redact(clone.output, [token]), exitCode: clone.code });
+      return { phase: 'publish', ok: false, error: 'git clone failed', steps };
     }
+
+    const baseBranch = await currentBranch(checkout);
+
+    // -B and a force push keep BullMQ retries idempotent against a branch left
+    // behind by an earlier attempt.
+    await runOrThrow('git', [...GIT, 'checkout', '-B', config.branchName, baseSha], {
+      cwd: checkout,
+    });
+
+    await copyWorkTree(workTree, checkout, await fs.realpath(checkout));
+    await removeDeletedFiles(workTree, checkout);
+
+    if (!(await hasUncommittedChanges(checkout))) {
+      steps.push({
+        step: 'PR',
+        output: 'The refactor produced no changes, so no pull request was opened.',
+      });
+      return { phase: 'publish', ok: true, steps, data: { skipped: true } };
+    }
+
+    await runOrThrow('git', [...GIT, 'add', '--all'], { cwd: checkout });
+
+    const commitMessage = `chore: migrate ${config.dependencyName} to ${config.targetVersion}`;
+    await runOrThrow('git', [...GIT, 'commit', '-m', commitMessage], { cwd: checkout });
+
+    const push = await run(
+      'git',
+      [...GIT, 'push', '--force', 'origin', `HEAD:refs/heads/${config.branchName}`],
+      { cwd: checkout },
+    );
+
+    if (push.code !== 0) {
+      steps.push({ step: 'PR', output: redact(push.output, [token]), exitCode: push.code });
+      return { phase: 'publish', ok: false, error: 'git push failed', steps };
+    }
+
+    const octokit = new Octokit({ auth: token, baseUrl: config.githubApiUrl });
+
+    let pullRequestUrl: string | undefined;
+
+    try {
+      const created = await octokit.pulls.create({
+        owner,
+        repo,
+        title: `Migrate ${config.dependencyName} to ${config.targetVersion}`,
+        head: config.branchName,
+        base: baseBranch,
+        body: [
+          `Automated migration of \`${config.dependencyName}\` to \`${config.targetVersion}\`.`,
+          '',
+          'Generated by SyncLab. The test suite passed inside an isolated sandbox before this pull request was opened.',
+        ].join('\n'),
+      });
+      pullRequestUrl = created.data.html_url;
+    } catch (error: unknown) {
+      pullRequestUrl = await findExistingPullRequest(octokit, owner, repo, config.branchName);
+      if (!pullRequestUrl) {
+        throw error;
+      }
+    }
+
+    steps.push({
+      step: 'PR',
+      output: `Pushed ${config.branchName} onto ${baseBranch} and opened ${pullRequestUrl}`,
+    });
+
+    return {
+      phase: 'publish',
+      ok: true,
+      steps,
+      data: { pullRequestUrl, branchName: config.branchName },
+    };
+  } finally {
+    await fs.rm(checkout, { recursive: true, force: true });
   }
-
-  steps.push({
-    step: 'PR',
-    output: `Pushed ${config.branchName} onto ${baseBranch} and opened ${pullRequestUrl}`,
-  });
-
-  return { phase: 'publish', ok: true, steps, data: { pullRequestUrl, branchName: config.branchName } };
 }

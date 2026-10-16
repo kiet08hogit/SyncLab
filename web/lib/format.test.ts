@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatClock, formatDate, splitExitCode, timeAgo } from "@/lib/format";
+import { formatClock, formatDate, formatDuration, splitExitCode, tailLines, timeAgo } from "@/lib/format";
 
 describe("splitExitCode", () => {
   it("splits the exit code off the first line", () => {
@@ -51,5 +51,28 @@ describe("formatDate and formatClock", () => {
   it("formats in UTC so server and browser agree", () => {
     expect(formatDate("2026-10-15T09:05:00Z")).toBe("Oct 15, 2026, 9:05 AM UTC");
     expect(formatClock("2026-10-15T09:05:07.123Z")).toBe("09:05:07");
+  });
+});
+
+describe("formatDuration", () => {
+  it("picks units that fit the length", () => {
+    expect(formatDuration(0)).toBe("0s");
+    expect(formatDuration(45_400)).toBe("45s");
+    expect(formatDuration(252_000)).toBe("4m 12s");
+    expect(formatDuration(3_780_000)).toBe("1h 3m");
+  });
+
+  it("never goes negative when clocks disagree", () => {
+    expect(formatDuration(-2_000)).toBe("0s");
+  });
+});
+
+describe("tailLines", () => {
+  it("keeps short output whole", () => {
+    expect(tailLines("a\nb", 5)).toEqual({ hidden: 0, text: "a\nb" });
+  });
+
+  it("keeps the last lines and counts the rest", () => {
+    expect(tailLines("1\n2\n3\n4\n5", 2)).toEqual({ hidden: 3, text: "4\n5" });
   });
 });

@@ -24,7 +24,7 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 1. A trigger arrives: a signed `pull_request` webhook for a Dependabot or Renovate npm update, or an authenticated `POST /migrations` request.
 2. The **gateway** records a `MigrationJob` in PostgreSQL and enqueues it on a BullMQ queue in Redis.
 3. A **worker** claims the job and runs the **sandbox** image as a sequence of containers over one shared Docker volume:
-   `prepare` (clone, install, upgrade the dependency, fetch release notes), then `refactor` and `test` in a loop, then `publish`.
+   `prepare` (clone, fetch release notes), `install`, a baseline `test` on the current version, `upgrade`, then `refactor` and `test` in a loop, then `publish`.
 4. If the tests pass, `publish` pushes a branch and opens a pull request, and the job is marked `COMPLETED` with the PR URL.
 
 ## High-level workflow
@@ -49,6 +49,7 @@ flowchart LR
     subgraph Docker["Docker host"]
         VOL[("Named volume<br/>/workspace")]
         P["prepare"]
+        I["install, upgrade<br/>no token"]
         R["refactor"]
         T["test<br/>no network"]
         PB["publish"]
@@ -65,9 +66,9 @@ flowchart LR
     RD -->|"dequeue"| WK
     WK <-->|"claim, status, logs"| PG
     WK -->|"Docker Engine API"| Docker
-    P & R & T & PB --- VOL
+    P & I & R & T & PB --- VOL
     P -->|"clone"| REPO
-    P -->|"install and upgrade"| NPM
+    I -->|"install and upgrade"| NPM
     R -->|"rewrite files"| LLM
     PB -->|"push branch, open PR"| REPO
 ```
@@ -102,19 +103,24 @@ sequenceDiagram
 
     WK->>SB: prepare
     SB->>GH: clone repository
-    SB->>SB: npm ci, then npm install dep@version --ignore-scripts
     SB->>GH: fetch release notes for the target version
+    WK->>SB: install (no token)
+    SB->>SB: npm, pnpm or yarn install, with install scripts
+    WK->>SB: test, baseline (no network, no secrets)
+    SB->>SB: suite must pass on the current version
+    WK->>SB: upgrade (no token)
+    SB->>SB: install dep@version
 
     loop up to LLM_MAX_ATTEMPTS
         WK->>SB: refactor
         SB->>LLM: rewrite each file that imports the dependency
         WK->>SB: test (no network, no secrets)
-        SB->>SB: npm test, save output for the next attempt
+        SB->>SB: run the test script, save output for the next attempt
     end
 
     alt tests passed
         WK->>SB: publish
-        SB->>GH: push branch, open pull request
+        SB->>GH: fresh clone at the prepared commit, push branch, open pull request
         WK->>DB: COMPLETED + pull_request_url
     else tests failed, refactor failed, or nothing changed
         WK->>DB: error_message, QUEUED if BullMQ will retry, else FAILED
@@ -206,7 +212,13 @@ Code: `server/api/src/worker/sandbox/docker-sandbox.service.ts` (orchestration) 
 flowchart TD
     START(["Create volume synclab-job-id"]) --> PREP["prepare"]
     PREP -- failed --> F1["FAILED, not retried"]
-    PREP -- ok --> LOOP{"attempt <= LLM_MAX_ATTEMPTS?"}
+    PREP -- ok --> INST["install"]
+    INST -- failed --> F1
+    INST -- ok --> BASE["test (baseline)"]
+    BASE -- fail --> F0["FAILED: suite already fails before the upgrade"]
+    BASE -- pass --> UPG["upgrade"]
+    UPG -- failed --> F1
+    UPG -- ok --> LOOP{"attempt <= LLM_MAX_ATTEMPTS?"}
     LOOP -- yes --> REF["refactor (attempt n)"]
     REF -- "model rate limited" --> F2["QUEUED, BullMQ retries with backoff<br/>(FAILED after the last attempt)"]
     REF -- "other model error" --> F3["FAILED, not retried"]
@@ -226,10 +238,15 @@ State passes between phases only through the shared `/workspace` volume: the rep
 
 | Phase | Network | GitHub token | Model access | Runs repository code |
 | --- | --- | --- | --- | --- |
-| `prepare` | yes | yes | no | install scripts during `npm ci` |
+| `prepare` | yes | yes | no | no |
+| `install` | yes | **no** | no | **yes** (dependency install scripts) |
+| `upgrade` | yes | **no** | no | **yes** (the new release's install scripts) |
 | `refactor` | yes | no | yes | no |
-| `test` | **none** | no | no | **yes** (`npm test`) |
+| `test` | **none** | no | no | **yes** (the test suite, baseline and each attempt) |
 | `publish` | yes | yes | no | no |
+
+The token is only ever present in the two phases that run nothing but SyncLab's own code.
+Repository code can still write to the checkout on the volume, including its `.git` directory, so `publish` never runs git there: a planted hook, `core.fsmonitor` command or filter driver would otherwise run beside the token.
 
 Every container also runs as the non-root `node` user, with all Linux capabilities dropped, `no-new-privileges`, a hard memory ceiling with swap disabled, a CPU quota, a PID limit, and a per-phase timeout.
 The workspace is a named Docker volume, never a bind mount of the host filesystem.
@@ -237,15 +254,32 @@ These rules live in `server/api/src/worker/sandbox/container-options.ts`.
 
 #### `prepare`
 
-1. Writes the token to a git credential file (never into the remote URL), then clones the repository (full clone, since GitHub rejects pushes from some shallow clones).
-2. Runs `npm ci`, or `npm install` when there is no `package-lock.json`.
-3. Upgrades the migrated dependency: `npm install <dep>@<version> --ignore-scripts` (`server/sandbox/src/upgrade.ts`).
-   - The package stays in the `package.json` section it was declared in (`--save-dev`, `--save-optional`, `--save-peer`).
-   - An exact pin stays exact (`--save-exact`); a leading `v` in the version is stripped.
-   - If the package is not a direct dependency, or the version does not exist, the phase fails.
-   - `--ignore-scripts` keeps code from the new release from running while the GitHub token is present.
-4. Resolves the dependency's GitHub repository from the npm registry and fetches the release notes for the target tag (`1.2.3` or `v1.2.3`).
+1. Writes the token to a git credential file in the container's home (never into the remote URL or the volume), then clones the repository (full clone, since GitHub rejects pushes from some shallow clones).
+2. Resolves the dependency's GitHub repository from the npm registry and fetches the release notes for the target tag (`1.2.3` or `v1.2.3`).
    This is best effort; a migration without notes still runs.
+3. Reports the cloned commit, which the worker later hands to `publish`.
+
+#### `install`
+
+Installs dependencies with their lifecycle scripts, so packages that need a native build step work.
+The package manager comes from the `packageManager` field in `package.json`, otherwise from the lockfile (`pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`), otherwise npm (`server/sandbox/src/package-manager.ts`).
+A lockfile is honoured exactly (`npm ci`, `pnpm install --frozen-lockfile`, `yarn install --frozen-lockfile` or `--immutable` for Yarn 2+).
+pnpm and yarn run through corepack, at the version `packageManager` pins.
+Corepack's downloads and Yarn 2+'s package cache live on the volume, because the test phase has no network to fetch them again.
+
+#### Baseline `test`
+
+Runs the test suite once on the version the repository already had.
+If it fails, the job fails straight away: the suite cannot verify a migration, and every refactor attempt would be spent on a failure the model did not cause.
+
+#### `upgrade`
+
+Upgrades the migrated dependency with the detected package manager (`server/sandbox/src/upgrade.ts`).
+- The exact target version is requested, so the suite runs against that version and not the newest one a range would allow.
+- The package stays in the `package.json` section it was declared in, and an exact pin stays exact; a leading `v` in the version is stripped.
+  npm and pnpm save a range as `^<version>`; yarn saves what it is asked for, so with yarn a range becomes an exact pin.
+- If the package is not a direct dependency, or the version does not exist, the phase fails.
+- The new release's install scripts run, since this phase has no token.
 
 #### `refactor`
 
@@ -263,13 +297,17 @@ These rules live in `server/api/src/worker/sandbox/container-options.ts`.
 
 #### `test`
 
-Runs `npm test` in the checkout with no network and no credentials, and saves the full output to the volume so the next `refactor` attempt can correct itself.
+Runs the package manager's `test` script in the checkout with no network and no credentials, and saves the full output to the volume so the next `refactor` attempt can correct itself.
 
 #### `publish`
 
-1. If the working tree is clean, reports `skipped` and the worker fails the job with `refactor produced no changes`.
-2. Otherwise checks out `synclab/<dependency>-<version>`, commits everything (code changes plus the `package.json` and lockfile bump), and force-pushes the branch so a retried job reuses it.
-3. Opens a pull request against the repository's default branch, or returns the already open one for that branch.
+1. Checks `REPO_FULL_NAME` is exactly `owner/repo` before doing anything else, and refuses to publish unless the checkout is a real directory directly inside the workspace, not a symlink, before any credentials are written.
+2. Clones the repository afresh into the container's own temporary directory and checks out `synclab/<dependency>-<version>` at the commit `prepare` cloned, so the branch is based on what was tested even if the default branch has moved.
+3. Copies the working tree from the volume onto that clone, skipping `.git` and `node_modules`, and removes tracked files the earlier phases deleted.
+   Symlinks are recreated, never followed, and a write that would resolve outside the clone is refused.
+4. If nothing changed, reports `skipped` and the worker fails the job with `refactor produced no changes`.
+5. Otherwise commits everything (code changes plus the `package.json` and lockfile bump) with hooks disabled, and force-pushes the branch so a retried job reuses it.
+6. Opens a pull request against the repository's default branch, or returns the already open one for that branch.
 
 #### Phase result protocol
 
@@ -284,7 +322,7 @@ If no result line appears (for example, the container was killed), the raw log b
 | Route | Shows |
 | --- | --- |
 | `/` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
-| `/jobs/[id]` | One job's pipeline track (clone, install, upgrade, changelog, refactor, test, pull request), failure reason, and execution log |
+| `/jobs/[id]` | One job's pipeline track (clone, install, upgrade, changelog, refactor, test, pull request), failure reason, a retry button for failed jobs, and execution log |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
@@ -347,12 +385,14 @@ Only failures that could succeed on a later try are retried; everything else is 
 | Other model errors (bad key, unknown model, malformed output) | `FAILED` | no |
 | `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` missing for the selected provider | `FAILED` | no |
 | Clone, install or dependency upgrade failed | `FAILED` | no |
+| Test suite already fails before the upgrade | `FAILED` | no |
 | Tests still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
 | Refactor produced no changes | `FAILED` | no |
 | Infrastructure errors (Docker, GitHub token, database) | `QUEUED` while retrying, then `FAILED` | yes |
 | Already `COMPLETED` when claimed | unchanged | no (logged as `SKIPPED`) |
 
 A failed job can also be retried by triggering the same repository, dependency and version again.
+The **Retry migration** button on a failed job's dashboard page does exactly that, through `POST /migrations`.
 
 ## Repository layout
 
@@ -373,10 +413,11 @@ SyncLab/
 │   └── sandbox/               code that runs inside the sandbox containers
 │       ├── Dockerfile
 │       └── src/
-│           ├── phases/        prepare, refactor, test, publish
+│           ├── phases/        prepare, install, upgrade, refactor, test, publish
 │           ├── analysis/      Babel import and usage analysis
 │           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
-│           └── upgrade.ts     dependency upgrade used by prepare
+│           ├── package-manager.ts  npm, pnpm and yarn detection and commands
+│           └── upgrade.ts     dependency upgrade used by the upgrade phase
 └── benchmarks/                synthetic migration cases and runner for the refactor and test loop
 ```
 
@@ -470,10 +511,9 @@ Known gaps in the current implementation:
 
 - Automatic migrations need Dependabot or Renovate running on the repository; SyncLab does not watch npm itself.
   It opens its own pull request next to the bot's rather than pushing onto the bot's branch.
-- `npm ci` in `prepare` runs repository install scripts while the GitHub token is present.
-- With `--ignore-scripts`, an upgraded package that needs a native build step is not built, so its tests fail.
-- Only npm is supported; repositories using `yarn.lock` or `pnpm-lock.yaml` are installed with npm.
-- There is no test run before the rewrite, so the self-correction loop cannot tell a migration break from a suite that was already failing.
+- Install scripts run without the GitHub token, so dependencies installed from private GitHub repositories or private registries cannot be fetched.
+- A repository whose suite already fails is not migrated at all; there is no way yet to accept a known set of failing tests.
+- With yarn, an upgraded dependency declared as a range is saved as an exact pin, because yarn cannot install an exact version and record a range in one step.
 
 Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architecture/04%20-%20Phased%20Rollout.md):
 

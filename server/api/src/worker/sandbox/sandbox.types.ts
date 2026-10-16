@@ -8,7 +8,14 @@ import type { LlmProvider } from '../../config/configuration';
 
 export const RESULT_SENTINEL = '##SYNCLAB_RESULT##';
 
-export const SANDBOX_PHASES = ['prepare', 'refactor', 'test', 'publish'] as const;
+export const SANDBOX_PHASES = [
+  'prepare',
+  'install',
+  'upgrade',
+  'refactor',
+  'test',
+  'publish',
+] as const;
 
 export type SandboxPhase = (typeof SANDBOX_PHASES)[number];
 

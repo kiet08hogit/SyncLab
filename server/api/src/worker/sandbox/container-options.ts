@@ -19,11 +19,11 @@ export interface ContainerOptionsInput {
 }
 
 /**
- * The test phase is the one that executes untrusted repository code, so it is
- * the one that gets cut off. Clone, install, and pull request creation all
- * legitimately need to reach GitHub, and the refactor phase needs to reach the
- * model provider - but refactor only reads and writes files with our own code,
- * so nothing from the repository ever runs with a network connection.
+ * The test phase runs the repository's own suite, so it is cut off entirely.
+ * Install and upgrade also run untrusted code - dependency lifecycle scripts -
+ * but cannot fetch packages without the registry, so they keep the network
+ * and instead never receive a token. Refactor needs the model provider and
+ * only runs SyncLab's own code.
  */
 export function phaseNeedsNetwork(phase: SandboxPhase): boolean {
   return phase !== 'test';
@@ -31,7 +31,9 @@ export function phaseNeedsNetwork(phase: SandboxPhase): boolean {
 
 /**
  * Kept separate from network access on purpose: these are independent reasons
- * to withhold something from a phase. Refactor has no business reaching GitHub.
+ * to withhold something from a phase. Only the two phases that run nothing but
+ * SyncLab's own code get the token; install scripts and the test suite never
+ * run beside it, and refactor has no business reaching GitHub.
  */
 export function phaseNeedsToken(phase: SandboxPhase): boolean {
   return phase === 'prepare' || phase === 'publish';

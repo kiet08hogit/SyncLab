@@ -8,14 +8,17 @@ The worker never executes untrusted code itself. It runs a sequence of container
 
 | Phase | Network | GitHub token | Model key | Does |
 | --- | --- | --- | --- | --- |
-| `prepare` | yes | yes | no | clone the repository, install dependencies, upgrade the migrated dependency to the target version (install scripts skipped), fetch the target release notes |
+| `prepare` | yes | yes | no | clone the repository, fetch the target release notes, report the cloned commit |
+| `install` | yes | **no** | no | install dependencies with npm, pnpm or yarn, lifecycle scripts included |
+| `test` (baseline) | **no** | **no** | **no** | run the test suite on the current version; the job stops if it already fails |
+| `upgrade` | yes | **no** | no | upgrade the migrated dependency to the target version |
 | `refactor` | yes | no | yes | find files importing the dependency, rewrite them with the configured model (Ollama, Gemini or Claude) |
-| `test` | **no** | **no** | **no** | run `npm test` |
-| `publish` | yes | yes | no | commit, push the branch, open a pull request |
+| `test` | **no** | **no** | **no** | run the package manager's `test` script |
+| `publish` | yes | yes | no | clone afresh at the prepared commit, copy the changes across, commit, push the branch, open a pull request |
 
-`test` is the only phase that runs repository code, and it is the one with no network access and no credentials. `refactor` reaches the model provider but only reads and writes files using SyncLab's own code, so nothing from the repository ever executes with a network connection.
+Repository code runs in `install`, `upgrade` and `test`, and none of them ever receives a credential. `test` also has no network. Only `prepare` and `publish` hold the token, and they run nothing but SyncLab's own code; `publish` never runs git in the checkout on the volume, because repository code could have planted a hook or config there.
 
-After `prepare`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
+After `upgrade`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
 
 A rate-limited model call, an overloaded Anthropic API (529), or an Ollama server that refuses the connection, fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
 
@@ -33,7 +36,7 @@ npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
 npm run start:dev             # gateway + worker in one process
 ```
 
-To process more than one job at a time, leave the gateway as a single process and start extra workers. Each worker process takes jobs from the same Redis queue. `WORKER_CONCURRENCY` (default `1`) is how many sandboxes one process runs at once — keep it at 1 unless the machine can hold more than one 2GB container.
+To process more than one job at a time, leave the gateway as a single process and start extra workers. Each worker process takes jobs from the same Redis queue. `WORKER_CONCURRENCY` (default `1`) is how many sandboxes one process runs at once -- keep it at 1 unless the machine can hold more than one 2GB container.
 
 ```bash
 npm run start:gateway         # terminal 1
@@ -85,14 +88,27 @@ For repository access, either register a GitHub App (preferred) or use a Persona
 
 ### Registering the GitHub App
 
-1. Go to Settings, Developer settings, GitHub Apps, then New GitHub App.
-2. Repository permissions: **Contents** read and write, **Pull requests** read and write, **Metadata** read.
-3. Subscribe to the **Pull request** event.
-4. Set the webhook URL to your gateway's `/webhook` endpoint and the webhook secret to the same value as `GITHUB_WEBHOOK_SECRET`.
-5. Generate a private key and download the `.pem`.
-6. Install the App on the repositories you want SyncLab to migrate.
-7. Set `GITHUB_APP_ID` and either `GITHUB_PRIVATE_KEY_PATH` or `GITHUB_PRIVATE_KEY` in `.env`.
-8. For dashboard sign-in, note the App's client ID and generate a client secret (see `web/README.md`).
+`npm run github-app:register` registers the App through GitHub's [App Manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest) and writes its credentials for you:
+
+```bash
+npx smee-client --url https://smee.io/new   # or any public URL that reaches the gateway; note the channel URL it prints
+npm run github-app:register -- --webhook-url https://smee.io/<channel> --name "SyncLab <your-handle>"
+```
+
+1. Open `http://localhost:3002` and press **Continue to GitHub**.
+   GitHub shows the App with its settings filled in: **Contents** and **Pull requests** read and write, **Metadata** read, the **Pull request** event, the webhook URL, and the dashboard's sign-in callback `http://localhost:3001/auth/github/callback`.
+2. Press **Create GitHub App**.
+   GitHub redirects back with a one-time code, which the script exchanges for the App's credentials.
+   It writes `GITHUB_APP_ID`, `GITHUB_WEBHOOK_SECRET` and `GITHUB_PRIVATE_KEY_PATH` to `.env`, the private key next to it as `<slug>.private-key.pem` (gitignored), and `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_APP_SLUG` and a `SESSION_SECRET` to `web/.env.local`.
+   Nothing secret is printed.
+3. Follow the install link on the final page, and install the App on the repositories SyncLab should migrate.
+
+App names are unique across GitHub, so pick one with your handle in it.
+The script registers the App under your personal account; to register it under an organization, use the manual steps below.
+
+GitHub cannot reach `localhost`, so for local development keep `npx smee-client --url https://smee.io/<channel> --target http://localhost:3000/webhook` running; it relays each delivery to the gateway.
+
+To register by hand instead, create the App under Settings, Developer settings, GitHub Apps with the permissions, event, webhook and callback URLs above, generate a private key and a client secret, and set the same variables.
 
 The worker mints a fresh installation token per job. The private key stays in the worker and is never passed into a sandbox container.
 
@@ -174,4 +190,4 @@ Every read is limited to the caller's repositories (see [Credentials](#credentia
 | `npm test` | unit tests |
 | `npm run test:e2e` | end-to-end tests (no Postgres or Redis needed) |
 
-The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the `prepare`, `test` and `publish` phases and their helpers against local git repositories and a stub npm registry.
+The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise every phase except `refactor` and their helpers against local git repositories and a stub npm registry.

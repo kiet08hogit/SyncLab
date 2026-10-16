@@ -54,9 +54,10 @@ export class DockerSandboxService {
   }
 
   /**
-   * Prepare once, then alternate refactor and test until the repository's own
-   * suite accepts the change, then publish. Each test failure is left on the
-   * shared volume for the next refactor attempt to read.
+   * Prepare and install, prove the suite passes on the current version, then
+   * upgrade and alternate refactor and test until the repository's own suite
+   * accepts the change, then publish. Each test failure is left on the shared
+   * volume for the next refactor attempt to read.
    */
   async run(
     jobId: string,
@@ -71,6 +72,38 @@ export class DockerSandboxService {
       await onSteps(prepared.steps);
       if (!prepared.ok) {
         return { ok: false, error: prepared.error ?? 'sandbox phase "prepare" failed' };
+      }
+
+      // Publish clones afresh at exactly this commit rather than trusting the
+      // checkout on the volume, which repository code has been able to modify.
+      const baseSha = prepared.data?.headSha;
+      if (typeof baseSha !== 'string') {
+        return { ok: false, error: 'sandbox phase "prepare" did not report the cloned commit' };
+      }
+
+      const installed = await this.runPhase('install', volumeName, params, 1);
+      await onSteps(installed.steps);
+      if (!installed.ok) {
+        return { ok: false, error: installed.error ?? 'sandbox phase "install" failed' };
+      }
+
+      // Without this, a suite that was already failing reads as a migration
+      // the model got wrong, and every refactor attempt is spent on it.
+      const baseline = await this.runPhase('test', volumeName, params, 1, {
+        TEST_BASELINE: 'true',
+      });
+      await onSteps(baseline.steps);
+      if (!baseline.ok) {
+        return {
+          ok: false,
+          error: `the test suite already fails before the upgrade, so a migration cannot be verified: ${baseline.error ?? 'test suite failed'}`,
+        };
+      }
+
+      const upgraded = await this.runPhase('upgrade', volumeName, params, 1);
+      await onSteps(upgraded.steps);
+      if (!upgraded.ok) {
+        return { ok: false, error: upgraded.error ?? 'sandbox phase "upgrade" failed' };
       }
 
       const maxAttempts = params.llm.maxAttempts;
@@ -106,7 +139,9 @@ export class DockerSandboxService {
         };
       }
 
-      const published = await this.runPhase('publish', volumeName, params, maxAttempts);
+      const published = await this.runPhase('publish', volumeName, params, maxAttempts, {
+        BASE_SHA: baseSha,
+      });
       await onSteps(published.steps);
       if (!published.ok) {
         return { ok: false, error: published.error ?? 'sandbox phase "publish" failed' };
@@ -135,13 +170,14 @@ export class DockerSandboxService {
     volumeName: string,
     params: SandboxJobParams,
     attempt: number,
+    extraEnv: Record<string, string> = {},
   ): Promise<PhaseResult> {
     const container = await this.docker.createContainer(
       buildContainerOptions({
         phase,
         image: this.image,
         volumeName,
-        env: buildPhaseEnv(phase, params, attempt),
+        env: { ...buildPhaseEnv(phase, params, attempt), ...extraEnv },
         limits: this.limits,
       }),
     );
