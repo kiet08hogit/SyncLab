@@ -1,0 +1,18 @@
+# Repo-wide ignores. Each package (web, server/api, server/sandbox,
+# benchmarks) keeps its own .gitignore for build output and tooling.
+
+# Dependencies
+node_modules/
+
+# Local secrets. Commit only the documented examples.
+.env
+.env.*
+!.env.example
+
+# Claude Code: per-session worktrees and personal settings
+.claude/worktrees/
+.claude/settings.local.json
+
+# OS and tooling noise
+.DS_Store
+*.profraw

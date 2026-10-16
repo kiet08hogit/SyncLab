@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MigrationsController } from './migrations.controller';
 
 const REPO = {
@@ -12,6 +12,7 @@ function setup() {
   const github = { lookupRepository: jest.fn().mockResolvedValue(REPO) };
   const migrationJobs = {
     enqueue: jest.fn().mockResolvedValue({ id: 'job-1', status: 'QUEUED', queued: true }),
+    findDetail: jest.fn().mockResolvedValue(null),
   };
   const controller = new MigrationsController(github as never, migrationJobs as never);
   return { controller, github, migrationJobs };
@@ -64,5 +65,20 @@ describe('MigrationsController', () => {
     await expect(controller.createMigration(body)).rejects.toBeInstanceOf(BadRequestException);
     expect(github.lookupRepository).not.toHaveBeenCalled();
     expect(migrationJobs.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('returns a job with its repository and execution log', async () => {
+    const { controller, migrationJobs } = setup();
+    const detail = { id: 'job-1', repository: { fullName: 'acme/widgets' }, executionLogs: [] };
+    migrationJobs.findDetail.mockResolvedValue(detail);
+
+    await expect(controller.getMigration('job-1')).resolves.toBe(detail);
+    expect(migrationJobs.findDetail).toHaveBeenCalledWith('job-1');
+  });
+
+  it('answers 404 for an unknown job', async () => {
+    const { controller } = setup();
+
+    await expect(controller.getMigration('job-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -1,0 +1,83 @@
+name: Verify
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/api
+    env:
+      DATABASE_URL: postgresql://admin:password@localhost:5432/synclab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the sandbox image and the README's minimum.
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/api/package-lock.json
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run typecheck
+      - run: npm run lint:check
+      - run: npm test
+      - run: npm run test:e2e
+      - run: npm run build
+
+  sandbox:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/sandbox/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # The worker runs this image for every job, so a broken Dockerfile
+      # breaks every migration even when the code compiles.
+      - run: docker build -t synclab-sandbox:ci .
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  dependencies:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Fails the pull request when it adds a dependency with a known
+      # high-severity vulnerability.
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

@@ -34,6 +34,33 @@ export interface EnqueueMigrationResult {
   queued: boolean;
 }
 
+export interface MigrationJobDetail {
+  id: string;
+  repositoryId: string;
+  dependencyName: string;
+  targetVersion: string;
+  status: string;
+  pullRequestUrl: string | null;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  // BigInt columns go out as strings: JSON.stringify cannot serialize a BigInt.
+  repository: {
+    id: string;
+    githubRepoId: string;
+    fullName: string;
+    installationId: string;
+    createdAt: Date;
+  };
+  executionLogs: Array<{
+    id: string;
+    jobId: string;
+    step: string;
+    output: string | null;
+    createdAt: Date;
+  }>;
+}
+
 /**
  * Shared by the release webhook and the manual trigger, so both deduplicate
  * and retry a migration the same way.
@@ -74,6 +101,24 @@ export class MigrationJobsService {
       return { id: job.id, status: job.status, queued: false };
     }
 
+    // Moving FAILED back to QUEUED is the claim on the retry. Only the trigger
+    // whose conditional update lands queues a run; one that loses the race to
+    // a concurrent trigger sees the row is no longer FAILED and stops.
+    if (!isNew) {
+      const { count } = await this.prisma.migrationJob.updateMany({
+        where: { id: job.id, status: JobStatus.FAILED },
+        data: { status: JobStatus.QUEUED, errorMessage: null },
+      });
+
+      if (count === 0) {
+        const current = await this.prisma.migrationJob.findUniqueOrThrow({
+          where: { id: job.id },
+        });
+        this.logger.log(`Job ${job.id} was re-queued by another trigger, not re-queueing`);
+        return { id: job.id, status: current.status, queued: false };
+      }
+    }
+
     const jobData: MigrationJobData = {
       jobId: job.id,
       repoUrl: input.repoUrl,
@@ -81,9 +126,38 @@ export class MigrationJobsService {
 
     // No explicit BullMQ jobId: the database unique constraint already
     // deduplicates, and a retained id would block re-queueing a failed job.
-    await this.migrationQueue.add(MIGRATION_JOB_NAME, jobData, RETRY_JOB_OPTIONS);
+    try {
+      await this.migrationQueue.add(MIGRATION_JOB_NAME, jobData, RETRY_JOB_OPTIONS);
+    } catch (error: unknown) {
+      // A row left QUEUED with nothing in the queue would make every later
+      // trigger skip it, so mark it FAILED to keep it retryable.
+      await this.prisma.migrationJob.update({
+        where: { id: job.id },
+        data: { status: JobStatus.FAILED, errorMessage: `Could not queue job: ${String(error)}` },
+      });
+      throw error;
+    }
 
     return { id: job.id, status: JobStatus.QUEUED, queued: true };
+  }
+
+  async findDetail(id: string): Promise<MigrationJobDetail | null> {
+    const job = await this.prisma.migrationJob.findUnique({
+      where: { id },
+      include: { repository: true, executionLogs: { orderBy: { createdAt: 'asc' } } },
+    });
+    if (!job) {
+      return null;
+    }
+
+    return {
+      ...job,
+      repository: {
+        ...job.repository,
+        githubRepoId: job.repository.githubRepoId.toString(),
+        installationId: job.repository.installationId.toString(),
+      },
+    };
   }
 
   /**

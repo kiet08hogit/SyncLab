@@ -8,6 +8,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "npm run build && node --test \"dist/**/*.spec.js\"",
     "docker:build": "docker build -t synclab-sandbox:latest .",
     "start": "node dist/main.js"

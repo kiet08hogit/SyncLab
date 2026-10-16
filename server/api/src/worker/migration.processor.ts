@@ -17,6 +17,13 @@ function slug(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/** Mirrors BullMQ's own decision: it retries until attempts run out, unless told not to. */
+function willRetry(job: Job<MigrationJobData>, error: unknown): boolean {
+  const unrecoverable =
+    error instanceof UnrecoverableError || (error as Error | null)?.name === 'UnrecoverableError';
+  return !unrecoverable && job.attemptsMade + 1 < (job.opts.attempts ?? 1);
+}
+
 // The decorator is evaluated at module load, before ConfigService exists.
 const concurrency = configuration().worker.concurrency;
 
@@ -96,7 +103,7 @@ export class MigrationProcessor extends WorkerHost {
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      await this.fail(jobId, message);
+      await this.fail(jobId, message, willRetry(job, error));
       throw error;
     }
   }
@@ -119,12 +126,16 @@ export class MigrationProcessor extends WorkerHost {
   /**
    * Tolerates its own failure: the thrown error must reach BullMQ so the job
    * retries, even if writing the failure state did not work.
+   *
+   * A job BullMQ is about to retry stays QUEUED. Marking it FAILED during the
+   * backoff would let a new trigger re-queue it, and the trigger's run and the
+   * retry would then both execute.
    */
-  private async fail(jobId: string, message: string): Promise<void> {
+  private async fail(jobId: string, message: string, retrying: boolean): Promise<void> {
     try {
       await this.prisma.migrationJob.update({
         where: { id: jobId },
-        data: { status: JobStatus.FAILED, errorMessage: message },
+        data: { status: retrying ? JobStatus.QUEUED : JobStatus.FAILED, errorMessage: message },
       });
       await this.log(jobId, [{ step: LogStep.FAILED, output: message }]);
     } catch (error: unknown) {

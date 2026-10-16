@@ -1,4 +1,5 @@
-import { isValidBearerToken } from './migrations-api-token.guard';
+import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { isValidBearerToken, MigrationsApiTokenGuard } from './migrations-api-token.guard';
 
 const TOKEN = 'a-test-migrations-token';
 
@@ -27,5 +28,29 @@ describe('isValidBearerToken', () => {
 
   it('rejects everything when no token is configured', () => {
     expect(isValidBearerToken('Bearer ', '')).toBe(false);
+  });
+});
+
+describe('MigrationsApiTokenGuard', () => {
+  function canActivate(configured: string, authorization?: string) {
+    const config = { get: () => configured };
+    const request = {
+      header: (name: string) => (name === 'authorization' ? authorization : undefined),
+    };
+    const context = { switchToHttp: () => ({ getRequest: () => request }) };
+    return new MigrationsApiTokenGuard(config as never).canActivate(context as never);
+  }
+
+  it('lets a request with the configured bearer token through', () => {
+    expect(canActivate(TOKEN, `Bearer ${TOKEN}`)).toBe(true);
+  });
+
+  it('rejects a wrong or missing token as unauthorized', () => {
+    expect(() => canActivate(TOKEN, 'Bearer wrong-token')).toThrow(UnauthorizedException);
+    expect(() => canActivate(TOKEN)).toThrow(UnauthorizedException);
+  });
+
+  it('disables the endpoint with a server error when no token is configured', () => {
+    expect(() => canActivate('', 'Bearer ')).toThrow(InternalServerErrorException);
   });
 });

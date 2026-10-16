@@ -118,6 +118,10 @@ curl -X POST http://localhost:3000/migrations \
 
 The gateway looks the repository up on GitHub (404 if it does not exist or the App cannot see it), then creates the job or returns the existing one for the same repository, dependency and version. Like the webhook, it only queues an existing job again if its status is `FAILED`. The response is `202` with the job `id`, its `status`, and whether it was `queued`.
 
+`GET /migrations/:id` takes the same bearer token and returns one job with its repository and execution log, oldest entry first.
+`githubRepoId` and `installationId` come back as strings, because JSON cannot carry a BigInt.
+It answers `404` for an unknown job and `400` when the id is not a UUID.
+
 ## Scripts
 
 | Command | Purpose |
@@ -126,8 +130,11 @@ The gateway looks the repository up on GitHub (404 if it does not exist or the A
 | `npm run start:gateway` | webhooks and `POST /migrations` only (`APP_ROLE=gateway`) |
 | `npm run start:worker` | sandbox jobs only (`APP_ROLE=worker`) |
 | `npm run sandbox:build` | build the sandbox container image |
+| `npm run db:generate` | generate the Prisma client |
 | `npm run typecheck` | type-check without emitting |
+| `npm run lint` | lint and auto-fix |
+| `npm run lint:check` | lint without fixing, as CI runs it |
 | `npm test` | unit tests |
-| `npm run test:e2e` | end-to-end tests (needs Postgres and Redis from `server/docker-compose.yml`) |
+| `npm run test:e2e` | end-to-end tests (no Postgres or Redis needed) |
 
-The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the dependency analyzer and the rate-limit classifier.
+The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the `prepare`, `test` and `publish` phases and their helpers against local git repositories and a stub npm registry.
