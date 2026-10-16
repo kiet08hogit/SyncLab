@@ -4,7 +4,7 @@
 //
 //   node scripts/register-github-app.mjs --webhook-url https://smee.io/abc123
 //
-// It serves a page on http://localhost:<port> that posts a pre-filled manifest
+// It serves a page on http://localhost:3002 that posts a pre-filled manifest
 // to GitHub. After you press "Create GitHub App", GitHub redirects back with a
 // one-time code, which is exchanged for the App's id, client id and secret,
 // webhook secret and private key. Secrets are written to files, never printed.
@@ -12,40 +12,32 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { dirname, relative, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const { values: args } = parseArgs({
   options: {
     'webhook-url': { type: 'string' },
     name: { type: 'string', default: 'SyncLab' },
-    org: { type: 'string' },
-    'dashboard-url': { type: 'string', default: 'http://localhost:3001' },
-    'api-env': { type: 'string', default: '.env' },
-    'web-env': { type: 'string', default: '../../web/.env.local' },
-    port: { type: 'string', default: '3002' },
     help: { type: 'boolean', default: false },
   },
 });
 
 if (args.help || !args['webhook-url']) {
-  console.log(`Usage: node scripts/register-github-app.mjs --webhook-url <url> [options]
+  console.log(`Usage: node scripts/register-github-app.mjs --webhook-url <url> [--name <name>]
 
   --webhook-url    Where GitHub delivers webhooks: your gateway's /webhook, or a
                    smee.io channel that forwards to it (required)
-  --name           App name, unique across GitHub (default "SyncLab")
-  --org            Register under this organization instead of your account
-  --dashboard-url  Where the web dashboard runs (default http://localhost:3001)
-  --api-env        server/api env file to update (default .env)
-  --web-env        web env file to update (default ../../web/.env.local)
-  --port           Local port for the registration page (default 3002)`);
+  --name           App name, unique across GitHub (default "SyncLab")`);
   process.exit(args.help ? 0 : 1);
 }
 
-const port = Number(args.port);
-const dashboardUrl = args['dashboard-url'].replace(/\/$/, '');
-const apiEnv = resolve(args['api-env']);
-const webEnv = resolve(args['web-env']);
+const port = 3002;
+const dashboardUrl = 'http://localhost:3001';
+const apiDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const apiEnv = resolve(apiDir, '.env');
+const webEnv = resolve(apiDir, '../../web/.env.local');
 const state = randomBytes(16).toString('hex');
 
 // Permissions the worker needs to clone, push a branch and open a pull request,
@@ -63,9 +55,7 @@ const manifest = {
   default_events: ['pull_request'],
 };
 
-const createUrl = args.org
-  ? `https://github.com/organizations/${encodeURIComponent(args.org)}/settings/apps/new?state=${state}`
-  : `https://github.com/settings/apps/new?state=${state}`;
+const createUrl = `https://github.com/settings/apps/new?state=${state}`;
 
 function escapeHtml(value) {
   return value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -107,12 +97,13 @@ async function convert(code) {
 }
 
 function saveCredentials(app) {
-  const pemPath = resolve(dirname(apiEnv), `${app.slug}.private-key.pem`);
+  const pemFile = `${app.slug}.private-key.pem`;
+  const pemPath = resolve(apiDir, pemFile);
   writeFileSync(pemPath, app.pem, { mode: 0o600 });
 
   upsertEnv(apiEnv, {
     GITHUB_APP_ID: String(app.id),
-    GITHUB_PRIVATE_KEY_PATH: `./${relative(dirname(apiEnv), pemPath)}`,
+    GITHUB_PRIVATE_KEY_PATH: `./${pemFile}`,
     GITHUB_WEBHOOK_SECRET: app.webhook_secret,
   });
   upsertEnv(webEnv, {

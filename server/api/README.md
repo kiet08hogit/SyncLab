@@ -101,7 +101,7 @@ npm run github-app:register -- --webhook-url https://smee.io/<channel> --name "S
 3. Follow the install link on the final page, and install the App on the repositories SyncLab should migrate.
 
 App names are unique across GitHub, so pick one with your handle in it.
-Use `--org <name>` to register it under an organization, and `--help` for the other options.
+The script registers the App under your personal account; to register it under an organization, use the manual steps below.
 
 GitHub cannot reach `localhost`, so for local development keep `npx smee-client --url https://smee.io/<channel> --target http://localhost:3000/webhook` running; it relays each delivery to the gateway.
 
