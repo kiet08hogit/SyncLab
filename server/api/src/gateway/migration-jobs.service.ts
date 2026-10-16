@@ -34,35 +34,8 @@ export interface EnqueueMigrationResult {
   queued: boolean;
 }
 
-export interface MigrationJobDetail {
-  id: string;
-  repositoryId: string;
-  dependencyName: string;
-  targetVersion: string;
-  status: string;
-  pullRequestUrl: string | null;
-  errorMessage: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  // BigInt columns go out as strings: JSON.stringify cannot serialize a BigInt.
-  repository: {
-    id: string;
-    githubRepoId: string;
-    fullName: string;
-    installationId: string;
-    createdAt: Date;
-  };
-  executionLogs: Array<{
-    id: string;
-    jobId: string;
-    step: string;
-    output: string | null;
-    createdAt: Date;
-  }>;
-}
-
 /**
- * Shared by the release webhook and the manual trigger, so both deduplicate
+ * Shared by the pull request webhook and the manual trigger, so both deduplicate
  * and retry a migration the same way.
  */
 @Injectable()
@@ -141,28 +114,9 @@ export class MigrationJobsService {
     return { id: job.id, status: JobStatus.QUEUED, queued: true };
   }
 
-  async findDetail(id: string): Promise<MigrationJobDetail | null> {
-    const job = await this.prisma.migrationJob.findUnique({
-      where: { id },
-      include: { repository: true, executionLogs: { orderBy: { createdAt: 'asc' } } },
-    });
-    if (!job) {
-      return null;
-    }
-
-    return {
-      ...job,
-      repository: {
-        ...job.repository,
-        githubRepoId: job.repository.githubRepoId.toString(),
-        installationId: job.repository.installationId.toString(),
-      },
-    };
-  }
-
   /**
    * Relies on the unique constraint rather than a read-then-write, so two
-   * concurrent deliveries of the same release cannot both create a job.
+   * concurrent deliveries of the same update cannot both create a job.
    */
   private async findOrCreateJob(
     repositoryId: string,
