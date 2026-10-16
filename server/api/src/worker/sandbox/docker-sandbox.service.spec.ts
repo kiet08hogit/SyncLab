@@ -12,6 +12,8 @@ import {
 jest.mock('dockerode');
 
 const TIMEOUT_MS = 1000;
+const HEAD_SHA = 'a'.repeat(40);
+const PASSED: ScriptedRun = { result: { ok: true } };
 
 /** What one phase container prints and how it exits. `hang` never exits. */
 interface ScriptedRun {
@@ -49,7 +51,9 @@ function setup(script: Partial<Record<SandboxPhase, ScriptedRun[]>>, sandbox = {
       (options: { Cmd: [SandboxPhase]; Env: string[]; HostConfig: { Binds: string[] } }) => {
         const phase = options.Cmd[0];
         created.push({ phase, env: options.Env, binds: options.HostConfig.Binds });
-        const run = script[phase]?.shift() ?? { result: { ok: true } };
+        const run: ScriptedRun =
+          script[phase]?.shift() ??
+          (phase === 'prepare' ? { result: { ok: true, data: { headSha: HEAD_SHA } } } : PASSED);
         const stream = new PassThrough();
 
         const container = {
@@ -149,7 +153,15 @@ describe('DockerSandboxService', () => {
   describe('run', () => {
     it('runs every phase on one job volume and returns the pull request url', async () => {
       const { service, docker, created, containers, volume, onSteps } = setup({
-        prepare: [{ result: { ok: true, steps: [{ step: 'CLONE', output: 'cloned' }] } }],
+        prepare: [
+          {
+            result: {
+              ok: true,
+              steps: [{ step: 'CLONE', output: 'cloned' }],
+              data: { headSha: HEAD_SHA },
+            },
+          },
+        ],
         publish: [
           {
             result: {
@@ -170,7 +182,15 @@ describe('DockerSandboxService', () => {
         Name: 'synclab-job-job-1',
         Labels: { 'com.synclab.job': 'job-1' },
       });
-      expect(created.map((c) => c.phase)).toEqual(['prepare', 'refactor', 'test', 'publish']);
+      expect(created.map((c) => c.phase)).toEqual([
+        'prepare',
+        'install',
+        'test',
+        'upgrade',
+        'refactor',
+        'test',
+        'publish',
+      ]);
       for (const container of created) {
         expect(container.binds).toEqual(['synclab-job-job-1:/workspace']);
       }
@@ -194,13 +214,16 @@ describe('DockerSandboxService', () => {
 
     it('refactors again after a failing test run, up to the attempt limit', async () => {
       const { service, created, onSteps } = setup({
-        test: [{ result: { ok: false, error: 'first failure' } }, { result: { ok: true } }],
+        test: [PASSED, { result: { ok: false, error: 'first failure' } }, PASSED],
       });
 
       await expect(service.run('job-1', params(3), onSteps)).resolves.toMatchObject({ ok: true });
 
       expect(created.map((c) => c.phase)).toEqual([
         'prepare',
+        'install',
+        'test',
+        'upgrade',
         'refactor',
         'test',
         'refactor',
@@ -216,6 +239,7 @@ describe('DockerSandboxService', () => {
     it('gives up without publishing when the tests never pass', async () => {
       const { service, created, volume, onSteps } = setup({
         test: [
+          PASSED,
           { result: { ok: false, error: 'first failure' } },
           { result: { ok: false, error: 'second failure' } },
         ],
@@ -254,7 +278,76 @@ describe('DockerSandboxService', () => {
         error: 'model said no',
         retryable,
       });
-      expect(created.map((c) => c.phase)).toEqual(['prepare', 'refactor']);
+      expect(created.map((c) => c.phase)).toEqual([
+        'prepare',
+        'install',
+        'test',
+        'upgrade',
+        'refactor',
+      ]);
+    });
+
+    it('proves the suite on the current version before upgrading', async () => {
+      const { service, created, onSteps } = setup({});
+
+      await service.run('job-1', params(), onSteps);
+
+      const [baseline, afterRefactor] = created.filter((c) => c.phase === 'test');
+      expect(baseline.env).toContain('TEST_BASELINE=true');
+      expect(afterRefactor.env).not.toContain('TEST_BASELINE=true');
+      expect(created.findIndex((c) => c.phase === 'upgrade')).toBeGreaterThan(
+        created.indexOf(baseline),
+      );
+    });
+
+    it('stops before the upgrade when the suite already fails, without a retry', async () => {
+      const { service, created, onSteps } = setup({
+        test: [{ result: { ok: false, error: 'test suite failed with exit code 1' } }],
+      });
+
+      await expect(service.run('job-1', params(3), onSteps)).resolves.toEqual({
+        ok: false,
+        error:
+          'the test suite already fails before the upgrade, so a migration cannot be verified: test suite failed with exit code 1',
+      });
+      expect(created.map((c) => c.phase)).toEqual(['prepare', 'install', 'test']);
+    });
+
+    it.each([
+      ['install', ['prepare', 'install']],
+      ['upgrade', ['prepare', 'install', 'test', 'upgrade']],
+    ] as const)('stops after a failed %s', async (phase, ran) => {
+      const { service, created, onSteps } = setup({
+        [phase]: [{ result: { ok: false, error: `${phase} broke` } }],
+      });
+
+      await expect(service.run('job-1', params(), onSteps)).resolves.toEqual({
+        ok: false,
+        error: `${phase} broke`,
+      });
+      expect(created.map((c) => c.phase)).toEqual(ran);
+    });
+
+    it('stops when prepare does not report the commit it cloned', async () => {
+      const { service, created, onSteps } = setup({ prepare: [PASSED] });
+
+      await expect(service.run('job-1', params(), onSteps)).resolves.toEqual({
+        ok: false,
+        error: 'sandbox phase "prepare" did not report the cloned commit',
+      });
+      expect(created.map((c) => c.phase)).toEqual(['prepare']);
+    });
+
+    it('tells publish which commit to base the branch on', async () => {
+      const { service, created, onSteps } = setup({});
+
+      await service.run('job-1', params(), onSteps);
+
+      const publish = created.find((c) => c.phase === 'publish');
+      expect(publish?.env).toContain(`BASE_SHA=${HEAD_SHA}`);
+      for (const other of created.filter((c) => c.phase !== 'publish')) {
+        expect(other.env.some((entry) => entry.startsWith('BASE_SHA='))).toBe(false);
+      }
     });
 
     it('reports a failed publish', async () => {
@@ -310,7 +403,7 @@ describe('DockerSandboxService', () => {
 
     it('returns the outcome even when cleanup fails', async () => {
       const { service, volume, onSteps } = setup({
-        prepare: [{ result: { ok: true }, removeFails: true }],
+        prepare: [{ result: { ok: true, data: { headSha: HEAD_SHA } }, removeFails: true }],
       });
       volume.remove.mockRejectedValue(new Error('volume in use'));
 

@@ -8,14 +8,17 @@ The worker never executes untrusted code itself. It runs a sequence of container
 
 | Phase | Network | GitHub token | Model key | Does |
 | --- | --- | --- | --- | --- |
-| `prepare` | yes | yes | no | clone the repository, install dependencies, upgrade the migrated dependency to the target version (install scripts skipped), fetch the target release notes |
+| `prepare` | yes | yes | no | clone the repository, fetch the target release notes, report the cloned commit |
+| `install` | yes | **no** | no | install dependencies with npm, pnpm or yarn, lifecycle scripts included |
+| `test` (baseline) | **no** | **no** | **no** | run the test suite on the current version; the job stops if it already fails |
+| `upgrade` | yes | **no** | no | upgrade the migrated dependency to the target version |
 | `refactor` | yes | no | yes | find files importing the dependency, rewrite them with the configured model (Ollama, Gemini or Claude) |
-| `test` | **no** | **no** | **no** | run `npm test` |
-| `publish` | yes | yes | no | commit, push the branch, open a pull request |
+| `test` | **no** | **no** | **no** | run the package manager's `test` script |
+| `publish` | yes | yes | no | clone afresh at the prepared commit, copy the changes across, commit, push the branch, open a pull request |
 
-`test` is the only phase that runs repository code, and it is the one with no network access and no credentials. `refactor` reaches the model provider but only reads and writes files using SyncLab's own code, so nothing from the repository ever executes with a network connection.
+Repository code runs in `install`, `upgrade` and `test`, and none of them ever receives a credential. `test` also has no network. Only `prepare` and `publish` hold the token, and they run nothing but SyncLab's own code; `publish` never runs git in the checkout on the volume, because repository code could have planted a hook or config there.
 
-After `prepare`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
+After `upgrade`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
 
 A rate-limited model call, an overloaded Anthropic API (529), or an Ollama server that refuses the connection, fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
 
@@ -33,7 +36,7 @@ npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
 npm run start:dev             # gateway + worker in one process
 ```
 
-To process more than one job at a time, leave the gateway as a single process and start extra workers. Each worker process takes jobs from the same Redis queue. `WORKER_CONCURRENCY` (default `1`) is how many sandboxes one process runs at once — keep it at 1 unless the machine can hold more than one 2GB container.
+To process more than one job at a time, leave the gateway as a single process and start extra workers. Each worker process takes jobs from the same Redis queue. `WORKER_CONCURRENCY` (default `1`) is how many sandboxes one process runs at once -- keep it at 1 unless the machine can hold more than one 2GB container.
 
 ```bash
 npm run start:gateway         # terminal 1
@@ -187,4 +190,4 @@ Every read is limited to the caller's repositories (see [Credentials](#credentia
 | `npm test` | unit tests |
 | `npm run test:e2e` | end-to-end tests (no Postgres or Redis needed) |
 
-The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the `prepare`, `test` and `publish` phases and their helpers against local git repositories and a stub npm registry.
+The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise every phase except `refactor` and their helpers against local git repositories and a stub npm registry.

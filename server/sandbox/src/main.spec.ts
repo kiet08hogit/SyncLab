@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 import { run } from './exec.js';
@@ -17,6 +18,22 @@ const JOB_ENV = {
   BRANCH_NAME: 'synclab/lodash-4.17.21',
   LLM_MODEL: 'qwen2.5-coder:14b',
 };
+
+/** Keeps stdout and stderr apart, which exec.run deliberately interleaves. */
+function runMain(args: string[], env: NodeJS.ProcessEnv): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [MAIN, ...args], {
+      env: { ...process.env, ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
+    child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code, stdout, stderr }));
+  });
+}
 
 function parseResult(output: string): PhaseResult | undefined {
   const line = output.split('\n').find((candidate) => candidate.startsWith(RESULT_SENTINEL));
@@ -82,15 +99,34 @@ describe('main', () => {
     });
   });
 
-  it('rejects a missing or unknown phase without printing a result', async () => {
-    for (const args of [[], ['deploy'], ['toString'], ['constructor'], ['__proto__']]) {
-      const { code, output } = await run(process.execPath, [MAIN, ...args], {
-        env: { SANDBOX_WORKSPACE: workspace },
-      });
+  it('rejects a missing, unknown or inherited phase name with exit code 2, on stderr, without a result', async () => {
+    for (const args of [[], [''], ['deploy'], ['PREPARE'], ['toString'], ['constructor'], ['__proto__'], ['hasOwnProperty']]) {
+      const label = `phase ${JSON.stringify(args)}`;
+      const { code, stdout, stderr } = await runMain(args, { SANDBOX_WORKSPACE: workspace });
 
-      assert.notEqual(code, 0, `phase ${JSON.stringify(args)}`);
-      assert.match(output, /Expected one of prepare, refactor, test, publish/, `phase ${JSON.stringify(args)}`);
-      assert.equal(parseResult(output), undefined, `phase ${JSON.stringify(args)}`);
+      assert.equal(code, 2, label);
+      assert.equal(
+        stderr,
+        `Expected one of prepare, install, upgrade, refactor, test, publish but received "${args[0] ?? ''}"\n`,
+        label,
+      );
+      assert.equal(stdout, '', label);
+      assert.equal(parseResult(stdout), undefined, label);
+      assert.doesNotMatch(stderr, /UnhandledPromiseRejection|at parsePhase/, label);
+    }
+  });
+
+  it('accepts install and upgrade as phases', async () => {
+    for (const phase of ['install', 'upgrade'] as const) {
+      const { code, stdout, stderr } = await runMain([phase], { ...JOB_ENV, REPO_URL: '', SANDBOX_WORKSPACE: workspace });
+
+      assert.equal(code, 1, `${phase}: ${stderr}`);
+      assert.deepEqual(parseResult(stdout), {
+        phase,
+        ok: false,
+        error: 'Missing required environment variable REPO_URL',
+        steps: [],
+      });
     }
   });
 });
