@@ -8,10 +8,17 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { parseDependencyUpdate } from './dependency-update';
 import { GithubSignatureGuard } from './github-signature.guard';
 import { MigrationJobsService } from './migration-jobs.service';
-import type { GithubReleasePayload } from './webhook.types';
+import type { GithubPullRequestPayload } from './webhook.types';
 
+/**
+ * Dependabot and Renovate already watch npm for every installed repository and
+ * open a pull request per new version. SyncLab reacts to those pull requests,
+ * so a migration starts exactly when a dependency the repository uses has a
+ * new release.
+ */
 @Controller('webhook')
 @UseGuards(GithubSignatureGuard)
 export class WebhookController {
@@ -20,25 +27,21 @@ export class WebhookController {
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   async handleWebhook(
-    @Body() payload: GithubReleasePayload,
+    @Body() payload: GithubPullRequestPayload,
     @Headers('x-github-event') event?: string,
   ) {
     if (event === 'ping') {
       return { ok: true };
     }
 
-    if (event !== 'release' || payload.action !== 'published') {
-      return { ignored: true, reason: `event "${event ?? 'unknown'}" is not a published release` };
+    const update = parseDependencyUpdate(event, payload);
+    if (update.kind === 'ignored') {
+      return { ignored: true, reason: update.reason };
     }
 
     const repository = payload.repository;
     if (!repository?.id || !repository.full_name) {
       throw new BadRequestException('Payload is missing repository.id or repository.full_name');
-    }
-
-    const targetVersion = payload.release?.tag_name;
-    if (!targetVersion) {
-      throw new BadRequestException('Payload is missing release.tag_name');
     }
 
     const installationId = payload.installation?.id;
@@ -48,15 +51,13 @@ export class WebhookController {
       );
     }
 
-    const dependencyName = payload.release?.name || repository.name || repository.full_name;
-
     return this.migrationJobs.enqueue({
       githubRepoId: BigInt(repository.id),
       fullName: repository.full_name,
       installationId: BigInt(installationId),
       repoUrl: repository.clone_url ?? `https://github.com/${repository.full_name}.git`,
-      dependencyName,
-      targetVersion,
+      dependencyName: update.dependencyName,
+      targetVersion: update.targetVersion,
     });
   }
 }
