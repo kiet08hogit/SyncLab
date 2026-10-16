@@ -89,6 +89,7 @@ const FAILURE_TEXT = {
   tests_failed: 'the model changed code but the suite still failed after the last attempt',
   no_changes: 'the model left every file unchanged on every attempt',
   model_error: 'the refactor phase failed (model unreachable, file too large for the context, cut-off reply)',
+  rate_limited: 'the provider kept rate-limiting after the same retries BullMQ would make',
   tests_modified: 'the migration edited a test file (counted as a failure even if tests passed)',
   timeout: 'a phase exceeded the sandbox timeout',
   install_failed: 'dependency install failed',
@@ -120,7 +121,7 @@ Generated from \`${path.basename(inFile)}\` by \`benchmarks/report.mjs\`. Every 
 | --- | --- |
 | Run | ${meta.startedAt} to ${meta.finishedAt} |
 | Base commit | \`${meta.commit.slice(0, 12)}\`${meta.dirty ? ' (server/ had uncommitted changes)' : ''} |
-| Model | ${meta.model.provider} \`${meta.model.model}\`${meta.model.parameterSize ? `, ${meta.model.parameterSize} parameters, ${meta.model.quantization}` : ''}${meta.model.digest ? `, digest \`${meta.model.digest.slice(0, 12)}\`` : ''} |
+| Model | ${meta.model.provider} \`${meta.model.model}\`${meta.model.parameterSize ? `, ${meta.model.parameterSize} parameters, ${meta.model.quantization}` : ''}${meta.model.digest ? `, digest \`${meta.model.digest.slice(0, 12)}\`` : ''}${meta.model.source === 'LLM_MODEL override' ? ' (chosen with `LLM_MODEL`, not the worker\'s default for this provider)' : ''} |
 | Context window | ${meta.model.numCtx ?? 'provider default'} tokens |
 | Attempts per case | up to ${meta.maxAttempts} (the worker's default \`LLM_MAX_ATTEMPTS\`) |
 | Sandbox | image \`${meta.image}\` (\`${meta.imageId.slice(7, 19)}\`), ${meta.sandbox.memoryBytes / 1024 ** 3} GB memory, ${meta.sandbox.nanoCpus / 1e9} CPU, ${meta.sandbox.pidsLimit} PIDs, ${meta.sandbox.timeoutMs / 60000} min per phase |
@@ -171,6 +172,8 @@ ${failures.map((row) => `| \`${row.id}\` | \`${row.failureCategory}\` | ${row.at
 **Release notes.** The model receives the release notes production would fetch, not a hand-written hint. \`benchmarks/fetch-notes.mjs\` ran production's \`fetchReleaseNotes\` once per case (npm registry, then the GitHub release for the target tag) and stored the result, or production's fallback sentence when nothing was found, in \`benchmarks/notes/\`. Every run reuses these snapshots.
 
 **Isolation and leakage.** Every case gets a new Docker volume containing only \`package.json\`, the lockfile, \`src/\` and \`test/\`. The case description, the reference fix and the validation results never enter the sandbox, and the volume is deleted afterwards, so nothing carries over between cases. The model is stateless between calls. Test files are hashed before and after: a migration that edits a test is a failure even if the suite passes.
+
+**Rate limits.** A rate-limited model call is retried after 2 and then 4 minutes, as BullMQ retries a rate-limited job in production. The waits are excluded from migration time. Production re-runs the whole job on a retry; the benchmark retries only the refactor attempt that was limited, which leads to the same outcome without repeating the earlier phases.
 
 **Metrics.** Success means the project's existing test suite passes after the migration and no test file changed. First-attempt pass means it passed after the first refactor. Migration time runs from the start of \`upgrade\` to the end of the last test run (install and baseline excluded); it includes container start-up and model latency on this host.
 

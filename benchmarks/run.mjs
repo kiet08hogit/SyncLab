@@ -36,6 +36,13 @@ const outArg = process.argv.find((arg) => arg.startsWith('--out='));
 const outFile = outArg ? path.resolve(outArg.slice('--out='.length)) : path.join(resultsDir, 'results.json');
 const resume = process.argv.includes('--resume');
 
+// A rate-limited model call does not fail a production job: BullMQ retries it
+// up to 3 times with exponential backoff from 2 minutes. The benchmark waits
+// the same way and retries the attempt, and keeps the wait out of the
+// migration time, since it measures the provider's quota rather than SyncLab.
+const RATE_LIMIT_BACKOFF_MS = [120_000, 240_000];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function tail(text, lines = 30) {
   return (text ?? '').split('\n').slice(-lines).join('\n');
 }
@@ -122,14 +129,22 @@ async function runCase(spec) {
       const entry = { attempt };
       record.attempts.push(entry);
 
-      const refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
+      let refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
+      for (const wait of RATE_LIMIT_BACKOFF_MS) {
+        if (refactor.value.ok || refactor.value.data?.retryable !== true) break;
+        entry.rateLimitRetries = (entry.rateLimitRetries ?? 0) + 1;
+        record.timings.rateLimitWaitMs = (record.timings.rateLimitWaitMs ?? 0) + wait + refactor.ms;
+        await sleep(wait);
+        refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
+      }
       entry.refactorMs = refactor.ms;
       entry.refactorOk = refactor.value.ok;
       entry.refactorChangedFiles = refactor.value.data?.changedFiles ?? [];
       entry.refactorLog = tail(stepsText(refactor.value), 40);
       if (!refactor.value.ok) {
-        record.timings.migrationMs = Date.now() - migrationStarted;
-        return fail(record, 'model_error', refactor.value.error ?? 'refactor failed');
+        record.timings.migrationMs = Date.now() - migrationStarted - (record.timings.rateLimitWaitMs ?? 0);
+        const limited = refactor.value.data?.retryable === true;
+        return fail(record, limited ? 'rate_limited' : 'model_error', refactor.value.error ?? 'refactor failed');
       }
 
       const tested = await timed(() => driver.runPhase('test', volume, params, attempt));
@@ -142,7 +157,7 @@ async function runCase(spec) {
         break;
       }
     }
-    record.timings.migrationMs = Date.now() - migrationStarted;
+    record.timings.migrationMs = Date.now() - migrationStarted - (record.timings.rateLimitWaitMs ?? 0);
 
     const finalDir = await fs.mkdtemp(path.join(os.tmpdir(), `synclab-bench-${spec.id}-`));
     await extract(volume, finalDir);
@@ -185,8 +200,10 @@ function git(...args) {
 }
 
 async function modelInfo() {
+  // Whether the model is the worker's default for the provider, or overridden.
+  const source = process.env.LLM_MODEL ? 'LLM_MODEL override' : 'worker default';
   if (config.llm.provider !== 'ollama') {
-    return { provider: config.llm.provider, model: config.llm.model };
+    return { provider: config.llm.provider, model: config.llm.model, source };
   }
   // The host reaches Ollama on localhost; the sandbox reaches it via host.docker.internal.
   const tags = await fetch('http://localhost:11434/api/tags').then((response) => response.json());
@@ -198,6 +215,7 @@ async function modelInfo() {
     parameterSize: entry?.details?.parameter_size ?? null,
     quantization: entry?.details?.quantization_level ?? null,
     numCtx: config.llm.numCtx,
+    source,
   };
 }
 
