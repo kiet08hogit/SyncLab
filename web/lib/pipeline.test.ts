@@ -128,25 +128,36 @@ describe("latestRunDuration", () => {
   const at = (minute: number, second = 0) => `2026-10-16T10:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}Z`;
   const log = (step: LogStep, minute: number, second = 0) => ({ step, createdAt: at(minute, second) });
 
-  it("measures a completed run from STARTED to the job's last update", () => {
+  it("measures a completed run from STARTED to its last log row", () => {
     const executionLogs = [log("STARTED", 0), log("CLONE", 1), log("PR", 4)];
-    expect(latestRunDuration({ status: "COMPLETED", updatedAt: at(4, 12), executionLogs })).toBe(252_000);
+    expect(latestRunDuration({ status: "COMPLETED", executionLogs })).toBe(240_000);
+  });
+
+  it("ignores SKIPPED rows that redeliveries append to a completed job", () => {
+    const executionLogs = [log("STARTED", 0), log("PR", 4), log("SKIPPED", 50)];
+    expect(latestRunDuration({ status: "COMPLETED", executionLogs })).toBe(240_000);
   });
 
   it("measures only the latest attempt after a retry", () => {
     const executionLogs = [log("STARTED", 0), log("FAILED", 1), log("STARTED", 5), log("CLONE", 6), log("FAILED", 7)];
-    expect(latestRunDuration({ status: "FAILED", updatedAt: at(7), executionLogs })).toBe(120_000);
+    expect(latestRunDuration({ status: "FAILED", executionLogs })).toBe(120_000);
+  });
+
+  it("keeps the previous run's duration when a retry fails to enqueue", () => {
+    // The gateway sets the job back to FAILED without logging a new row.
+    const executionLogs = [log("STARTED", 0), log("CLONE", 1), log("FAILED", 3)];
+    expect(latestRunDuration({ status: "FAILED", executionLogs })).toBe(180_000);
   });
 
   it("has nothing to measure when the latest attempt failed before it started", () => {
     const executionLogs = [log("STARTED", 0), log("FAILED", 1), log("FAILED", 5)];
-    expect(latestRunDuration({ status: "FAILED", updatedAt: at(5), executionLogs })).toBeNull();
-    expect(latestRunDuration({ status: "FAILED", updatedAt: at(0), executionLogs: [log("FAILED", 0)] })).toBeNull();
+    expect(latestRunDuration({ status: "FAILED", executionLogs })).toBeNull();
+    expect(latestRunDuration({ status: "FAILED", executionLogs: [log("FAILED", 0)] })).toBeNull();
   });
 
   it("leaves queued and running jobs alone", () => {
     const executionLogs = [log("STARTED", 0)];
-    expect(latestRunDuration({ status: "IN_PROGRESS", updatedAt: at(2), executionLogs })).toBeNull();
-    expect(latestRunDuration({ status: "QUEUED", updatedAt: at(2), executionLogs })).toBeNull();
+    expect(latestRunDuration({ status: "IN_PROGRESS", executionLogs })).toBeNull();
+    expect(latestRunDuration({ status: "QUEUED", executionLogs })).toBeNull();
   });
 });

@@ -11,7 +11,7 @@ import { RetryButton } from "@/components/retry-button";
 import { JobSkeleton } from "@/components/skeletons";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { getJob, isLive } from "@/lib/data";
+import { getJob, isLive, isSampleJob } from "@/lib/data";
 import { formatClock, formatDate, formatDuration, splitExitCode, timeAgo } from "@/lib/format";
 import { latestRunDuration } from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
   const job = await getJob((await params).id);
   if (!job) notFound();
   // Sample jobs are not in the API, so only a signed-in user's real job can be retried.
-  const canRetry = job.status === "FAILED" && (await isLive());
+  const canRetry = job.status === "FAILED" && !isSampleJob(job.id) && (await isLive());
   const duration = latestRunDuration(job);
 
   const branch = `synclab/${slug(job.dependencyName)}-${slug(job.targetVersion)}`;
