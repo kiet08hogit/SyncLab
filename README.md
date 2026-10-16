@@ -301,7 +301,7 @@ Runs the package manager's `test` script in the checkout with no network and no 
 
 #### `publish`
 
-1. Checks `REPO_FULL_NAME` is exactly `owner/repo` before doing anything else.
+1. Checks `REPO_FULL_NAME` is exactly `owner/repo` before doing anything else, and refuses to publish unless the checkout is a real directory directly inside the workspace, not a symlink, before any credentials are written.
 2. Clones the repository afresh into the container's own temporary directory and checks out `synclab/<dependency>-<version>` at the commit `prepare` cloned, so the branch is based on what was tested even if the default branch has moved.
 3. Copies the working tree from the volume onto that clone, skipping `.git` and `node_modules`, and removes tracked files the earlier phases deleted.
    Symlinks are recreated, never followed, and a write that would resolve outside the clone is refused.
