@@ -79,7 +79,7 @@ async function copyWorkTree(from: string, to: string, root: string): Promise<voi
     } else {
       const { mode } = await fs.stat(source);
       await fs.copyFile(source, target);
-      await fs.chmod(target, mode & 0o111 ? 0o755 : 0o644);
+      await fs.chmod(target, mode & 0o100 ? 0o755 : 0o644);
     }
   }
 }

@@ -8,6 +8,8 @@ export interface PackageManager {
   /** Yarn 2+ ("berry") takes different install flags from Yarn 1. */
   berry: boolean;
   hasLockfile: boolean;
+  /** pnpm and Yarn 1 refuse to add to a workspace root without a flag. */
+  workspaceRoot: boolean;
 }
 
 export interface Command {
@@ -64,7 +66,7 @@ function parsePackageManagerField(value: unknown): { name: PackageManagerName; m
 export async function detectPackageManager(repoDir: string): Promise<PackageManager> {
   const packageJson = JSON.parse(
     await fs.readFile(path.join(repoDir, 'package.json'), 'utf8'),
-  ) as { packageManager?: unknown };
+  ) as { packageManager?: unknown; workspaces?: unknown };
 
   const declared = parsePackageManagerField(packageJson.packageManager);
 
@@ -86,7 +88,12 @@ export async function detectPackageManager(repoDir: string): Promise<PackageMana
       ? declared.major >= 2
       : await exists(path.join(repoDir, '.yarnrc.yml')));
 
-  return { name, berry, hasLockfile: await anyExists(repoDir, LOCKFILES[name]) };
+  const workspaceRoot =
+    name === 'pnpm'
+      ? await exists(path.join(repoDir, 'pnpm-workspace.yaml'))
+      : name === 'yarn' && !berry && packageJson.workspaces !== undefined;
+
+  return { name, berry, hasLockfile: await anyExists(repoDir, LOCKFILES[name]), workspaceRoot };
 }
 
 /**
@@ -136,6 +143,12 @@ const SECTION_FLAGS: Record<PackageManagerName, Record<DependencySection, string
   },
 };
 
+const WORKSPACE_ROOT_FLAG: Record<PackageManagerName, string[]> = {
+  npm: [],
+  pnpm: ['--workspace-root'],
+  yarn: ['--ignore-workspace-root-check'],
+};
+
 const EXACT_FLAG: Record<PackageManagerName, string> = {
   npm: '--save-exact',
   pnpm: '--save-exact',
@@ -158,6 +171,7 @@ export function addCommand(
     spec,
     ...SECTION_FLAGS[pm.name][section],
     ...(exact ? [EXACT_FLAG[pm.name]] : []),
+    ...(pm.workspaceRoot ? WORKSPACE_ROOT_FLAG[pm.name] : []),
     ...(pm.name === 'npm' ? ['--no-audit', '--no-fund'] : []),
   ]);
 }

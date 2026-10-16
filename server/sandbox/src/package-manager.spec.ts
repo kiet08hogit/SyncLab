@@ -33,15 +33,15 @@ describe('detectPackageManager', () => {
   }
 
   it('defaults to npm without a lockfile when there is neither a packageManager field nor a lockfile', async () => {
-    assert.deepEqual(await setup({}), { name: 'npm', berry: false, hasLockfile: false });
+    assert.deepEqual(await setup({}), { name: 'npm', berry: false, hasLockfile: false, workspaceRoot: false });
   });
 
   it('detects each lockfile', async () => {
     const cases: [string, PackageManager][] = [
-      ['package-lock.json', { name: 'npm', berry: false, hasLockfile: true }],
-      ['npm-shrinkwrap.json', { name: 'npm', berry: false, hasLockfile: true }],
-      ['pnpm-lock.yaml', { name: 'pnpm', berry: false, hasLockfile: true }],
-      ['yarn.lock', { name: 'yarn', berry: false, hasLockfile: true }],
+      ['package-lock.json', { name: 'npm', berry: false, hasLockfile: true, workspaceRoot: false }],
+      ['npm-shrinkwrap.json', { name: 'npm', berry: false, hasLockfile: true, workspaceRoot: false }],
+      ['pnpm-lock.yaml', { name: 'pnpm', berry: false, hasLockfile: true, workspaceRoot: false }],
+      ['yarn.lock', { name: 'yarn', berry: false, hasLockfile: true, workspaceRoot: false }],
     ];
     for (const [lockfile, expected] of cases) {
       await fs.rm(repoDir, { recursive: true, force: true });
@@ -61,6 +61,7 @@ describe('detectPackageManager', () => {
       name: 'pnpm',
       berry: false,
       hasLockfile: false,
+      workspaceRoot: false,
     });
   });
 
@@ -69,6 +70,7 @@ describe('detectPackageManager', () => {
       name: 'npm',
       berry: false,
       hasLockfile: true,
+      workspaceRoot: false,
     });
   });
 
@@ -77,6 +79,7 @@ describe('detectPackageManager', () => {
       name: 'yarn',
       berry: false,
       hasLockfile: true,
+      workspaceRoot: false,
     });
   });
 
@@ -85,12 +88,13 @@ describe('detectPackageManager', () => {
       name: 'yarn',
       berry: true,
       hasLockfile: false,
+      workspaceRoot: false,
     });
     assert.equal((await setup({ packageManager: 'yarn@2.4.3' })).berry, true);
   });
 
   it('detects Yarn berry from .yarnrc.yml when the version is not declared', async () => {
-    assert.deepEqual(await setup({}, ['yarn.lock', '.yarnrc.yml']), { name: 'yarn', berry: true, hasLockfile: true });
+    assert.deepEqual(await setup({}, ['yarn.lock', '.yarnrc.yml']), { name: 'yarn', berry: true, hasLockfile: true, workspaceRoot: false });
   });
 
   it('never marks npm or pnpm as berry, even next to a .yarnrc.yml', async () => {
@@ -102,10 +106,31 @@ describe('detectPackageManager', () => {
     for (const packageManager of ['bun@1.1.0', 'pnpm', 'Yarn@4.0.0', ' yarn@4.0.0', 42, { name: 'pnpm' }, null]) {
       assert.deepEqual(
         await setup({ packageManager }, ['yarn.lock']),
-        { name: 'yarn', berry: false, hasLockfile: true },
+        { name: 'yarn', berry: false, hasLockfile: true, workspaceRoot: false },
         JSON.stringify(packageManager),
       );
     }
+  });
+
+  it('marks a pnpm workspace root from pnpm-workspace.yaml', async () => {
+    assert.deepEqual(await setup({}, ['pnpm-lock.yaml', 'pnpm-workspace.yaml']), {
+      name: 'pnpm',
+      berry: false,
+      hasLockfile: true,
+      workspaceRoot: true,
+    });
+  });
+
+  it('marks a Yarn classic workspace root from the workspaces field', async () => {
+    assert.equal((await setup({ workspaces: ['packages/*'] }, ['yarn.lock'])).workspaceRoot, true);
+    assert.equal((await setup({ workspaces: { packages: ['packages/*'] } }, ['yarn.lock'])).workspaceRoot, true);
+  });
+
+  it('never marks npm, Yarn berry or a lone pnpm project as a workspace root', async () => {
+    assert.equal((await setup({ workspaces: ['packages/*'] }, ['package-lock.json'])).workspaceRoot, false);
+    assert.equal((await setup({ workspaces: ['packages/*'], packageManager: 'yarn@4.5.0' })).workspaceRoot, false);
+    assert.equal((await setup({ workspaces: ['packages/*'] }, ['pnpm-lock.yaml'])).workspaceRoot, false);
+    assert.equal((await setup({}, ['yarn.lock'])).workspaceRoot, false);
   });
 
   it('rejects a repository without a package.json', async () => {
@@ -113,13 +138,13 @@ describe('detectPackageManager', () => {
   });
 });
 
-const npm: PackageManager = { name: 'npm', berry: false, hasLockfile: true };
+const npm: PackageManager = { name: 'npm', berry: false, hasLockfile: true, workspaceRoot: false };
 const npmUnlocked: PackageManager = { ...npm, hasLockfile: false };
-const pnpm: PackageManager = { name: 'pnpm', berry: false, hasLockfile: true };
+const pnpm: PackageManager = { name: 'pnpm', berry: false, hasLockfile: true, workspaceRoot: false };
 const pnpmUnlocked: PackageManager = { ...pnpm, hasLockfile: false };
-const yarn: PackageManager = { name: 'yarn', berry: false, hasLockfile: true };
+const yarn: PackageManager = { name: 'yarn', berry: false, hasLockfile: true, workspaceRoot: false };
 const yarnUnlocked: PackageManager = { ...yarn, hasLockfile: false };
-const berry: PackageManager = { name: 'yarn', berry: true, hasLockfile: true };
+const berry: PackageManager = { name: 'yarn', berry: true, hasLockfile: true, workspaceRoot: false };
 const berryUnlocked: PackageManager = { ...berry, hasLockfile: false };
 
 describe('installCommand', () => {
@@ -219,6 +244,17 @@ describe('addCommand', () => {
     assert.deepEqual(addCommand(berry, 'lodash@4.17.21', 'peerDependencies', true), {
       command: 'corepack',
       args: ['yarn', 'add', 'lodash@4.17.21', '--peer', '--exact'],
+    });
+  });
+
+  it('adds to a pnpm or Yarn classic workspace root with the root flag', () => {
+    assert.deepEqual(addCommand({ ...pnpm, workspaceRoot: true }, 'typescript@5.6.3', 'devDependencies', false), {
+      command: 'corepack',
+      args: ['pnpm', 'add', 'typescript@5.6.3', '--save-dev', '--workspace-root'],
+    });
+    assert.deepEqual(addCommand({ ...yarn, workspaceRoot: true }, 'typescript@5.6.3', 'devDependencies', true), {
+      command: 'corepack',
+      args: ['yarn', 'add', 'typescript@5.6.3', '--dev', '--exact', '--ignore-workspace-root-check'],
     });
   });
 

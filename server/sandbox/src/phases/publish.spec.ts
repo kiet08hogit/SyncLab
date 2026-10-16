@@ -222,6 +222,15 @@ describe('publish phase', () => {
     assert.match(tree, /^100644 blob \w+\tdata\.txt$/m);
   });
 
+  it('follows git in ignoring group and other exec bits', async () => {
+    await fs.writeFile(path.join(repoDir, 'shared.txt'), 'x\n');
+    await fs.chmod(path.join(repoDir, 'shared.txt'), 0o655);
+
+    await publish();
+
+    assert.match(await git(origin, 'ls-tree', BRANCH), /^100644 blob \w+\tshared\.txt$/m);
+  });
+
   it('commits a file the earlier phases deleted as a deletion', async () => {
     // e.g. Yarn berry zero-installs: upgrading removes the old zip from .yarn/cache.
     await fs.rm(path.join(repoDir, 'index.js'));
