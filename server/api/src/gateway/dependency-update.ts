@@ -27,17 +27,26 @@ const DEPENDABOT_TITLE = /\bbump (\S+) from \S+ to v?(\S+?)(?: in (\S+))?$/i;
 const RENOVATE_TITLE = /\bupdate dependency (\S+) to v?(\S+)$/i;
 // A change table cell such as "`4.17.20` -> `4.17.21`".
 const CHANGE_CELL = /`v?[^`]+`\s*(?:->|→)\s*`v?([^`]+)`/;
+// Renovate links each npm update to "renovatebot.com/diffs/npm/<name>/<from>/<to>",
+// with the name optionally URL-encoded ("%40scope%2Fname").
+const NPM_DIFF_LINK = /renovatebot\.com\/diffs\/npm\/([^)\s"'<>]+)/gi;
 
-function exactVersionFromBody(
-  body: string | null | undefined,
-  dependencyName: string,
-): string | null {
-  for (const line of (body ?? '').split('\n')) {
-    if (!line.includes(dependencyName)) continue;
-    const version = line.match(CHANGE_CELL)?.[1];
-    if (version && EXACT_VERSION.test(version)) return version;
+function decode(path: string): string {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
   }
-  return null;
+}
+
+/** The body line whose Renovate diff link names this dependency on npm. */
+function npmDiffLine(body: string | null | undefined, dependencyName: string): string | undefined {
+  return (body ?? '').split('\n').find((line) =>
+    [...line.matchAll(NPM_DIFF_LINK)].some(([, path]) => {
+      const linked = decode(path);
+      return linked === dependencyName || linked.startsWith(`${dependencyName}/`);
+    }),
+  );
 }
 
 /**
@@ -45,6 +54,8 @@ function exactVersionFromBody(
  * to this version". Anything SyncLab cannot act on safely is ignored with a
  * reason: grouped updates, other ecosystems, subdirectories (the worker only
  * upgrades the root package.json), and pull requests from forks or people.
+ * Whether the root package.json declares the dependency is checked separately,
+ * since that needs the repository contents.
  */
 export function parseDependencyUpdate(
   event: string | undefined,
@@ -85,8 +96,11 @@ export function parseDependencyUpdate(
     const match = title.match(RENOVATE_TITLE);
     if (!match) return ignored('Renovate title does not name a single dependency');
     [, dependencyName, targetVersion] = match;
+    // Renovate titles name neither the package manager nor the directory.
+    const npmLine = npmDiffLine(pr?.body, dependencyName);
+    if (!npmLine) return ignored(`Renovate pull request does not link ${dependencyName} on npm`);
     if (!EXACT_VERSION.test(targetVersion)) {
-      targetVersion = exactVersionFromBody(pr?.body, dependencyName);
+      targetVersion = npmLine.match(CHANGE_CELL)?.[1];
     }
   }
 

@@ -36,7 +36,7 @@ function duplicateError() {
   });
 }
 
-function setup(existing?: { id: string; status: string }) {
+function setup(existing?: { id: string; status: string }, declared = true) {
   const prisma = {
     repository: { upsert: jest.fn().mockResolvedValue({ id: 'repo-1' }) },
     migrationJob: {
@@ -49,10 +49,12 @@ function setup(existing?: { id: string; status: string }) {
     },
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
+  const githubTokens = { declaresRootDependency: jest.fn().mockResolvedValue(declared) };
   const controller = new WebhookController(
     new MigrationJobsService(queue as never, prisma as never),
+    githubTokens as never,
   );
-  return { controller, prisma, queue };
+  return { controller, githubTokens, prisma, queue };
 }
 
 describe('WebhookController', () => {
@@ -91,8 +93,20 @@ describe('WebhookController', () => {
     );
   });
 
+  it('ignores a dependency the root package.json does not declare', async () => {
+    const { controller, githubTokens, prisma, queue } = setup(undefined, false);
+
+    await expect(controller.handleWebhook(PAYLOAD, 'pull_request')).resolves.toEqual({
+      ignored: true,
+      reason: 'react is not declared in the root package.json of acme/widgets',
+    });
+    expect(githubTokens.declaresRootDependency).toHaveBeenCalledWith(7n, 'acme/widgets', 'react');
+    expect(prisma.migrationJob.create).not.toHaveBeenCalled();
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
   it('upserts the repository, creates the job and queues it', async () => {
-    const { controller, prisma, queue } = setup();
+    const { controller, githubTokens, prisma, queue } = setup();
 
     await expect(controller.handleWebhook(PAYLOAD, 'pull_request')).resolves.toEqual({
       id: 'job-1',
@@ -100,6 +114,7 @@ describe('WebhookController', () => {
       queued: true,
     });
 
+    expect(githubTokens.declaresRootDependency).toHaveBeenCalledWith(7n, 'acme/widgets', 'react');
     expect(prisma.repository.upsert).toHaveBeenCalledWith({
       where: { githubRepoId: 42n },
       create: { githubRepoId: 42n, fullName: 'acme/widgets', installationId: 7n },

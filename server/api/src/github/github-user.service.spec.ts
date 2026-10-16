@@ -1,4 +1,8 @@
-import { BadGatewayException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { GithubUserService } from './github-user.service';
 
 const API = 'https://api.github.test';
@@ -94,6 +98,23 @@ describe('GithubUserService', () => {
 
     await expect(service().resolve('bad')).rejects.toBeInstanceOf(UnauthorizedException);
   });
+
+  it.each<Record<string, string>>([{ 'x-ratelimit-remaining': '0' }, { 'retry-after': '60' }])(
+    'reports a rate-limited 403 (%o) as unavailable, not as a bad token',
+    async (headers) => {
+      mockGithub({
+        '/user': () =>
+          new Response(JSON.stringify({ message: 'API rate limit exceeded' }), {
+            status: 403,
+            headers,
+          }),
+      });
+
+      await expect(service().resolve('ghu_token')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    },
+  );
 
   it('does not cache a failure', async () => {
     const fetch = mockGithub({ '/user': () => json({}, 500) });

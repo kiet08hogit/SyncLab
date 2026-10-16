@@ -26,6 +26,11 @@ function renovate(title: string, body = ''): GithubPullRequestPayload {
   };
 }
 
+/** A Renovate change table row linking the npm diff for the dependency. */
+function npmRow(dependencyPath: string, change = '`1.0.0` -> `2.0.0`') {
+  return `| dep | [${change}](https://renovatebot.com/diffs/npm/${dependencyPath}/1.0.0/2.0.0) |`;
+}
+
 describe('parseDependencyUpdate', () => {
   it.each([
     ['Bump lodash from 4.17.20 to 4.17.21', 'lodash', '4.17.21'],
@@ -43,12 +48,23 @@ describe('parseDependencyUpdate', () => {
   });
 
   it.each([
-    ['Update dependency lodash to v4.17.21', 'lodash', '4.17.21'],
-    ['chore(deps): update dependency @nestjs/core to v11.1.0', '@nestjs/core', '11.1.0'],
-    ['fix(deps): update dependency axios to v1.7.9 [security]', 'axios', '1.7.9'],
-    ['Update dependency zod to 4.0.1 (minor)', 'zod', '4.0.1'],
-  ])('reads Renovate "%s"', (title, dependencyName, targetVersion) => {
-    expect(parseDependencyUpdate('pull_request', renovate(title))).toEqual({
+    ['Update dependency lodash to v4.17.21', 'lodash', '4.17.21', 'lodash'],
+    [
+      'chore(deps): update dependency @nestjs/core to v11.1.0',
+      '@nestjs/core',
+      '11.1.0',
+      '@nestjs/core',
+    ],
+    [
+      'chore(deps): update dependency @types/node to v22.10.2',
+      '@types/node',
+      '22.10.2',
+      '%40types%2Fnode',
+    ],
+    ['fix(deps): update dependency axios to v1.7.9 [security]', 'axios', '1.7.9', 'axios'],
+    ['Update dependency zod to 4.0.1 (minor)', 'zod', '4.0.1', 'zod'],
+  ])('reads Renovate "%s"', (title, dependencyName, targetVersion, linkPath) => {
+    expect(parseDependencyUpdate('pull_request', renovate(title, npmRow(linkPath)))).toEqual({
       kind: 'update',
       bot: 'renovate',
       dependencyName,
@@ -71,6 +87,17 @@ describe('parseDependencyUpdate', () => {
       dependencyName: 'express',
       targetVersion: '5.1.0',
     });
+  });
+
+  it('reads the major update version only from the npm line of the change table', () => {
+    const body = [
+      '| express | [`4.0.0` -> `9.9.9`](https://renovatebot.com/diffs/pypi/express/4.0.0/9.9.9) |',
+      npmRow('express', '`4.21.2` -> `5.1.0`'),
+    ].join('\n');
+
+    expect(
+      parseDependencyUpdate('pull_request', renovate('Update dependency express to v5', body)),
+    ).toMatchObject({ kind: 'update', targetVersion: '5.1.0' });
   });
 
   it.each([
@@ -118,12 +145,30 @@ describe('parseDependencyUpdate', () => {
       'pull_request',
       dependabot('Bump lodash from 4.17.20 to 4.17.21 in /packages/web'),
     ],
+    [
+      'a Renovate update of a pip package',
+      'pull_request',
+      renovate(
+        'Update dependency requests to v2.32.3',
+        '| requests | [`2.32.2` -> `2.32.3`](https://renovatebot.com/diffs/pypi/requests/2.32.2/2.32.3) |',
+      ),
+    ],
+    [
+      'a Renovate update without an npm diff link',
+      'pull_request',
+      renovate('Update dependency black to v24.1.0'),
+    ],
+    [
+      'a Renovate update whose npm link names another package',
+      'pull_request',
+      renovate('Update dependency react to v19.0.0', npmRow('react-dom')),
+    ],
     ['a grouped Renovate update', 'pull_request', renovate('Update react monorepo to v19')],
     ['a Docker image update', 'pull_request', renovate('Update node Docker tag to v22')],
     [
       'a Renovate major update without a change table',
       'pull_request',
-      renovate('Update dependency express to v5'),
+      renovate('Update dependency express to v5', npmRow('express', 'diff')),
     ],
     [
       'a dependency name that is not an npm package',

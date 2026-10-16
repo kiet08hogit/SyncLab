@@ -195,3 +195,71 @@ describe('GithubTokenService.lookupRepository', () => {
     ).rejects.toBeInstanceOf(BadGatewayException);
   });
 });
+
+describe('GithubTokenService.declaresRootDependency', () => {
+  const fetchMock = jest.fn();
+  const originalFetch = global.fetch;
+
+  function rawResponse(status: number, text = '') {
+    return { status, ok: status >= 200 && status < 300, text: () => Promise.resolve(text) };
+  }
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    global.fetch = fetchMock as never;
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
+  it.each(['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'])(
+    'finds a dependency declared in %s of the root package.json',
+    async (field) => {
+      fetchMock.mockResolvedValueOnce(
+        rawResponse(200, JSON.stringify({ [field]: { lodash: '^4.17.20' } })),
+      );
+
+      await expect(
+        service({ appId: '1', privateKey: 'key' }).declaresRootDependency(
+          7n,
+          'acme/widgets',
+          'lodash',
+        ),
+      ).resolves.toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${API_URL}/repos/acme/widgets/contents/package.json`,
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Accept: 'application/vnd.github.raw+json',
+            Authorization: 'Bearer installation-token',
+          }) as unknown,
+        }),
+      );
+    },
+  );
+
+  it.each([
+    [
+      'a dependency only a subdirectory declares',
+      rawResponse(200, '{"dependencies":{"react":"18"}}'),
+    ],
+    ['a repository without a root package.json', rawResponse(404)],
+    ['a root package.json that is not JSON', rawResponse(200, '{ nope')],
+    ['a root package.json that is null', rawResponse(200, 'null')],
+  ])('reports %s as not declared', async (_case, response) => {
+    fetchMock.mockResolvedValueOnce(response);
+
+    await expect(
+      service({ token: 'pat' }).declaresRootDependency(0n, 'acme/widgets', 'lodash'),
+    ).resolves.toBe(false);
+  });
+
+  it('reports other GitHub failures as a bad gateway', async () => {
+    fetchMock.mockResolvedValueOnce(rawResponse(500));
+
+    await expect(
+      service({ token: 'pat' }).declaresRootDependency(0n, 'acme/widgets', 'lodash'),
+    ).rejects.toBeInstanceOf(BadGatewayException);
+  });
+});

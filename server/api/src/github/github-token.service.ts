@@ -8,6 +8,13 @@ function toBadGateway(error: unknown): never {
   throw new BadGatewayException('GitHub request failed', { cause: error });
 }
 
+const DEPENDENCY_FIELDS = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+] as const;
+
 export interface GithubRepositoryInfo {
   githubRepoId: bigint;
   installationId: bigint;
@@ -111,6 +118,49 @@ export class GithubTokenService {
       fullName: repo.full_name,
       cloneUrl: repo.clone_url,
     };
+  }
+
+  /**
+   * Whether the repository's root package.json declares the dependency, which
+   * is the only manifest the worker upgrades. A missing or unreadable
+   * package.json declares nothing.
+   */
+  async declaresRootDependency(
+    installationId: bigint,
+    fullName: string,
+    dependencyName: string,
+  ): Promise<boolean> {
+    const github: GithubConfig = this.config.get('github', { infer: true });
+    const token = await this.getInstallationToken(installationId).catch(toBadGateway);
+    const response = await fetch(`${github.apiUrl}/repos/${fullName}/contents/package.json`, {
+      headers: {
+        Accept: 'application/vnd.github.raw+json',
+        Authorization: `Bearer ${token}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    }).catch(toBadGateway);
+
+    if (response.status === 404) {
+      return false;
+    }
+    if (!response.ok) {
+      throw new BadGatewayException(
+        `GitHub GET /repos/${fullName}/contents/package.json failed with status ${response.status}`,
+      );
+    }
+
+    let manifest: unknown;
+    try {
+      manifest = JSON.parse(await response.text());
+    } catch {
+      return false;
+    }
+    return DEPENDENCY_FIELDS.some((field) => {
+      const section = (manifest as Record<string, unknown> | null)?.[field];
+      return (
+        typeof section === 'object' && section !== null && Object.hasOwn(section, dependencyName)
+      );
+    });
   }
 
   private async githubGet<T>(

@@ -1,4 +1,9 @@
-import { BadGatewayException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import type { Configuration } from '../config/configuration';
@@ -129,6 +134,15 @@ export class GithubUserService {
       throw new BadGatewayException('GitHub request failed', { cause: error });
     });
 
+    // GitHub answers a rate limit with 403 too; the token is still valid then.
+    if (
+      response.status === 403 &&
+      (response.headers.get('x-ratelimit-remaining') === '0' || response.headers.has('retry-after'))
+    ) {
+      throw new ServiceUnavailableException(
+        'GitHub rate limit reached while checking access. Try again shortly.',
+      );
+    }
     // 401: revoked or expired. 403 on /user/installations: a token that is not
     // a GitHub App user token, such as a personal access token.
     if (response.status === 401 || response.status === 403) {

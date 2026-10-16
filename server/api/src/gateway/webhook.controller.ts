@@ -8,6 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { GithubTokenService } from '../github/github-token.service';
 import { parseDependencyUpdate } from './dependency-update';
 import { GithubSignatureGuard } from './github-signature.guard';
 import { MigrationJobsService } from './migration-jobs.service';
@@ -22,7 +23,10 @@ import type { GithubPullRequestPayload } from './webhook.types';
 @Controller('webhook')
 @UseGuards(GithubSignatureGuard)
 export class WebhookController {
-  constructor(private readonly migrationJobs: MigrationJobsService) {}
+  constructor(
+    private readonly migrationJobs: MigrationJobsService,
+    private readonly githubTokens: GithubTokenService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
@@ -49,6 +53,18 @@ export class WebhookController {
       throw new BadRequestException(
         'Payload is missing installation.id, so no GitHub App installation token can be issued',
       );
+    }
+
+    const declared = await this.githubTokens.declaresRootDependency(
+      BigInt(installationId),
+      repository.full_name,
+      update.dependencyName,
+    );
+    if (!declared) {
+      return {
+        ignored: true,
+        reason: `${update.dependencyName} is not declared in the root package.json of ${repository.full_name}`,
+      };
     }
 
     return this.migrationJobs.enqueue({

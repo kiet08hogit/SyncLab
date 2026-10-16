@@ -105,9 +105,12 @@ The gateway listens for those pull requests on `/webhook` and starts a migration
 | Bot | Title it reads | Also required |
 | --- | --- | --- |
 | `dependabot[bot]` | `Bump lodash from 4.17.20 to 4.17.21`, with or without a `build(deps):` style prefix | a `dependabot/npm_and_yarn/` branch |
-| `renovate[bot]` | `Update dependency lodash to v4.17.21`, with or without a prefix and a ` [security]` or ` (major)` suffix | for a shortened `to v5`, the exact version from the change table in the PR body |
+| `renovate[bot]` | `Update dependency lodash to v4.17.21`, with or without a prefix and a ` [security]` or ` (major)` suffix | an npm diff link for that dependency in the PR body (`renovatebot.com/diffs/npm/lodash/...`, scoped names may be URL-encoded); for a shortened `to v5`, the exact version from the change table row that carries that link |
 
 It ignores, with a reason in the `202` response, every pull request it cannot act on safely: other authors (the author must be the bot account, of type `Bot`), branches from forks, other ecosystems, grouped updates (`Bump the npm_and_yarn group ...`, `Update react monorepo ...`), and updates in a subdirectory (`... in /packages/web`), because the worker only upgrades the root `package.json`.
+Renovate titles name neither the package manager nor the directory, so before queueing a job for either bot the gateway reads the repository's root `package.json` with the installation token.
+If the dependency is not in its `dependencies`, `devDependencies`, `optionalDependencies` or `peerDependencies`, or there is no root `package.json`, the pull request is ignored with a reason.
+The gateway therefore needs GitHub credentials (the App, or `GITHUB_TOKEN` locally) to accept a webhook.
 SyncLab opens its own pull request on `synclab/<dependency>-<version>`; it does not push to the bot's branch.
 
 ### Testing the webhook locally
@@ -126,7 +129,7 @@ curl -X POST http://localhost:3000/webhook \
   --data "$BODY"
 ```
 
-The payload needs `action: "opened"`, a `pull_request` with `title`, `user.login`, `user.type`, `head.ref` and `head.repo.full_name`, a `repository` with `id` and `full_name`, and an `installation.id`.
+The payload needs `action: "opened"`, a `pull_request` with `title`, `user.login`, `user.type`, `head.ref` and `head.repo.full_name` (plus a `body` with the npm diff link for Renovate), a `repository` with `id` and `full_name`, and an `installation.id`.
 
 ## Triggering a migration manually
 
