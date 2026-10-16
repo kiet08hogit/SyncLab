@@ -53,16 +53,32 @@ async function until(what: string, ready: () => Promise<boolean> | boolean, time
 
 const answers = (url: string) => async () => (await fetch(url)).status < 500;
 
-function serve(name: string, command: string, args: string[], cwd: string, env: Env): ChildProcess {
+/** Starts a server where nothing answers yet and waits until it does at url, failing fast if it exits first. */
+async function serve(name: string, command: string, args: string[], cwd: string, env: Env, url: string): Promise<ChildProcess> {
+  if (await fetch(url).then(() => true, () => false)) {
+    throw new Error(`${name}: something already answers at ${url}, likely a leftover server; stop it first`);
+  }
   const child = spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "pipe"] });
   // Quiet unless it fails, then the output says why.
   let output = "";
   const keep = (chunk: Buffer) => (output = (output + chunk).slice(-20_000));
   child.stdout?.on("data", keep);
   child.stderr?.on("data", keep);
-  child.on("exit", (code, signal) => {
-    if (!stopping) console.error(`[e2e] ${name} exited with ${code ?? signal}:\n${output}`);
-  });
+  let started = false;
+  const exited = new Promise<never>((_, reject) =>
+    child.on("exit", (code, signal) => {
+      const message = `${name} exited with ${code ?? signal}:\n${output}`;
+      if (!started) reject(new Error(message));
+      else if (!stopping) console.error(`[e2e] ${message}`);
+    }),
+  );
+  try {
+    await Promise.race([until(name, answers(url)), exited]);
+  } catch (error) {
+    child.kill();
+    throw error;
+  }
+  started = true;
   return child;
 }
 
@@ -108,7 +124,7 @@ export default async function globalSetup() {
 
     stub = await startStub(STUB_PORT);
     children.push(
-      serve("api", "node", ["dist/main.js"], API_DIR, {
+      await serve("api", "node", ["dist/main.js"], API_DIR, {
         DATABASE_URL: databaseUrl,
         REDIS_HOST: "127.0.0.1",
         REDIS_PORT: redisPort,
@@ -116,11 +132,9 @@ export default async function globalSetup() {
         APP_ROLE: "gateway",
         GITHUB_API_URL: githubUrl,
         GITHUB_TOKEN: "e2e-installation-token",
-      }),
-      serve("web", NEXT, ["start", "-p", `${WEB_PORT}`], WEB_DIR, webEnv),
+      }, `http://127.0.0.1:${API_PORT}/`),
     );
-    await until("API", answers(`http://127.0.0.1:${API_PORT}/`));
-    await until("web", answers(`http://127.0.0.1:${WEB_PORT}/`));
+    children.push(await serve("web", NEXT, ["start", "-p", `${WEB_PORT}`], WEB_DIR, webEnv, `http://127.0.0.1:${WEB_PORT}/`));
 
     // Read by the tests, which run in worker processes that inherit this environment.
     process.env.E2E_PG_CONTAINER = PG;

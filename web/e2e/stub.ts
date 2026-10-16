@@ -108,5 +108,8 @@ export function startStub(port: number): Promise<http.Server> {
 
     json(404, { message: "Not Found" });
   });
-  return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve(server)));
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", () => resolve(server));
+  });
 }
