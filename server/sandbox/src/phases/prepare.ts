@@ -5,7 +5,6 @@ import { configureGitCredentials } from '../git.js';
 import { loadConfig, requireToken } from '../config.js';
 import { fetchReleaseNotes } from '../changelog.js';
 import { writeBreakingChanges } from '../state.js';
-import { upgradeDependency } from '../upgrade.js';
 import type { PhaseResult, StepLog } from '../result.js';
 
 async function isEmptyDir(dir: string): Promise<boolean> {
@@ -41,36 +40,10 @@ export async function prepare(): Promise<PhaseResult> {
     return { phase: 'prepare', ok: false, error: 'git clone failed', steps };
   }
 
-  // The lockfile decides which install command is valid; npm ci refuses to run without one.
-  const hasLockfile = await fs
-    .access(`${config.repoDir}/package-lock.json`)
-    .then(() => true)
-    .catch(() => false);
-
-  const install = await run('npm', [hasLockfile ? 'ci' : 'install'], { cwd: config.repoDir });
-  steps.push({
-    step: 'INSTALL',
-    output: redact(install.output, [token]),
-    exitCode: install.code,
-  });
-
-  if (install.code !== 0) {
-    return { phase: 'prepare', ok: false, error: 'dependency install failed', steps };
-  }
-
-  const upgrade = await upgradeDependency(
-    config.repoDir,
-    config.dependencyName,
-    config.targetVersion,
-  );
-  steps.push({ ...upgrade.step, output: redact(upgrade.step.output, [token]) });
-
-  if (!upgrade.ok) {
-    return { phase: 'prepare', ok: false, error: upgrade.error, steps };
-  }
-
-  // Fetched here because this is the last phase that has both a GitHub token
-  // and a network connection. The refactor phase only reads the result.
+  // Dependencies are installed by the install phase, which has no token:
+  // install scripts are repository code and must not run beside it.
+  // Release notes are fetched here because this is the last phase that has
+  // both a GitHub token and a network connection.
   const octokit = new Octokit({ auth: token, baseUrl: config.githubApiUrl });
   const notes = await fetchReleaseNotes(
     octokit,

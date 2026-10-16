@@ -53,6 +53,17 @@ describe('buildPhaseEnv', () => {
     expect(buildPhaseEnv('refactor', PARAMS, 1).GITHUB_TOKEN).toBeUndefined();
   });
 
+  it.each(['install', 'upgrade'] as const)(
+    'withholds every credential from %s, which runs dependency install scripts',
+    (phase) => {
+      const env = buildPhaseEnv(phase, PARAMS, 1);
+
+      expect(env.GITHUB_TOKEN).toBeUndefined();
+      expect(env.GEMINI_API_KEY).toBeUndefined();
+      expect(Object.values(env)).not.toContain(TOKEN);
+    },
+  );
+
   it('provides the GitHub token to the phases that talk to GitHub', () => {
     expect(buildPhaseEnv('prepare', PARAMS, 1).GITHUB_TOKEN).toBe(TOKEN);
     expect(buildPhaseEnv('publish', PARAMS, 1).GITHUB_TOKEN).toBe(TOKEN);
@@ -117,6 +128,8 @@ describe('buildContainerOptions', () => {
   it('disables networking only for the phase that runs the repository test suite', () => {
     expect(optionsFor('prepare').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('refactor').HostConfig?.NetworkMode).toBe('bridge');
+    expect(optionsFor('install').HostConfig?.NetworkMode).toBe('bridge');
+    expect(optionsFor('upgrade').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('test').HostConfig?.NetworkMode).toBe('none');
     expect(optionsFor('publish').HostConfig?.NetworkMode).toBe('bridge');
   });

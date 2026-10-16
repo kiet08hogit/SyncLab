@@ -1,4 +1,6 @@
 import { prepare } from './phases/prepare.js';
+import { install } from './phases/install.js';
+import { upgrade } from './phases/upgrade.js';
 import { refactor } from './phases/refactor.js';
 import { test } from './phases/test.js';
 import { publish } from './phases/publish.js';
@@ -6,6 +8,8 @@ import { emitResult, type PhaseName, type PhaseResult } from './result.js';
 
 const PHASES: Record<PhaseName, () => Promise<PhaseResult>> = {
   prepare,
+  install,
+  upgrade,
   refactor,
   test,
   publish,
@@ -19,7 +23,16 @@ function parsePhase(value: string | undefined): PhaseName {
 }
 
 async function main(): Promise<void> {
-  const phase = parsePhase(process.argv[2]);
+  let phase: PhaseName;
+  try {
+    phase = parsePhase(process.argv[2]);
+  } catch (error: unknown) {
+    // No result line: there is no phase to report it for, and the worker
+    // already treats a container that exits without one as failed.
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 2;
+    return;
+  }
 
   let result: PhaseResult;
   try {
