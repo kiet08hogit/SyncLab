@@ -66,6 +66,28 @@ describe('buildPhaseEnv', () => {
     }
   });
 
+  it('gives the Anthropic key, and no other, only to the refactor phase', () => {
+    const anthropic: SandboxJobParams = {
+      ...PARAMS,
+      llm: {
+        ...PARAMS.llm,
+        provider: 'anthropic',
+        apiKey: 'sk-ant-test',
+        model: 'claude-opus-5-5',
+      },
+    };
+    const env = buildPhaseEnv('refactor', anthropic, 1);
+
+    expect(env.LLM_PROVIDER).toBe('anthropic');
+    expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-test');
+    expect(env.GEMINI_API_KEY).toBeUndefined();
+    expect(env.LLM_BASE_URL).toBeUndefined();
+
+    for (const phase of ['prepare', 'test', 'publish'] as const) {
+      expect(buildPhaseEnv(phase, anthropic, 1).ANTHROPIC_API_KEY).toBeUndefined();
+    }
+  });
+
   it('gives the Ollama endpoint only to the refactor phase, and no key at all', () => {
     const ollama: SandboxJobParams = {
       ...PARAMS,

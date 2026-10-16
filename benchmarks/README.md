@@ -10,6 +10,7 @@ cd ../.. && node benchmarks/run.mjs
 ```
 
 By default it uses Ollama on `localhost:11434` with `qwen2.5-coder:14b` (override the model with `LLM_MODEL`).
-With `LLM_PROVIDER=gemini`, `GEMINI_API_KEY` must be set, or present in `server/api/.env`.
+With `LLM_PROVIDER=gemini` or `anthropic`, `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` must be set, or present in `server/api/.env`.
+Workspaces live under `results/workspaces/<provider>/`, so runs against different providers can go in parallel when each writes its own `--out` file.
 Raw output is `benchmarks/results/results.json`.
 The summary is `benchmarks/results/report.md`.
