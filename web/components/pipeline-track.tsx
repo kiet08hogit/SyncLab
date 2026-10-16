@@ -49,57 +49,63 @@ const STATE_TEXT: Record<StageState, string> = {
   pending: "Not reached",
 };
 
-/** The full track: one labelled stop per stage, joined like a route line. */
+/**
+ * The full track: one labelled stop per stage, joined like a route line.
+ * Labels follow the track's own width rather than the screen's, because a
+ * half-width dashboard card is as narrow as a phone.
+ */
 export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: JobStatus }) {
   const stages = pipelineStages(steps, status);
 
   return (
-    <ol aria-label={describePipeline(stages, status)} className="grid grid-cols-7">
-      {stages.map((stage, index) => (
-        <li key={stage.stage} className="relative flex flex-col items-center gap-2 text-center">
-          {index > 0 && (
-            <span
-              aria-hidden
-              className={cn("absolute top-3.5 right-1/2 h-0.5 w-full -translate-y-1/2", LINE[stage.state])}
-            />
-          )}
-          <span
-            className={cn(
-              "relative z-10 grid size-7 place-items-center border-2 text-xs font-semibold",
-              STOP[stage.state],
+    <div className="@container">
+      <ol aria-label={describePipeline(stages, status)} className="grid grid-cols-7">
+        {stages.map((stage, index) => (
+          <li key={stage.stage} className="relative flex flex-col items-center gap-2 text-center">
+            {index > 0 && (
+              <span
+                aria-hidden
+                className={cn("absolute top-3.5 right-1/2 h-0.5 w-full -translate-y-1/2", LINE[stage.state])}
+              />
             )}
-          >
-            {stage.state === "done" ? (
-              <Check aria-hidden className="size-3.5" strokeWidth={3} />
-            ) : stage.state === "failed" ? (
-              <X aria-hidden className="size-3.5" strokeWidth={3} />
-            ) : stage.state === "running" ? (
-              <span aria-hidden className="relative size-2.5">
-                <span className="absolute inset-0 bg-status-running/60 motion-safe:animate-ping" />
-                <span className="absolute inset-0 bg-status-running" />
-              </span>
-            ) : (
-              <span aria-hidden className="tabular-nums">
-                {index + 1}
-              </span>
-            )}
-          </span>
-          <span className="flex flex-col">
             <span
               className={cn(
-                "text-[11px] leading-tight font-medium sm:text-sm",
-                stage.state === "pending" ? "text-muted-foreground" : "text-foreground",
+                "relative z-10 grid size-7 place-items-center border-2 text-xs font-semibold",
+                STOP[stage.state],
               )}
             >
-              <span aria-hidden className="sm:hidden">
-                {stage.shortLabel}
-              </span>
-              <span className="max-sm:sr-only">{stage.label}</span>
+              {stage.state === "done" ? (
+                <Check aria-hidden className="size-3.5" strokeWidth={3} />
+              ) : stage.state === "failed" ? (
+                <X aria-hidden className="size-3.5" strokeWidth={3} />
+              ) : stage.state === "running" ? (
+                <span aria-hidden className="relative size-2.5">
+                  <span className="absolute inset-0 bg-status-running/60 motion-safe:animate-ping" />
+                  <span className="absolute inset-0 bg-status-running" />
+                </span>
+              ) : (
+                <span aria-hidden className="tabular-nums">
+                  {index + 1}
+                </span>
+              )}
             </span>
-            <span className="sr-only">{STATE_TEXT[stage.state]}</span>
-          </span>
-        </li>
-      ))}
-    </ol>
+            <span className="flex flex-col">
+              <span
+                className={cn(
+                  "text-[11px] leading-tight font-medium @xl:text-sm",
+                  stage.state === "pending" ? "text-muted-foreground" : "text-foreground",
+                )}
+              >
+                <span aria-hidden className="@xl:hidden">
+                  {stage.shortLabel}
+                </span>
+                <span className="@max-xl:sr-only">{stage.label}</span>
+              </span>
+              <span className="sr-only">{STATE_TEXT[stage.state]}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
