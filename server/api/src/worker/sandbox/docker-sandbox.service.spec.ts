@@ -377,7 +377,33 @@ describe('DockerSandboxService', () => {
         ok: false,
         error: 'sandbox phase "prepare" exited with code 137 without reporting a result',
       });
-      expect(onSteps).toHaveBeenCalledWith([{ step: 'PREPARE', output: 'Killed', exitCode: 137 }]);
+      expect(onSteps).toHaveBeenCalledWith([{ step: 'CLONE', output: 'Killed', exitCode: 137 }]);
+    });
+
+    it.each([
+      ['install', 'INSTALL'],
+      ['upgrade', 'UPGRADE'],
+      ['refactor', 'REFACTOR'],
+      ['publish', 'PR'],
+    ] as const)(
+      'logs a %s phase that died without a result under the %s stage',
+      async (phase, step) => {
+        const { service, onSteps } = setup({
+          [phase]: [{ output: 'Killed', exitCode: 137 }],
+        });
+
+        await service.run('job-1', params(), onSteps);
+
+        expect(onSteps).toHaveBeenCalledWith([{ step, output: 'Killed', exitCode: 137 }]);
+      },
+    );
+
+    it('logs a baseline test run that died without a result as BASELINE, not TEST', async () => {
+      const { service, onSteps } = setup({ test: [{ output: 'Killed', exitCode: 137 }] });
+
+      await service.run('job-1', params(), onSteps);
+
+      expect(onSteps).toHaveBeenCalledWith([{ step: 'BASELINE', output: 'Killed', exitCode: 137 }]);
     });
 
     it('kills a phase that exceeds the timeout and still cleans up', async () => {

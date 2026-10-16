@@ -52,14 +52,15 @@ const STATE_TEXT: Record<StageState, string> = {
 /**
  * The full track: one labelled stop per stage, joined like a route line.
  * Labels follow the track's own width rather than the screen's, because a
- * half-width dashboard card is as narrow as a phone.
+ * half-width dashboard card is as narrow as a phone. Below 28rem eight labels
+ * collide, so they give way to a single caption naming the current stage.
  */
 export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: JobStatus }) {
   const stages = pipelineStages(steps, status);
 
   return (
     <div className="@container">
-      <ol aria-label={describePipeline(stages, status)} className="grid grid-cols-7">
+      <ol aria-label={describePipeline(stages, status)} className="grid grid-cols-8">
         {stages.map((stage, index) => (
           <li key={stage.stage} className="relative flex flex-col items-center gap-2 text-center">
             {index > 0 && (
@@ -89,7 +90,7 @@ export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: Job
                 </span>
               )}
             </span>
-            <span className="flex flex-col">
+            <span className="flex flex-col @max-md:sr-only">
               <span
                 className={cn(
                   "text-[11px] leading-tight font-medium @xl:text-sm",
@@ -106,6 +107,9 @@ export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: Job
           </li>
         ))}
       </ol>
+      <p aria-hidden className="mt-3 text-center text-xs text-muted-foreground @md:hidden">
+        {describePipeline(stages, status)}
+      </p>
     </div>
   );
 }

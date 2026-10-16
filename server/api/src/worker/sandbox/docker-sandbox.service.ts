@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassThrough } from 'node:stream';
 import Docker from 'dockerode';
 import type { Configuration } from '../../config/configuration';
+import { LogStep } from '../../common/constants';
 import { buildContainerOptions, buildPhaseEnv, type SandboxLimits } from './container-options';
 import {
   parsePhaseResult,
@@ -14,6 +15,20 @@ import {
 } from './sandbox.types';
 
 export type StepListener = (steps: StepLog[]) => Promise<void>;
+
+/**
+ * The step a phase that died without a result is logged under: the first step
+ * that phase would have logged itself, so the dashboard places the failure at
+ * the right stage.
+ */
+const FALLBACK_STEP: Record<SandboxPhase, LogStep> = {
+  prepare: LogStep.CLONE,
+  install: LogStep.INSTALL,
+  upgrade: LogStep.UPGRADE,
+  refactor: LogStep.REFACTOR,
+  test: LogStep.TEST,
+  publish: LogStep.PR,
+};
 
 @Injectable()
 export class DockerSandboxService {
@@ -214,11 +229,13 @@ export class DockerSandboxService {
 
       // The sandbox always emits a result line, so its absence means the
       // process died before it could - the raw log is the only diagnostic left.
+      // It is logged under the step the dashboard tracks for this phase.
+      const step = extraEnv.TEST_BASELINE === 'true' ? LogStep.BASELINE : FALLBACK_STEP[phase];
       return {
         phase,
         ok: false,
         error: `sandbox phase "${phase}" exited with code ${exitCode} without reporting a result`,
-        steps: [{ step: phase.toUpperCase(), output: logs.trim(), exitCode }],
+        steps: [{ step, output: logs.trim(), exitCode }],
       };
     } finally {
       await container

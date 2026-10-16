@@ -17,9 +17,10 @@ export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 export const LogStep = {
   STARTED: 'STARTED',
   CLONE: 'CLONE',
-  INSTALL: 'INSTALL',
-  UPGRADE: 'UPGRADE',
   CHANGELOG: 'CHANGELOG',
+  INSTALL: 'INSTALL',
+  BASELINE: 'BASELINE',
+  UPGRADE: 'UPGRADE',
   REFACTOR: 'REFACTOR',
   TEST: 'TEST',
   PR: 'PR',
