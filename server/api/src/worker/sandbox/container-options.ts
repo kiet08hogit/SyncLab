@@ -1,4 +1,5 @@
 import type { ContainerCreateOptions } from 'dockerode';
+import { LLM_API_KEY_ENV } from '../../config/configuration';
 import type { SandboxJobParams, SandboxPhase } from './sandbox.types';
 
 export const WORKSPACE_MOUNT = '/workspace';
@@ -65,8 +66,10 @@ export function buildPhaseEnv(
   }
 
   if (phaseNeedsModel(phase)) {
-    if (params.llm.provider === 'gemini') {
-      env.GEMINI_API_KEY = params.llm.apiKey;
+    const keyEnv = LLM_API_KEY_ENV[params.llm.provider];
+
+    if (keyEnv) {
+      env[keyEnv] = params.llm.apiKey;
     } else {
       env.LLM_BASE_URL = params.llm.baseUrl;
       env.LLM_NUM_CTX = String(params.llm.numCtx);

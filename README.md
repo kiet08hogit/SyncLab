@@ -54,7 +54,7 @@ flowchart LR
         PB["publish"]
     end
 
-    LLM["Ollama (local) or Gemini<br/>via LangChain.js"]
+    LLM["Ollama (local), Gemini or Claude<br/>via LangChain.js and the Anthropic SDK"]
     NPM["npm registry"]
     REPO["Target GitHub repository"]
 
@@ -87,7 +87,7 @@ sequenceDiagram
     participant Q as Redis (BullMQ)
     participant WK as Worker
     participant SB as Sandbox containers
-    participant LLM as Model (Ollama or Gemini)
+    participant LLM as Model (Ollama, Gemini or Claude)
     participant GH as GitHub
 
     Src->>GW: release webhook or POST /migrations
@@ -187,7 +187,7 @@ For each job the worker:
    If the job is already `COMPLETED`, it writes a `SKIPPED` log and stops; otherwise it sets `IN_PROGRESS`.
 2. Mints a GitHub App installation token (or falls back to `GITHUB_TOKEN` for local development).
    The App private key never leaves the worker.
-3. With `LLM_PROVIDER=gemini`, refuses to start without `GEMINI_API_KEY` (unrecoverable).
+3. With a hosted `LLM_PROVIDER`, refuses to start without its key (`GEMINI_API_KEY` or `ANTHROPIC_API_KEY`, unrecoverable).
 4. Checks the sandbox image exists locally, creates a named volume `synclab-job-<jobId>`, and runs the phases below.
 5. Appends every phase's step logs to `execution_logs`, then removes every container and the volume, whatever the outcome.
 
@@ -248,6 +248,8 @@ These rules live in `server/api/src/worker/sandbox/container-options.ts`.
 4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Ollama by default).
    Gemini answers with structured output `{changed, contents, reason}`.
    Ollama answers with a one-sentence reason followed by the file in a fenced block, because small local models do not reliably end a whole file inside a JSON string, and its output is capped relative to the file size.
+   Claude answers in the same fenced shape over a streamed request, so the file needs no JSON escaping and a reply cut off at `max_tokens` is caught from the stop reason.
+   A Claude refusal is retried server-side on Anthropic's default fallback model before the file is failed.
    The prompt includes the dependency, target version, release notes, the imported names and usage lines, and, on a retry, the previous failing test output.
    The model returns the complete file rather than a diff, because diffs fail to apply too often.
 5. Writes back only files the model actually changed.
@@ -332,10 +334,11 @@ Only failures that could succeed on a later try are retried; everything else is 
 
 | Failure | Job status | Retried by BullMQ |
 | --- | --- | --- |
-| Gemini rate limit (429, quota or resource exhausted) | `QUEUED` while retrying, then `FAILED` | yes |
+| Gemini or Anthropic rate limit (429, quota or resource exhausted) | `QUEUED` while retrying, then `FAILED` | yes |
+| Anthropic API overloaded (529) | `QUEUED` while retrying, then `FAILED` | yes |
 | Ollama server not reachable (connection refused) | `QUEUED` while retrying, then `FAILED` | yes |
 | Other model errors (bad key, unknown model, malformed output) | `FAILED` | no |
-| `GEMINI_API_KEY` missing with `LLM_PROVIDER=gemini` | `FAILED` | no |
+| `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` missing for the selected provider | `FAILED` | no |
 | Clone, install or dependency upgrade failed | `FAILED` | no |
 | Tests still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
 | Refactor produced no changes | `FAILED` | no |
@@ -365,14 +368,14 @@ SyncLab/
 │       └── src/
 │           ├── phases/        prepare, refactor, test, publish
 │           ├── analysis/      Babel import and usage analysis
-│           ├── llm/           Ollama and Gemini models, refactor chain, retryable error classification
+│           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
 │           └── upgrade.ts     dependency upgrade used by prepare
 └── benchmarks/                synthetic migration cases and runner for the refactor and test loop
 ```
 
 ## Getting started
 
-Prerequisites: Node.js 22 or later, Docker, and either [Ollama](https://ollama.com) with `qwen2.5-coder:14b` pulled (the default) or a Gemini API key.
+Prerequisites: Node.js 22 or later, Docker, and either [Ollama](https://ollama.com) with `qwen2.5-coder:14b` pulled (the default) or a Gemini or Anthropic API key.
 For real repositories you also need a GitHub App (or a personal access token for local experiments).
 
 ```bash
@@ -382,7 +385,7 @@ docker compose up -d
 
 # 2. API: configuration, database, sandbox image
 cd api
-cp .env.example .env          # fill in GITHUB_WEBHOOK_SECRET, GitHub credentials, MIGRATIONS_API_TOKEN (and GEMINI_API_KEY if LLM_PROVIDER=gemini)
+cp .env.example .env          # fill in GITHUB_WEBHOOK_SECRET, GitHub credentials, MIGRATIONS_API_TOKEN (and GEMINI_API_KEY or ANTHROPIC_API_KEY for a hosted LLM_PROVIDER)
 npm install
 npx prisma migrate deploy
 npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
@@ -434,8 +437,8 @@ The refactor container reaches the host's Ollama at `http://host.docker.internal
 Larger models are stronger at migrations but will not fit next to Docker on that machine.
 Set `LLM_MODEL` to try another model you have pulled.
 
-Deployed environments will use a hosted API provider such as OpenAI or Claude instead of a local model.
-Gemini is the hosted provider wired in today (`LLM_PROVIDER=gemini` with `GEMINI_API_KEY`).
+Deployed environments use a hosted provider instead of a local model.
+Two are wired in: Claude (`LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, `claude-opus-5-5` by default) and Gemini (`LLM_PROVIDER=gemini` with `GEMINI_API_KEY`).
 
 ## Testing and benchmarks
 
@@ -451,7 +454,7 @@ cd web && npm run lint && npm run build          # dashboard lint, typecheck and
 `benchmarks/` holds synthetic migration cases (lodash, ramda, ajv, node-fetch, query-string, uuid) at easy, medium and hard difficulty.
 The runner drives the real sandbox `refactor` and `test` code for up to 3 attempts and checks AST targeting, removed APIs, `npm run build` and `npm test`.
 Cases marked `"upgrade": true` start on the old version and also exercise the dependency upgrade step.
-It calls a live model (local Ollama by default, or Gemini with `LLM_PROVIDER=gemini`), so it is not part of CI.
+It calls a live model (local Ollama by default, or a hosted one with `LLM_PROVIDER=gemini` or `anthropic`), so it is not part of CI.
 See [`benchmarks/README.md`](benchmarks/README.md).
 
 ## Current limitations and roadmap

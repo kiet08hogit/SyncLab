@@ -1,4 +1,5 @@
 import {
+  configuration,
   resolveAppRole,
   resolveLlmProvider,
   roleIncludesGateway,
@@ -30,12 +31,41 @@ describe('resolveLlmProvider', () => {
   it('accepts each supported provider', () => {
     expect(resolveLlmProvider('ollama')).toBe('ollama');
     expect(resolveLlmProvider('gemini')).toBe('gemini');
+    expect(resolveLlmProvider('anthropic')).toBe('anthropic');
   });
 
   it('refuses a provider it does not know rather than falling back to ollama', () => {
     expect(() => resolveLlmProvider('Gemini')).toThrow(
-      'LLM_PROVIDER must be one of ollama, gemini, got "Gemini".',
+      'LLM_PROVIDER must be one of ollama, gemini, anthropic, got "Gemini".',
     );
-    expect(() => resolveLlmProvider('gemeni')).toThrow(/must be one of ollama, gemini/);
+    expect(() => resolveLlmProvider('gemeni')).toThrow(/must be one of ollama, gemini, anthropic/);
+  });
+});
+
+describe('configuration llm', () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it("reads the key from the selected provider's own variable", () => {
+    process.env.LLM_PROVIDER = 'anthropic';
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    process.env.GEMINI_API_KEY = 'AIza-test';
+    delete process.env.LLM_MODEL;
+
+    expect(configuration().llm).toMatchObject({
+      provider: 'anthropic',
+      apiKey: 'sk-ant-test',
+      model: 'claude-opus-5-5',
+    });
+  });
+
+  it('gives a local Ollama no key even when hosted keys are set', () => {
+    process.env.LLM_PROVIDER = 'ollama';
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+
+    expect(configuration().llm.apiKey).toBe('');
   });
 });

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { SandboxConfig } from '../config.js';
 import type { DependencyUsage } from '../analysis/imports.js';
 import { PermanentModelError } from './errors.js';
-import { createGeminiModel, createOllamaModel } from './model.js';
+import { createAnthropicClient, createGeminiModel, createOllamaModel } from './model.js';
 
 /**
  * A whole-file rewrite rather than a diff. Models produce diffs that fail to
@@ -39,7 +39,9 @@ const STRUCTURED_SYSTEM_PROMPT = [
  * Small local models cannot be trusted to end a whole file inside a JSON
  * string: under constrained decoding they keep appending to it until the
  * output limit. A fenced block is the shape coding models are trained to
- * close, so local models answer in plain text instead.
+ * close, so local models answer in plain text instead. Claude uses it too:
+ * the file comes back without JSON escaping, and a cut-off reply is reported
+ * by the stop reason rather than by a parse failure that hides it.
  */
 const FENCED_SYSTEM_PROMPT = [
   ...RULES,
@@ -111,9 +113,14 @@ function buildUserPrompt(config: SandboxConfig, request: RefactorRequest): strin
 export type RefactorChain = (request: RefactorRequest) => Promise<RefactorOutcome>;
 
 export function createRefactorChain(config: SandboxConfig): RefactorChain {
-  return config.llm.provider === 'gemini'
-    ? createStructuredChain(config)
-    : createFencedChain(config);
+  switch (config.llm.provider) {
+    case 'gemini':
+      return createStructuredChain(config);
+    case 'anthropic':
+      return createAnthropicChain(config);
+    case 'ollama':
+      return createFencedChain(config);
+  }
 }
 
 function createStructuredChain(config: SandboxConfig): RefactorChain {
@@ -167,6 +174,47 @@ function createFencedChain(config: SandboxConfig): RefactorChain {
     }
 
     return parseFencedReply(reply.text, request.contents);
+  };
+}
+
+// Room for adaptive thinking as well as the largest file LLM_MAX_FILE_BYTES
+// lets through. Streaming keeps a reply this long clear of HTTP timeouts.
+const ANTHROPIC_MAX_TOKENS = 64_000;
+
+function createAnthropicChain(config: SandboxConfig): RefactorChain {
+  const client = createAnthropicClient();
+
+  return async (request) => {
+    const stream = client.beta.messages.stream({
+      model: config.llm.model,
+      max_tokens: ANTHROPIC_MAX_TOKENS,
+      output_config: { effort: 'high' },
+      // A safety classifier can decline a request about source code. The
+      // server then retries it on the fallback model it recommends.
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      system: FENCED_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: buildUserPrompt(config, request) }],
+    });
+    const reply = await stream.finalMessage();
+
+    if (reply.stop_reason === 'refusal') {
+      throw new PermanentModelError(
+        `The model declined to rewrite the file (${reply.stop_details?.category ?? 'no category'}).`,
+      );
+    }
+
+    if (reply.stop_reason === 'max_tokens') {
+      throw new PermanentModelError(
+        'The model reply reached its output limit, so the file was cut off.',
+      );
+    }
+
+    const text = reply.content
+      .map((block) => (block.type === 'text' ? block.text : ''))
+      .join('');
+
+    return parseFencedReply(text, request.contents);
   };
 }
 

@@ -27,18 +27,26 @@ export interface SandboxConfig {
   dockerSocketPath?: string;
 }
 
-export const LLM_PROVIDERS = ['ollama', 'gemini'] as const;
+export const LLM_PROVIDERS = ['ollama', 'gemini', 'anthropic'] as const;
 
 export type LlmProvider = (typeof LLM_PROVIDERS)[number];
 
 const DEFAULT_LLM_MODELS: Record<LlmProvider, string> = {
   ollama: 'qwen2.5-coder:14b',
   gemini: 'gemini-3.1-pro-preview',
+  anthropic: 'claude-opus-5-5',
+};
+
+/** The variable each hosted provider reads its key from. A local Ollama needs none. */
+export const LLM_API_KEY_ENV: Record<LlmProvider, string | null> = {
+  ollama: null,
+  gemini: 'GEMINI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
 };
 
 export interface LlmConfig {
   provider: LlmProvider;
-  /** Only used by the Gemini provider. */
+  /** Only used by the hosted providers, read from LLM_API_KEY_ENV. */
   apiKey: string;
   /** Only used by the Ollama provider, and resolved from inside the sandbox container. */
   baseUrl: string;
@@ -112,6 +120,7 @@ function loadPrivateKey(): string | undefined {
 
 export function configuration(): Configuration {
   const llmProvider = resolveLlmProvider(process.env.LLM_PROVIDER);
+  const llmKeyEnv = LLM_API_KEY_ENV[llmProvider];
 
   return {
     appRole: resolveAppRole(process.env.APP_ROLE),
@@ -142,7 +151,7 @@ export function configuration(): Configuration {
     },
     llm: {
       provider: llmProvider,
-      apiKey: process.env.GEMINI_API_KEY ?? '',
+      apiKey: llmKeyEnv ? (process.env[llmKeyEnv] ?? '') : '',
       // The sandbox container reaches Ollama on the host, so this is the
       // host as Docker Desktop exposes it, not localhost.
       baseUrl: process.env.LLM_BASE_URL ?? 'http://host.docker.internal:11434',

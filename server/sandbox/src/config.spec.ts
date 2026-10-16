@@ -126,12 +126,13 @@ describe('resolveLlmProvider', () => {
   it('accepts each supported provider', () => {
     assert.equal(resolveLlmProvider('ollama'), 'ollama');
     assert.equal(resolveLlmProvider('gemini'), 'gemini');
+    assert.equal(resolveLlmProvider('anthropic'), 'anthropic');
   });
 
   it('refuses a provider it does not know rather than falling back to ollama', () => {
     assert.throws(() => resolveLlmProvider('Gemini'), {
-      message: 'LLM_PROVIDER must be one of ollama, gemini, got "Gemini".',
+      message: 'LLM_PROVIDER must be one of ollama, gemini, anthropic, got "Gemini".',
     });
-    assert.throws(() => resolveLlmProvider('gemeni'), /must be one of ollama, gemini/);
+    assert.throws(() => resolveLlmProvider('gemeni'), /must be one of ollama, gemini, anthropic/);
   });
 });

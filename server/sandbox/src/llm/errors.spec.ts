@@ -14,6 +14,14 @@ describe('isRetryableModelError', () => {
     assert.equal(isRetryableModelError(new Error('Rate limit reached for this model')), true);
   });
 
+  it('recognises Anthropic reporting itself overloaded', () => {
+    assert.equal(isRetryableModelError(Object.assign(new Error('Overloaded'), { status: 529 })), true);
+    assert.equal(
+      isRetryableModelError(new Error('529 {"type":"error","error":{"type":"overloaded_error"}}')),
+      true,
+    );
+  });
+
   it('recognises an Ollama server that is not running', () => {
     const refused = Object.assign(new TypeError('fetch failed'), {
       cause: Object.assign(new Error('connect ECONNREFUSED 192.168.65.254:11434'), {

@@ -9,7 +9,7 @@ The worker never executes untrusted code itself. It runs a sequence of container
 | Phase | Network | GitHub token | Model key | Does |
 | --- | --- | --- | --- | --- |
 | `prepare` | yes | yes | no | clone the repository, install dependencies, upgrade the migrated dependency to the target version (install scripts skipped), fetch the target release notes |
-| `refactor` | yes | no | yes | find files importing the dependency, rewrite them with the configured model (Ollama or Gemini) |
+| `refactor` | yes | no | yes | find files importing the dependency, rewrite them with the configured model (Ollama, Gemini or Claude) |
 | `test` | **no** | **no** | **no** | run `npm test` |
 | `publish` | yes | yes | no | commit, push the branch, open a pull request |
 
@@ -17,7 +17,7 @@ The worker never executes untrusted code itself. It runs a sequence of container
 
 After `prepare`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
 
-A rate-limited model call, or an Ollama server that refuses the connection, fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
+A rate-limited model call, an overloaded Anthropic API (529), or an Ollama server that refuses the connection, fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
 
 ## Setup
 
@@ -55,7 +55,7 @@ If `npm run sandbox:build` cannot reach Docker, set `DOCKER_SOCKET_PATH` in `.en
 
 `MIGRATIONS_API_TOKEN` protects `POST /migrations`. Callers send it as `Authorization: Bearer <token>`. Until it is set, every request to that endpoint fails with a 500.
 
-`LLM_PROVIDER` picks the model provider for the refactor phase: `ollama` (the default) or `gemini`.
+`LLM_PROVIDER` picks the model provider for the refactor phase: `ollama` (the default), `gemini` or `anthropic`.
 
 With `ollama`, no key is needed. Install and start Ollama on the host and pull the model:
 
@@ -68,6 +68,8 @@ ollama pull qwen2.5-coder:14b
 The refactor container reaches it at `LLM_BASE_URL`, which defaults to `http://host.docker.internal:11434`.
 
 With `gemini`, `GEMINI_API_KEY` is required. Create one in [Google AI Studio](https://aistudio.google.com/apikey). It is passed only to the `refactor` container and never to the phase that runs repository code.
+
+With `anthropic`, `ANTHROPIC_API_KEY` is required. Create one in the [Claude Console](https://platform.claude.com/settings/keys). It is handled the same way as the Gemini key. The model defaults to `claude-opus-5-5`.
 
 For repository access, either register a GitHub App (preferred) or use a Personal Access Token for local experiments.
 
