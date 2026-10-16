@@ -5,10 +5,33 @@ export const JOB_STATUSES = ["QUEUED", "IN_PROGRESS", "COMPLETED", "FAILED"] as 
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
 export type LogStep =
-  "STARTED" | "CLONE" | "INSTALL" | "UPGRADE" | "CHANGELOG" | "REFACTOR" | "TEST" | "PR" | "SKIPPED" | "FAILED";
+  | "STARTED"
+  | "CLONE"
+  | "CHANGELOG"
+  | "INSTALL"
+  | "BASELINE"
+  | "UPGRADE"
+  | "REFACTOR"
+  | "TEST"
+  | "PR"
+  | "SKIPPED"
+  | "FAILED";
 
-/** The sandbox stages a migration moves through, in order. */
-export const PIPELINE_STAGES = ["CLONE", "INSTALL", "UPGRADE", "CHANGELOG", "REFACTOR", "TEST", "PR"] as const;
+/**
+ * The sandbox stages a migration moves through, in the order the worker logs
+ * them: prepare logs CLONE and CHANGELOG, then install, the baseline test run
+ * on the current version, the upgrade, refactor, test and publish.
+ */
+export const PIPELINE_STAGES = [
+  "CLONE",
+  "CHANGELOG",
+  "INSTALL",
+  "BASELINE",
+  "UPGRADE",
+  "REFACTOR",
+  "TEST",
+  "PR",
+] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 export interface Repository {
