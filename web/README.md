@@ -14,12 +14,14 @@ npm run dev
 Then open http://localhost:3001.
 The dashboard uses port 3001 because the API in `server/api` listens on 3000.
 
+`npm test` runs the Vitest unit tests (`lib/*.test.ts`) for the pipeline, formatting, and sign-in redirect helpers.
+
 ## Pages
 
 | Route | Shows |
 | --- | --- |
 | `/` | Job counts per status, the jobs a worker is running now, and a searchable, filterable job table |
-| `/jobs/[id]` | One job's pipeline track, failure reason, branch name, and execution log with exit codes |
+| `/jobs/[id]` | One job's pipeline track, failure reason, branch name, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running |
 | `/repositories` | Installed repositories with job totals and last activity |
 | `/migrations/new` | Pick a repository, a dependency from its root `package.json`, and a stable npm version, then start the job and open its page |
 | `/settings` | Sign in with GitHub, and the App installations you can access, or an Install SyncLab button when there are none |

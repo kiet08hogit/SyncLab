@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CircleX, ExternalLink, GitBranch, Hourglass } from "lucide-react";
 
 import { PipelineTrack } from "@/components/pipeline-track";
+import { LiveRefresh } from "@/components/live-refresh";
 import { JobSkeleton } from "@/components/skeletons";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
 
   return (
     <>
+      <LiveRefresh active={job.status === "QUEUED" || job.status === "IN_PROGRESS"} />
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
@@ -87,6 +89,14 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
               <dd>
                 <time dateTime={job.createdAt} title={formatDate(job.createdAt)}>
                   {timeAgo(job.createdAt)}
+                </time>
+              </dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt>Updated</dt>
+              <dd>
+                <time dateTime={job.updatedAt} title={formatDate(job.updatedAt)}>
+                  {timeAgo(job.updatedAt)}
                 </time>
               </dd>
             </div>
