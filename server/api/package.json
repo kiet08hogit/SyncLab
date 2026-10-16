@@ -19,6 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "db:generate": "prisma generate",
     "sandbox:build": "docker build -t synclab-sandbox:latest ../sandbox",
+    "github-app:register": "node scripts/register-github-app.mjs",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

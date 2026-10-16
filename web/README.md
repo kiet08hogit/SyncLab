@@ -36,7 +36,7 @@ Every variable is optional: without them the dashboard runs on sample data, and 
 | Variable | Enables |
 | --- | --- |
 | `SYNCLAB_API_URL` | Where the gateway in `server/api` listens. Defaults to `http://localhost:3000`. |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in through the SyncLab GitHub App. Set the App's callback URL to `http://localhost:3001/auth/github/callback`. |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in through the SyncLab GitHub App. Set the App's callback URL to `http://localhost:3001/auth/github/callback`. `npm run github-app:register` in `server/api` registers the App and writes these, `GITHUB_APP_SLUG` and `SESSION_SECRET` for you. |
 | `GITHUB_APP_SLUG` | The Install SyncLab link, `https://github.com/apps/<slug>/installations/new`. |
 | `SESSION_SECRET` | Encrypting the session cookie (`openssl rand -base64 32`). |
 
