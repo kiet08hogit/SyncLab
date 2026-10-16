@@ -41,6 +41,20 @@ async function assertInside(root: string, dir: string): Promise<void> {
 }
 
 /**
+ * Repository code could have replaced the checkout with a symlink to this
+ * container's home, where the credentials are written, so the checkout must
+ * be a real directory directly inside the workspace.
+ */
+async function requireRealRepoDir(workspace: string, repoDir: string): Promise<string> {
+  const expected = path.join(await fs.realpath(workspace), path.basename(repoDir));
+  const stat = await fs.lstat(repoDir).catch(() => undefined);
+  if (!stat?.isDirectory() || (await fs.realpath(repoDir)) !== expected) {
+    throw new Error(`Refusing to publish: ${repoDir} is not a real directory inside the workspace`);
+  }
+  return expected;
+}
+
+/**
  * Copies the working tree the earlier phases produced onto the trusted clone.
  * Symlinks are recreated as links, never followed, and a destination whose
  * parent resolves outside the clone is refused, so a link planted by
@@ -136,6 +150,7 @@ export async function publish(): Promise<PhaseResult> {
   const baseSha = requireBaseSha();
   const token = requireToken();
   const steps: StepLog[] = [];
+  const workTree = await requireRealRepoDir(config.workspace, config.repoDir);
 
   await configureGitCredentials(token, config.repoUrl);
 
@@ -156,8 +171,8 @@ export async function publish(): Promise<PhaseResult> {
       cwd: checkout,
     });
 
-    await copyWorkTree(config.repoDir, checkout, await fs.realpath(checkout));
-    await removeDeletedFiles(config.repoDir, checkout);
+    await copyWorkTree(workTree, checkout, await fs.realpath(checkout));
+    await removeDeletedFiles(workTree, checkout);
 
     if (!(await hasUncommittedChanges(checkout))) {
       steps.push({

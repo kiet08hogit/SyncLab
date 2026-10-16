@@ -402,6 +402,51 @@ describe('publish phase', () => {
     assert.deepEqual(await publishClones(), []);
   });
 
+  describe('refuses a checkout that is not a real directory, before writing credentials', () => {
+    async function assertRefused(): Promise<void> {
+      await assert.rejects(publish(), {
+        message: `Refusing to publish: ${repoDir} is not a real directory inside the workspace`,
+      });
+      assert.equal(calls.length, 0);
+      assert.equal(await branchExists(), false);
+      assert.deepEqual(await fs.readdir(tmp), []);
+      assert.equal(await exists(path.join(home, '.git-credentials')), false);
+    }
+
+    async function replaceWithSymlink(target: string): Promise<void> {
+      await fs.rm(repoDir, { recursive: true, force: true });
+      await fs.symlink(target, repoDir);
+    }
+
+    it('when it is a symlink to a directory holding a secret', async () => {
+      const elsewhere = path.join(testDir, 'elsewhere');
+      await git(testDir, 'clone', origin, elsewhere);
+      await fs.writeFile(path.join(elsewhere, '.git-credentials'), `https://x-access-token:${TOKEN}@github.com\n`);
+      await replaceWithSymlink(elsewhere);
+
+      await assertRefused();
+    });
+
+    it("when it is a symlink to this container's home", async () => {
+      await replaceWithSymlink(home);
+
+      await assertRefused();
+    });
+
+    it('when it is a regular file', async () => {
+      await fs.rm(repoDir, { recursive: true, force: true });
+      await fs.writeFile(repoDir, 'not a directory\n');
+
+      await assertRefused();
+    });
+
+    it('when it is missing', async () => {
+      await fs.rm(repoDir, { recursive: true, force: true });
+
+      await assertRefused();
+    });
+  });
+
   it('requires a GitHub token', async () => {
     delete process.env.GITHUB_TOKEN;
     await migrate();
