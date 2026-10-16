@@ -5,7 +5,7 @@ export type StageState = "done" | "running" | "failed" | "pending";
 export interface StageView {
   stage: PipelineStage;
   label: string;
-  /** For narrow screens, where seven full labels do not fit side by side. */
+  /** For narrow screens, where eight full labels do not fit side by side. */
   shortLabel: string;
   state: StageState;
 }
@@ -14,9 +14,10 @@ const SHORT_LABELS: Partial<Record<PipelineStage, string>> = { CHANGELOG: "Notes
 
 const LABELS: Record<PipelineStage, string> = {
   CLONE: "Clone",
-  INSTALL: "Install",
-  UPGRADE: "Upgrade",
   CHANGELOG: "Changelog",
+  INSTALL: "Install",
+  BASELINE: "Baseline",
+  UPGRADE: "Upgrade",
   REFACTOR: "Refactor",
   TEST: "Test",
   PR: "Pull request",

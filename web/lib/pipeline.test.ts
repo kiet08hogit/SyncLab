@@ -11,27 +11,23 @@ function summary(steps: LogStep[], status: JobStatus): string {
   return describePipeline(pipelineStages(steps, status), status);
 }
 
+const PENDING = Array(8).fill("pending");
+
 describe("pipelineStages", () => {
   it("leaves every stage pending while the job waits for a worker", () => {
-    expect(states([], "QUEUED")).toEqual(Array(7).fill("pending"));
+    expect(states([], "QUEUED")).toEqual(PENDING);
     expect(summary([], "QUEUED")).toBe("Waiting for a worker");
   });
 
   it("runs the first stage once the sandbox has started", () => {
-    expect(states(["STARTED"], "IN_PROGRESS")).toEqual([
-      "running",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-    ]);
-    expect(summary(["STARTED"], "IN_PROGRESS")).toBe("Running clone (stage 1 of 7)");
+    expect(states(["STARTED"], "IN_PROGRESS")).toEqual(["running", ...PENDING.slice(1)]);
+    expect(summary(["STARTED"], "IN_PROGRESS")).toBe("Running clone (stage 1 of 8)");
   });
 
   it("runs the stage after the last one logged", () => {
-    expect(states(["STARTED", "CLONE", "INSTALL", "UPGRADE"], "IN_PROGRESS")).toEqual([
+    const steps: LogStep[] = ["STARTED", "CLONE", "CHANGELOG", "INSTALL", "BASELINE"];
+    expect(states(steps, "IN_PROGRESS")).toEqual([
+      "done",
       "done",
       "done",
       "done",
@@ -40,70 +36,54 @@ describe("pipelineStages", () => {
       "pending",
       "pending",
     ]);
-    expect(summary(["STARTED", "CLONE", "INSTALL", "UPGRADE"], "IN_PROGRESS")).toBe(
-      "Running changelog (stage 4 of 7)",
-    );
+    expect(summary(steps, "IN_PROGRESS")).toBe("Running upgrade (stage 5 of 8)");
   });
 
   it("says the job is starting before the STARTED row is flushed", () => {
-    expect(states([], "IN_PROGRESS")).toEqual(Array(7).fill("pending"));
+    expect(states([], "IN_PROGRESS")).toEqual(PENDING);
     expect(summary([], "IN_PROGRESS")).toBe("Starting");
   });
 
   it("marks the last logged stage as the one that failed", () => {
-    expect(states(["STARTED", "CLONE", "INSTALL", "TEST", "FAILED"], "FAILED")).toEqual([
-      "done",
-      "done",
-      "done",
-      "done",
-      "done",
-      "failed",
-      "pending",
-    ]);
-    expect(summary(["STARTED", "CLONE", "INSTALL", "TEST", "FAILED"], "FAILED")).toBe(
-      "Failed at test (stage 6 of 7)",
-    );
+    const steps: LogStep[] = ["STARTED", "CLONE", "CHANGELOG", "INSTALL", "BASELINE", "UPGRADE", "REFACTOR", "TEST", "FAILED"];
+    expect(states(steps, "FAILED")).toEqual(["done", "done", "done", "done", "done", "done", "failed", "pending"]);
+    expect(summary(steps, "FAILED")).toBe("Failed at test (stage 7 of 8)");
   });
 
   it("reports a failure before the sandbox ran any stage", () => {
-    expect(states(["FAILED"], "FAILED")).toEqual(Array(7).fill("pending"));
+    expect(states(["FAILED"], "FAILED")).toEqual(PENDING);
     expect(summary(["FAILED"], "FAILED")).toBe("Failed before the sandbox started");
   });
 
   it("only counts the latest attempt after a retry", () => {
-    const steps: LogStep[] = ["STARTED", "CLONE", "INSTALL", "UPGRADE", "FAILED", "STARTED", "CLONE"];
-    expect(states(steps, "IN_PROGRESS")).toEqual([
-      "done",
-      "running",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-    ]);
+    const steps: LogStep[] = ["STARTED", "CLONE", "CHANGELOG", "INSTALL", "FAILED", "STARTED", "CLONE"];
+    expect(states(steps, "IN_PROGRESS")).toEqual(["done", "running", ...PENDING.slice(2)]);
   });
 
   it("shows nothing running for a retry that is queued but not yet started", () => {
     // A retry moves the job back to QUEUED until a worker claims it again.
-    expect(states(["STARTED", "CLONE", "FAILED"], "QUEUED")).toEqual(Array(7).fill("pending"));
+    expect(states(["STARTED", "CLONE", "FAILED"], "QUEUED")).toEqual(PENDING);
   });
 
   it("fails the retried attempt at its own furthest stage", () => {
-    const steps: LogStep[] = ["STARTED", "CLONE", "INSTALL", "UPGRADE", "FAILED", "STARTED", "CLONE", "FAILED"];
-    expect(states(steps, "FAILED")).toEqual([
-      "failed",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-      "pending",
-    ]);
+    const steps: LogStep[] = ["STARTED", "CLONE", "CHANGELOG", "INSTALL", "FAILED", "STARTED", "CLONE", "FAILED"];
+    expect(states(steps, "FAILED")).toEqual(["failed", ...PENDING.slice(1)]);
   });
 
   it("passes every stage of a completed job, including one skipped on redelivery", () => {
-    const steps: LogStep[] = ["STARTED", "CLONE", "INSTALL", "UPGRADE", "CHANGELOG", "REFACTOR", "TEST", "PR", "SKIPPED"];
-    expect(states(steps, "COMPLETED")).toEqual(Array(7).fill("done"));
+    const steps: LogStep[] = [
+      "STARTED",
+      "CLONE",
+      "CHANGELOG",
+      "INSTALL",
+      "BASELINE",
+      "UPGRADE",
+      "REFACTOR",
+      "TEST",
+      "PR",
+      "SKIPPED",
+    ];
+    expect(states(steps, "COMPLETED")).toEqual(Array(8).fill("done"));
     expect(summary(steps, "COMPLETED")).toBe("All stages passed");
   });
 
@@ -111,16 +91,40 @@ describe("pipelineStages", () => {
     const stages = pipelineStages([], "QUEUED");
     expect(stages.map((stage) => stage.label)).toEqual([
       "Clone",
-      "Install",
-      "Upgrade",
       "Changelog",
+      "Install",
+      "Baseline",
+      "Upgrade",
       "Refactor",
       "Test",
       "Pull request",
     ]);
     expect(stages.find((stage) => stage.stage === "CHANGELOG")?.shortLabel).toBe("Notes");
     expect(stages.find((stage) => stage.stage === "PR")?.shortLabel).toBe("PR");
-    expect(stages.find((stage) => stage.stage === "TEST")?.shortLabel).toBe("Test");
+    expect(stages.find((stage) => stage.stage === "BASELINE")?.shortLabel).toBe("Baseline");
+  });
+});
+
+describe("pipelineStages, against the order the sandbox logs", () => {
+  // prepare logs CLONE then CHANGELOG, then install, the baseline test run and
+  // the upgrade each log one row, before refactor, test and publish.
+  const order: LogStep[] = ["STARTED", "CLONE", "CHANGELOG", "INSTALL", "BASELINE", "UPGRADE", "REFACTOR", "TEST", "PR"];
+
+  it("runs install, not a later stage, right after prepare", () => {
+    expect(summary(order.slice(0, 3), "IN_PROGRESS")).toBe("Running install (stage 3 of 8)");
+  });
+
+  it("shows the baseline test run as its own stage", () => {
+    expect(summary(order.slice(0, 4), "IN_PROGRESS")).toBe("Running baseline (stage 4 of 8)");
+    expect(summary([...order.slice(0, 5), "FAILED"], "FAILED")).toBe("Failed at baseline (stage 4 of 8)");
+  });
+
+  it("walks every stage in order", () => {
+    for (let logged = 1; logged < order.length - 1; logged++) {
+      const view = states(order.slice(0, logged + 1), "IN_PROGRESS");
+      expect(view.slice(0, logged)).toEqual(Array(logged).fill("done"));
+      expect(view[logged]).toBe("running");
+    }
   });
 });
 
