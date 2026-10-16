@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describePipeline, pipelineStages, type StageState } from "@/lib/pipeline";
+import { describePipeline, latestRunDuration, pipelineStages, type StageState } from "@/lib/pipeline";
 import type { JobStatus, LogStep } from "@/lib/types";
 
 function states(steps: LogStep[], status: JobStatus): StageState[] {
@@ -121,5 +121,32 @@ describe("pipelineStages", () => {
     expect(stages.find((stage) => stage.stage === "CHANGELOG")?.shortLabel).toBe("Notes");
     expect(stages.find((stage) => stage.stage === "PR")?.shortLabel).toBe("PR");
     expect(stages.find((stage) => stage.stage === "TEST")?.shortLabel).toBe("Test");
+  });
+});
+
+describe("latestRunDuration", () => {
+  const at = (minute: number, second = 0) => `2026-10-16T10:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}Z`;
+  const log = (step: LogStep, minute: number, second = 0) => ({ step, createdAt: at(minute, second) });
+
+  it("measures a completed run from STARTED to the job's last update", () => {
+    const executionLogs = [log("STARTED", 0), log("CLONE", 1), log("PR", 4)];
+    expect(latestRunDuration({ status: "COMPLETED", updatedAt: at(4, 12), executionLogs })).toBe(252_000);
+  });
+
+  it("measures only the latest attempt after a retry", () => {
+    const executionLogs = [log("STARTED", 0), log("FAILED", 1), log("STARTED", 5), log("CLONE", 6), log("FAILED", 7)];
+    expect(latestRunDuration({ status: "FAILED", updatedAt: at(7), executionLogs })).toBe(120_000);
+  });
+
+  it("has nothing to measure when the latest attempt failed before it started", () => {
+    const executionLogs = [log("STARTED", 0), log("FAILED", 1), log("FAILED", 5)];
+    expect(latestRunDuration({ status: "FAILED", updatedAt: at(5), executionLogs })).toBeNull();
+    expect(latestRunDuration({ status: "FAILED", updatedAt: at(0), executionLogs: [log("FAILED", 0)] })).toBeNull();
+  });
+
+  it("leaves queued and running jobs alone", () => {
+    const executionLogs = [log("STARTED", 0)];
+    expect(latestRunDuration({ status: "IN_PROGRESS", updatedAt: at(2), executionLogs })).toBeNull();
+    expect(latestRunDuration({ status: "QUEUED", updatedAt: at(2), executionLogs })).toBeNull();
   });
 });

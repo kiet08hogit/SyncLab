@@ -58,3 +58,21 @@ export function describePipeline(stages: StageView[], status: JobStatus): string
   const verb = current.state === "failed" ? "Failed at" : "Running";
   return `${verb} ${current.label.toLowerCase()} (stage ${position} of ${stages.length})`;
 }
+
+/**
+ * How long the latest run took, from its STARTED row to the job's last update.
+ * Only for finished jobs: a queued or running job has no end yet, and a job
+ * that failed before the sandbox started has no run to measure.
+ */
+export function latestRunDuration(
+  job: { status: JobStatus; updatedAt: string; executionLogs: Array<{ step: LogStep; createdAt: string }> },
+): number | null {
+  if (job.status !== "COMPLETED" && job.status !== "FAILED") return null;
+  const logs = job.executionLogs;
+  const rows = job.status === "FAILED" && logs.at(-1)?.step === "FAILED" ? logs.slice(0, -1) : logs;
+  const start = rows.findLastIndex((log) => log.step === "STARTED");
+  // A FAILED row after the latest STARTED closed an earlier attempt, so the
+  // latest one failed before it logged STARTED.
+  if (start === -1 || rows.findLastIndex((log) => log.step === "FAILED") > start) return null;
+  return new Date(job.updatedAt).getTime() - new Date(rows[start].createdAt).getTime();
+}

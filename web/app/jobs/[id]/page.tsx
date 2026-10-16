@@ -6,11 +6,14 @@ import { ArrowLeft, CircleX, ExternalLink, GitBranch, Hourglass } from "lucide-r
 
 import { PipelineTrack } from "@/components/pipeline-track";
 import { LiveRefresh } from "@/components/live-refresh";
+import { LogOutput } from "@/components/log-output";
+import { RetryButton } from "@/components/retry-button";
 import { JobSkeleton } from "@/components/skeletons";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
-import { getJob } from "@/lib/data";
-import { formatClock, formatDate, splitExitCode, timeAgo } from "@/lib/format";
+import { getJob, isLive } from "@/lib/data";
+import { formatClock, formatDate, formatDuration, splitExitCode, timeAgo } from "@/lib/format";
+import { latestRunDuration } from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[id]">): Promise<Metadata> {
@@ -46,6 +49,9 @@ export default function JobPage({ params }: PageProps<"/jobs/[id]">) {
 async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">) {
   const job = await getJob((await params).id);
   if (!job) notFound();
+  // Sample jobs are not in the API, so only a signed-in user's real job can be retried.
+  const canRetry = job.status === "FAILED" && (await isLive());
+  const duration = latestRunDuration(job);
 
   const branch = `synclab/${slug(job.dependencyName)}-${slug(job.targetVersion)}`;
 
@@ -100,8 +106,15 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
                 </time>
               </dd>
             </div>
+            {duration !== null && (
+              <div className="flex gap-1.5">
+                <dt>Took</dt>
+                <dd className="tabular-nums">{formatDuration(duration)}</dd>
+              </div>
+            )}
           </dl>
         </div>
+        {canRetry && <RetryButton jobId={job.id} />}
         {job.pullRequestUrl && (
           <Button asChild className="w-fit">
             <a href={job.pullRequestUrl} target="_blank" rel="noreferrer">
@@ -169,11 +182,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
                       </span>
                     )}
                   </div>
-                  {body && (
-                    <pre className="overflow-x-auto bg-log px-3 py-2.5 font-mono text-[13px] leading-relaxed whitespace-pre-wrap text-foreground/85">
-                      {body}
-                    </pre>
-                  )}
+                  {body && <LogOutput body={body} failed={failed} />}
                 </li>
               );
             })}
