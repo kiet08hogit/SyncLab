@@ -87,12 +87,17 @@ function readEnv(path, key) {
 }
 
 async function convert(code) {
-  const response = await fetch(`https://api.github.com/app-manifests/${encodeURIComponent(code)}/conversions`, {
-    method: 'POST',
-    headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
-  });
+  const response = await fetch(
+    `https://api.github.com/app-manifests/${encodeURIComponent(code)}/conversions`,
+    {
+      method: 'POST',
+      headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    },
+  );
   if (!response.ok) {
-    throw new Error(`GitHub refused the manifest code (${response.status}): ${await response.text()}`);
+    throw new Error(
+      `GitHub refused the manifest code (${response.status}): ${await response.text()}`,
+    );
   }
   return response.json();
 }
@@ -143,7 +148,12 @@ const server = createServer(async (request, response) => {
     const code = url.searchParams.get('code');
     if (!code || url.searchParams.get('state') !== state) {
       response.writeHead(400, { 'Content-Type': 'text/html' });
-      response.end(page('Registration failed', '<h1>Missing or mismatched code</h1><p>Start again from the first page.</p>'));
+      response.end(
+        page(
+          'Registration failed',
+          '<h1>Missing or mismatched code</h1><p>Start again from the first page.</p>',
+        ),
+      );
       return;
     }
     try {
@@ -159,13 +169,22 @@ const server = createServer(async (request, response) => {
         ),
       );
       console.log(`Registered ${app.name} (id ${app.id}, slug ${app.slug}): ${app.html_url}`);
-      console.log(`Wrote GITHUB_APP_ID, GITHUB_PRIVATE_KEY_PATH, GITHUB_WEBHOOK_SECRET to ${apiEnv}`);
+      console.log(
+        `Wrote GITHUB_APP_ID, GITHUB_PRIVATE_KEY_PATH, GITHUB_WEBHOOK_SECRET to ${apiEnv}`,
+      );
       console.log(`Wrote the private key to ${pemPath}`);
-      console.log(`Wrote GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_APP_SLUG, SESSION_SECRET to ${webEnv}`);
+      console.log(
+        `Wrote GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_APP_SLUG, SESSION_SECRET to ${webEnv}`,
+      );
       console.log(`Install it: ${installUrl}`);
     } catch (error) {
       response.writeHead(502, { 'Content-Type': 'text/html' });
-      response.end(page('Registration failed', `<h1>Registration failed</h1><p>${escapeHtml(String(error))}</p>`));
+      response.end(
+        page(
+          'Registration failed',
+          `<h1>Registration failed</h1><p>${escapeHtml(String(error))}</p>`,
+        ),
+      );
       console.error(error);
       process.exitCode = 1;
     }
