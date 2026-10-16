@@ -65,6 +65,9 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
+# GitHub App private keys (scripts/register-github-app.mjs writes one here)
+*.pem
+
 # dotenv environment variable files
 .env
 .env.*
