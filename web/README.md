@@ -33,7 +33,7 @@ Every variable is optional: without them the dashboard runs on sample data, and 
 
 | Variable | Enables |
 | --- | --- |
-| `SYNCLAB_API_URL`, `MIGRATIONS_API_TOKEN` | Starting migrations from the form, and reading real jobs on `/jobs/[id]` (which also needs sign-in). Use the gateway's own `MIGRATIONS_API_TOKEN`. |
+| `SYNCLAB_API_URL` | Where the gateway in `server/api` listens. Defaults to `http://localhost:3000`. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub sign-in through the SyncLab GitHub App. Set the App's callback URL to `http://localhost:3001/auth/github/callback`. |
 | `GITHUB_APP_SLUG` | The Install SyncLab link, `https://github.com/apps/<slug>/installations/new`. |
 | `SESSION_SECRET` | Encrypting the session cookie (`openssl rand -base64 32`). |
@@ -42,14 +42,14 @@ Every variable is optional: without them the dashboard runs on sample data, and 
 
 Signing in runs the GitHub App's web flow and keeps the user access token in an encrypted, httpOnly cookie until the token expires (eight hours by default).
 With that token the server calls `GET /user/installations` and `GET /user/installations/{id}/repositories`, so a user only ever sees installations and repositories that both they and the App can reach.
-The form's server action checks the chosen repository against that list again before it calls `POST /migrations`, because the API itself only checks the shared bearer token.
+Every call to the API sends the same token, and the API resolves it to the user and limits every answer to their repositories, so the dashboard holds no API secret and does no access checks of its own.
 
 ## Data
 
-`/jobs/[id]` shows the built-in samples to anyone, and reads any other job through `GET /migrations/:id`.
-A real job is only shown to a signed-in user whose installations reach its repository; everyone else gets a 404, so the job's existence is not revealed.
-The API has no list endpoints yet, so the other getters in `lib/data.ts` serve sample data shaped like the Prisma models in `server/api/prisma/schema.prisma`.
-To connect them, rewrite the getters in `lib/data.ts`; the pages and components only depend on the types in `lib/types.ts`.
+Signed in, every getter in `lib/data.ts` reads the API: `GET /migrations`, `GET /migrations/counts`, `GET /migrations/:id` and `GET /repositories`.
+Signed out, they serve the built-in sample data instead, shaped exactly like the API's answers, and the pages say so with a sign-in prompt.
+The samples' job pages stay public; a real job is only readable by a signed-in user whose installations reach its repository, and anyone else gets a 404.
+When the API is down or no longer accepts the session, `app/error.tsx` offers a retry and a way back to Settings.
 
 The pipeline track in `lib/pipeline.ts` reads a job's `execution_logs` the way the worker writes them: a phase's rows are flushed when the phase finishes, and each retry starts a new attempt.
 

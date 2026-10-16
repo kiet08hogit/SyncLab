@@ -37,13 +37,7 @@ const CONTENT = "max-h-72";
 // Lines option text up with the trigger's and gives each row a comfortable target.
 const ITEM = "py-2 pl-3";
 
-export function NewMigrationForm({
-  repositories,
-  disabled,
-}: {
-  repositories: InstalledRepository[];
-  disabled: boolean;
-}) {
+export function NewMigrationForm({ repositories }: { repositories: InstalledRepository[] }) {
   const [formState, action, pending] = useActionState<StartMigrationState, FormData>(startMigration, { error: null });
   const [repository, setRepository] = useState("");
   const [dependency, setDependency] = useState("");
@@ -93,7 +87,7 @@ export function NewMigrationForm({
 
   const current =
     dependencies.state === "ready" ? dependencies.data?.find((entry) => entry.name === dependency) : undefined;
-  const ready = Boolean(repository && dependency && version) && !disabled;
+  const ready = Boolean(repository && dependency && version);
 
   return (
     <form action={action} className="corner-mark flex flex-col border bg-card">

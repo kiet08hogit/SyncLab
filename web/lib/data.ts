@@ -3,8 +3,7 @@ import "server-only";
 import { connection } from "next/server";
 import { cache } from "react";
 
-import { apiConfigured, fetchJob } from "@/lib/api";
-import { getAccessibleRepositories, GithubUnauthorizedError } from "@/lib/github";
+import { countJobs, fetchJob, listJobs, listRepositories } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import type {
   ExecutionLog,
@@ -17,11 +16,13 @@ import type {
   RepositorySummary,
 } from "@/lib/types";
 
-// The API has no list endpoints yet, so the getters below serve sample data
-// shaped exactly like the Prisma models. Swapping in real requests only means
-// rewriting these functions; nothing that renders them has to change.
-// getJob already reads real jobs from the API for signed-in users with access
-// to the repository, falling back to the samples.
+// Signed in, every getter reads the API with the user's GitHub token, and the
+// API limits the answer to the repositories that user's installations reach.
+// Signed out, they serve the sample data below, shaped exactly like the API's
+// answers, so visitors can see what the dashboard shows before they sign in.
+
+/** Whether the getters serve the signed-in user's real data or the samples. */
+export const isLive = cache(async (): Promise<boolean> => (await getSession()) !== null);
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -297,6 +298,9 @@ export async function getJobs(
   filter: { status?: JobStatus; repository?: string; query?: string } = {},
 ): Promise<JobWithRepository[]> {
   await connection();
+  const session = await getSession();
+  if (session) return listJobs(session.accessToken, filter);
+
   const query = filter.query?.trim().toLowerCase();
 
   return allJobs()
@@ -315,25 +319,15 @@ export const getJob = cache(async (id: string): Promise<JobDetail | null> => {
   await connection();
   const sample = allJobs().find((job) => job.id === id);
   if (sample) return sample;
-  if (!apiConfigured()) return null;
-
-  // Real jobs are only shown to someone whose own installations reach the
-  // repository, since the API trusts the shared token.
   const session = await getSession();
-  if (!session) return null;
-  const job = await fetchJob(id);
-  if (!job) return null;
-  try {
-    const repositories = await getAccessibleRepositories(session.accessToken);
-    return repositories.some((repository) => String(repository.id) === job.repository.githubRepoId) ? job : null;
-  } catch (error) {
-    if (error instanceof GithubUnauthorizedError) return null;
-    throw error;
-  }
+  return session ? fetchJob(session.accessToken, id) : null;
 });
 
 export async function getStatusCounts(): Promise<Record<JobStatus, number>> {
   await connection();
+  const session = await getSession();
+  if (session) return countJobs(session.accessToken);
+
   const counts: Record<JobStatus, number> = { QUEUED: 0, IN_PROGRESS: 0, COMPLETED: 0, FAILED: 0 };
   for (const job of allJobs()) {
     counts[job.status] += 1;
@@ -343,13 +337,18 @@ export async function getStatusCounts(): Promise<Record<JobStatus, number>> {
 
 export async function getRepositories(): Promise<RepositorySummary[]> {
   await connection();
-  const jobs = allJobs();
+  const session = await getSession();
+  if (session) return listRepositories(session.accessToken);
 
+  const jobs = allJobs();
   return repositories
     .map((repository) => {
       const own = jobs.filter((job) => job.repositoryId === repository.id);
       return {
-        ...repository,
+        githubRepoId: repository.githubRepoId,
+        fullName: repository.fullName,
+        installationId: repository.installationId,
+        private: false,
         jobCount: own.length,
         completed: own.filter((job) => job.status === "COMPLETED").length,
         failed: own.filter((job) => job.status === "FAILED").length,

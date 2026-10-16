@@ -30,12 +30,7 @@ export function AppSidebar() {
             <CurrentNavLinks onNavigate={close} />
           </Suspense>
         </div>
-        <div className="flex flex-col gap-3">
-          <ThemeToggle />
-          <p className="border border-sidebar-border px-3 py-2.5 text-xs leading-relaxed text-sidebar-foreground/70">
-            Job lists show sample data. The API has no list endpoints yet.
-          </p>
-        </div>
+        <ThemeToggle />
       </SidebarBody>
     </Sidebar>
   );
