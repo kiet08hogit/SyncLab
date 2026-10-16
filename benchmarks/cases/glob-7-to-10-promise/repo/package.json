@@ -1,0 +1,11 @@
+{
+  "name": "glob-7-to-10-promise",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "glob": "7.2.3"
+  }
+}

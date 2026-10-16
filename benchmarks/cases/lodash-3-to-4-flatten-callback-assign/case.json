@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-flatten-callback-assign",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "behavior-change",
+  "difficulty": "hard",
+  "breakingChange": "lodash 4 removed the isDeep argument of _.flatten (use _.flattenDeep), removed _.callback (use _.iteratee), and dropped the customizer argument of _.assign, which now always overwrites (use _.assignWith). src/menu.js already uses _.flattenDeep and a plain _.assign, which are unchanged.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

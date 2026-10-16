@@ -1,0 +1,11 @@
+{
+  "name": "nanoid-2-to-3-custom-alphabet",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "nanoid": "2.1.11"
+  }
+}

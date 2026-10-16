@@ -1,0 +1,10 @@
+{
+  "id": "chalk-4-to-5-instance-keyword",
+  "package": "chalk",
+  "fromVersion": "4.1.2",
+  "toVersion": "5.3.0",
+  "category": "esm-only",
+  "difficulty": "hard",
+  "breakingChange": "chalk 5 is a pure ES module (require('chalk') returns a namespace whose default export is the chalk instance), replaced new chalk.Instance() with the named export Chalk, and removed the .keyword(), .hsl(), .hsv(), .hwb() and .ansi() color models.",
+  "reference": "https://github.com/chalk/chalk/releases/tag/v5.0.0"
+}

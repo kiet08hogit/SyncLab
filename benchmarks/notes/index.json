@@ -1,0 +1,422 @@
+{
+  "ajv-6-to-8-form-errors": {
+    "package": "ajv",
+    "toVersion": "8.17.1",
+    "found": true,
+    "characters": 1576,
+    "fetchedAt": "2026-10-16T19:14:08.387Z"
+  },
+  "ajv-6-to-8-instance-path": {
+    "package": "ajv",
+    "toVersion": "8.17.1",
+    "found": true,
+    "characters": 1576,
+    "fetchedAt": "2026-10-16T19:14:09.061Z"
+  },
+  "chalk-4-to-5-instance-keyword": {
+    "package": "chalk",
+    "toVersion": "5.3.0",
+    "found": true,
+    "characters": 157,
+    "fetchedAt": "2026-10-16T19:14:09.609Z"
+  },
+  "commander-6-to-7-opts": {
+    "package": "commander",
+    "toVersion": "7.2.0",
+    "found": true,
+    "characters": 274,
+    "fetchedAt": "2026-10-16T19:14:10.164Z"
+  },
+  "cookie-0-to-1-parse-null-prototype": {
+    "package": "cookie",
+    "toVersion": "1.0.2",
+    "found": true,
+    "characters": 255,
+    "fetchedAt": "2026-10-16T19:14:10.761Z"
+  },
+  "csv-parse-4-to-5-sync-and-callback": {
+    "package": "csv-parse",
+    "toVersion": "5.6.0",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:11.354Z"
+  },
+  "date-fns-1-to-2-format-tokens": {
+    "package": "date-fns",
+    "toVersion": "2.30.0",
+    "found": true,
+    "characters": 333,
+    "fetchedAt": "2026-10-16T19:14:12.283Z"
+  },
+  "date-fns-1-to-2-string-dates": {
+    "package": "date-fns",
+    "toVersion": "2.30.0",
+    "found": true,
+    "characters": 333,
+    "fetchedAt": "2026-10-16T19:14:13.070Z"
+  },
+  "decamelize-4-to-5-separator-option": {
+    "package": "decamelize",
+    "toVersion": "5.0.1",
+    "found": true,
+    "characters": 100,
+    "fetchedAt": "2026-10-16T19:14:13.612Z"
+  },
+  "deepmerge-1-to-4-array-merge": {
+    "package": "deepmerge",
+    "toVersion": "4.3.1",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:14.299Z"
+  },
+  "dotenv-14-to-15-inline-comments": {
+    "package": "dotenv",
+    "toVersion": "15.0.1",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:15.116Z"
+  },
+  "escape-string-regexp-4-to-5-require-esm": {
+    "package": "escape-string-regexp",
+    "toVersion": "5.0.0",
+    "found": true,
+    "characters": 249,
+    "fetchedAt": "2026-10-16T19:14:15.596Z"
+  },
+  "execa-5-to-6-named-exports": {
+    "package": "execa",
+    "toVersion": "6.1.0",
+    "found": true,
+    "characters": 241,
+    "fetchedAt": "2026-10-16T19:14:16.112Z"
+  },
+  "express-4-to-5-req-param-del": {
+    "package": "express",
+    "toVersion": "5.1.0",
+    "found": true,
+    "characters": 7940,
+    "fetchedAt": "2026-10-16T19:14:16.582Z"
+  },
+  "express-4-to-5-status-shorthand": {
+    "package": "express",
+    "toVersion": "5.1.0",
+    "found": true,
+    "characters": 7940,
+    "fetchedAt": "2026-10-16T19:14:17.142Z"
+  },
+  "express-4-to-5-wildcard-redirect": {
+    "package": "express",
+    "toVersion": "5.1.0",
+    "found": true,
+    "characters": 7940,
+    "fetchedAt": "2026-10-16T19:14:17.705Z"
+  },
+  "filenamify-4-to-6-path-named-export": {
+    "package": "filenamify",
+    "toVersion": "6.0.0",
+    "found": true,
+    "characters": 202,
+    "fetchedAt": "2026-10-16T19:14:18.133Z"
+  },
+  "glob-7-to-10-promise": {
+    "package": "glob",
+    "toVersion": "10.5.0",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:18.500Z"
+  },
+  "immer-9-to-10-default-import": {
+    "package": "immer",
+    "toVersion": "10.1.1",
+    "found": true,
+    "characters": 478,
+    "fetchedAt": "2026-10-16T19:14:18.943Z"
+  },
+  "joi-14-to-17-error-types": {
+    "package": "joi",
+    "toVersion": "17.13.3",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:19.455Z"
+  },
+  "joi-14-to-17-validate": {
+    "package": "joi",
+    "toVersion": "17.13.3",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:19.905Z"
+  },
+  "js-yaml-3-to-4-config-pipeline": {
+    "package": "js-yaml",
+    "toVersion": "4.3.2",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:20.364Z"
+  },
+  "js-yaml-3-to-4-safe-load": {
+    "package": "js-yaml",
+    "toVersion": "4.3.2",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:20.810Z"
+  },
+  "lodash-3-to-4-catalog-helpers": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:21.340Z"
+  },
+  "lodash-3-to-4-contains": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:21.822Z"
+  },
+  "lodash-3-to-4-flatten-callback-assign": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:22.368Z"
+  },
+  "lodash-3-to-4-max-min-iteratee": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:22.772Z"
+  },
+  "lodash-3-to-4-pairs-object-rest": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:23.211Z"
+  },
+  "lodash-3-to-4-pick-omit-invert": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:23.733Z"
+  },
+  "lodash-3-to-4-pluck": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:24.258Z"
+  },
+  "lodash-3-to-4-pluck-indexby": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:24.781Z"
+  },
+  "lodash-3-to-4-sortbyorder": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:25.231Z"
+  },
+  "lodash-3-to-4-thisarg": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:25.835Z"
+  },
+  "lodash-3-to-4-trunc-pad": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:26.365Z"
+  },
+  "lodash-3-to-4-uniq-sum-iteratee": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:26.994Z"
+  },
+  "lodash-3-to-4-where-findwhere": {
+    "package": "lodash",
+    "toVersion": "4.17.21",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:27.575Z"
+  },
+  "lru-cache-6-to-7-options": {
+    "package": "lru-cache",
+    "toVersion": "7.18.3",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:28.004Z"
+  },
+  "lru-cache-7-to-10-named-export": {
+    "package": "lru-cache",
+    "toVersion": "10.4.3",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:28.469Z"
+  },
+  "marked-3-to-4-named-export": {
+    "package": "marked",
+    "toVersion": "4.3.0",
+    "found": true,
+    "characters": 700,
+    "fetchedAt": "2026-10-16T19:14:28.976Z"
+  },
+  "mime-1-to-2-get-type": {
+    "package": "mime",
+    "toVersion": "2.6.0",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:29.348Z"
+  },
+  "minimatch-3-to-9-named-export": {
+    "package": "minimatch",
+    "toVersion": "9.0.9",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:29.846Z"
+  },
+  "mkdirp-0-to-1-promise": {
+    "package": "mkdirp",
+    "toVersion": "1.0.4",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:30.284Z"
+  },
+  "nanoid-2-to-3-custom-alphabet": {
+    "package": "nanoid",
+    "toVersion": "3.3.20",
+    "found": true,
+    "characters": 29,
+    "fetchedAt": "2026-10-16T19:14:30.582Z"
+  },
+  "nanoid-2-to-3-named-export": {
+    "package": "nanoid",
+    "toVersion": "3.3.20",
+    "found": true,
+    "characters": 29,
+    "fetchedAt": "2026-10-16T19:14:30.886Z"
+  },
+  "node-fetch-2-to-3-api-clients": {
+    "package": "node-fetch",
+    "toVersion": "3.3.2",
+    "found": true,
+    "characters": 463,
+    "fetchedAt": "2026-10-16T19:14:31.378Z"
+  },
+  "node-fetch-2-to-3-default-export": {
+    "package": "node-fetch",
+    "toVersion": "3.3.2",
+    "found": true,
+    "characters": 463,
+    "fetchedAt": "2026-10-16T19:14:31.843Z"
+  },
+  "path-to-regexp-1-to-6-named-export": {
+    "package": "path-to-regexp",
+    "toVersion": "6.3.0",
+    "found": true,
+    "characters": 132,
+    "fetchedAt": "2026-10-16T19:14:32.553Z"
+  },
+  "prettier-2-to-3-async-format": {
+    "package": "prettier",
+    "toVersion": "3.3.3",
+    "found": true,
+    "characters": 79,
+    "fetchedAt": "2026-10-16T19:14:32.889Z"
+  },
+  "query-string-7-to-9-default-export": {
+    "package": "query-string",
+    "toVersion": "9.1.1",
+    "found": true,
+    "characters": 152,
+    "fetchedAt": "2026-10-16T19:14:33.388Z"
+  },
+  "query-string-7-to-9-read-write": {
+    "package": "query-string",
+    "toVersion": "9.1.1",
+    "found": true,
+    "characters": 152,
+    "fetchedAt": "2026-10-16T19:14:33.932Z"
+  },
+  "query-string-7-to-9-url-helpers": {
+    "package": "query-string",
+    "toVersion": "9.1.1",
+    "found": true,
+    "characters": 152,
+    "fetchedAt": "2026-10-16T19:14:34.549Z"
+  },
+  "ramda-0-27-to-0-30-contains": {
+    "package": "ramda",
+    "toVersion": "0.30.1",
+    "found": true,
+    "characters": 57,
+    "fetchedAt": "2026-10-16T19:14:34.984Z"
+  },
+  "ramda-0-27-to-0-30-contains-merge": {
+    "package": "ramda",
+    "toVersion": "0.30.1",
+    "found": true,
+    "characters": 57,
+    "fetchedAt": "2026-10-16T19:14:35.451Z"
+  },
+  "ramda-0-27-to-0-30-merge": {
+    "package": "ramda",
+    "toVersion": "0.30.1",
+    "found": true,
+    "characters": 57,
+    "fetchedAt": "2026-10-16T19:14:35.834Z"
+  },
+  "ramda-0-27-to-0-30-nested-helpers": {
+    "package": "ramda",
+    "toVersion": "0.30.1",
+    "found": true,
+    "characters": 57,
+    "fetchedAt": "2026-10-16T19:14:36.179Z"
+  },
+  "redux-4-to-5-string-action-types": {
+    "package": "redux",
+    "toVersion": "5.0.1",
+    "found": true,
+    "characters": 550,
+    "fetchedAt": "2026-10-16T19:14:36.595Z"
+  },
+  "rimraf-3-to-5-glob-cleanup": {
+    "package": "rimraf",
+    "toVersion": "5.0.10",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:37.013Z"
+  },
+  "uuid-3-to-11-v4-import": {
+    "package": "uuid",
+    "toVersion": "11.1.0",
+    "found": true,
+    "characters": 310,
+    "fetchedAt": "2026-10-16T19:14:37.414Z"
+  },
+  "uuid-3-to-8-deep-imports": {
+    "package": "uuid",
+    "toVersion": "8.3.2",
+    "found": false,
+    "characters": 0,
+    "fetchedAt": "2026-10-16T19:14:37.892Z"
+  },
+  "ws-7-to-8-text-messages": {
+    "package": "ws",
+    "toVersion": "8.18.0",
+    "found": true,
+    "characters": 51,
+    "fetchedAt": "2026-10-16T19:14:38.144Z"
+  }
+}

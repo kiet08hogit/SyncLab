@@ -1,0 +1,10 @@
+{
+  "id": "date-fns-1-to-2-string-dates",
+  "package": "date-fns",
+  "fromVersion": "1.30.1",
+  "toVersion": "2.30.0",
+  "category": "behavior-change",
+  "difficulty": "hard",
+  "breakingChange": "date-fns 2 no longer accepts strings as date arguments (they must be converted with parseISO), switched format() to Unicode tokens (YYYY-MM-DD becomes yyyy-MM-dd), and renamed distanceInWords(dateToCompare, date) to formatDistance(date, baseDate) with the argument order reversed, which matters with addSuffix. src/totals.js only does arithmetic on numbers.",
+  "reference": "https://github.com/date-fns/date-fns/blob/main/CHANGELOG.md#200---2019-08-20"
+}

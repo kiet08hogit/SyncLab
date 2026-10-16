@@ -1,0 +1,10 @@
+{
+  "id": "escape-string-regexp-4-to-5-require-esm",
+  "package": "escape-string-regexp",
+  "fromVersion": "4.0.0",
+  "toVersion": "5.0.0",
+  "category": "esm-only",
+  "difficulty": "easy",
+  "breakingChange": "escape-string-regexp 5 is a pure ES module with a default export, so require('escape-string-regexp') in a CommonJS app now returns a module namespace object instead of the function.",
+  "reference": "https://github.com/sindresorhus/escape-string-regexp/releases/tag/v5.0.0"
+}

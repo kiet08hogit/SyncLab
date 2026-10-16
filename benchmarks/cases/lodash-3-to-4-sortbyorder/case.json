@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-sortbyorder",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "renamed-api",
+  "difficulty": "medium",
+  "breakingChange": "lodash 4 renamed _.sortByOrder to _.orderBy. src/roster.js already uses _.sortBy, which is unchanged.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

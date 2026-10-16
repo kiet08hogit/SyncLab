@@ -1,0 +1,11 @@
+{
+  "name": "escape-string-regexp-4-to-5-require-esm",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "escape-string-regexp": "4.0.0"
+  }
+}

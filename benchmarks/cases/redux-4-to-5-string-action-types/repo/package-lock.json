@@ -1,0 +1,31 @@
+{
+  "name": "redux-4-to-5-string-action-types",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "redux-4-to-5-string-action-types",
+      "dependencies": {
+        "redux": "4.2.1"
+      }
+    },
+    "node_modules/@babel/runtime": {
+      "version": "7.29.10",
+      "resolved": "https://registry.npmjs.org/@babel/runtime/-/runtime-7.29.10.tgz",
+      "integrity": "sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/redux": {
+      "version": "4.2.1",
+      "resolved": "https://registry.npmjs.org/redux/-/redux-4.2.1.tgz",
+      "integrity": "sha512-LAUYz4lc+Do8/g7aeRa8JkyDErK6ekstQaqWQrNRW//MY1TvCEpMtpTWvlQ+FPbWCx+Xixu/6SHt5N0HR+SB4w==",
+      "license": "MIT",
+      "dependencies": {
+        "@babel/runtime": "^7.9.2"
+      }
+    }
+  }
+}

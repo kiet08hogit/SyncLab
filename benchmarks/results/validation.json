@@ -1,0 +1,725 @@
+{
+  "image": "synclab-sandbox:bench",
+  "cases": [
+    {
+      "id": "ajv-6-to-8-form-errors",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:07.444Z"
+    },
+    {
+      "id": "ajv-6-to-8-instance-path",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:10.883Z"
+    },
+    {
+      "id": "chalk-4-to-5-instance-keyword",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:14.076Z"
+    },
+    {
+      "id": "commander-6-to-7-opts",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:17.139Z"
+    },
+    {
+      "id": "cookie-0-to-1-parse-null-prototype",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:20.186Z"
+    },
+    {
+      "id": "csv-parse-4-to-5-sync-and-callback",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:23.292Z"
+    },
+    {
+      "id": "date-fns-1-to-2-format-tokens",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:28.849Z"
+    },
+    {
+      "id": "date-fns-1-to-2-string-dates",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:34.546Z"
+    },
+    {
+      "id": "decamelize-4-to-5-separator-option",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:37.583Z"
+    },
+    {
+      "id": "deepmerge-1-to-4-array-merge",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:40.639Z"
+    },
+    {
+      "id": "dotenv-14-to-15-inline-comments",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:43.570Z"
+    },
+    {
+      "id": "escape-string-regexp-4-to-5-require-esm",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:46.444Z"
+    },
+    {
+      "id": "execa-5-to-6-named-exports",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:50.139Z"
+    },
+    {
+      "id": "express-4-to-5-req-param-del",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:10:58.050Z"
+    },
+    {
+      "id": "express-4-to-5-status-shorthand",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:04.489Z"
+    },
+    {
+      "id": "express-4-to-5-wildcard-redirect",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:11.477Z"
+    },
+    {
+      "id": "filenamify-4-to-6-path-named-export",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:14.672Z"
+    },
+    {
+      "id": "glob-7-to-10-promise",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:19.188Z"
+    },
+    {
+      "id": "immer-9-to-10-default-import",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:22.092Z"
+    },
+    {
+      "id": "joi-14-to-17-error-types",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:25.660Z"
+    },
+    {
+      "id": "joi-14-to-17-validate",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:31.597Z"
+    },
+    {
+      "id": "js-yaml-3-to-4-config-pipeline",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:34.790Z"
+    },
+    {
+      "id": "js-yaml-3-to-4-safe-load",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:38.006Z"
+    },
+    {
+      "id": "lodash-3-to-4-catalog-helpers",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:41.423Z"
+    },
+    {
+      "id": "lodash-3-to-4-contains",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:46.406Z"
+    },
+    {
+      "id": "lodash-3-to-4-flatten-callback-assign",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:54.916Z"
+    },
+    {
+      "id": "lodash-3-to-4-max-min-iteratee",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:11:58.154Z"
+    },
+    {
+      "id": "lodash-3-to-4-pairs-object-rest",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:01.628Z"
+    },
+    {
+      "id": "lodash-3-to-4-pick-omit-invert",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:05.039Z"
+    },
+    {
+      "id": "lodash-3-to-4-pluck",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:08.578Z"
+    },
+    {
+      "id": "lodash-3-to-4-pluck-indexby",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:12.032Z"
+    },
+    {
+      "id": "lodash-3-to-4-sortbyorder",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:15.494Z"
+    },
+    {
+      "id": "lodash-3-to-4-thisarg",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:18.928Z"
+    },
+    {
+      "id": "lodash-3-to-4-trunc-pad",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:22.685Z"
+    },
+    {
+      "id": "lodash-3-to-4-uniq-sum-iteratee",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:26.333Z"
+    },
+    {
+      "id": "lodash-3-to-4-where-findwhere",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:29.649Z"
+    },
+    {
+      "id": "lru-cache-6-to-7-options",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:32.841Z"
+    },
+    {
+      "id": "lru-cache-7-to-10-named-export",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:35.982Z"
+    },
+    {
+      "id": "marked-3-to-4-named-export",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:39.489Z"
+    },
+    {
+      "id": "mime-1-to-2-get-type",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:42.654Z"
+    },
+    {
+      "id": "minimatch-3-to-9-named-export",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:46.031Z"
+    },
+    {
+      "id": "mkdirp-0-to-1-promise",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:49.246Z"
+    },
+    {
+      "id": "nanoid-2-to-3-custom-alphabet",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:52.686Z"
+    },
+    {
+      "id": "nanoid-2-to-3-named-export",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:12:56.064Z"
+    },
+    {
+      "id": "node-fetch-2-to-3-api-clients",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:00.371Z"
+    },
+    {
+      "id": "node-fetch-2-to-3-default-export",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:03.885Z"
+    },
+    {
+      "id": "path-to-regexp-1-to-6-named-export",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:06.929Z"
+    },
+    {
+      "id": "prettier-2-to-3-async-format",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:10.578Z"
+    },
+    {
+      "id": "query-string-7-to-9-default-export",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:14.078Z"
+    },
+    {
+      "id": "query-string-7-to-9-read-write",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:17.474Z"
+    },
+    {
+      "id": "query-string-7-to-9-url-helpers",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:21.037Z"
+    },
+    {
+      "id": "ramda-0-27-to-0-30-contains",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:24.545Z"
+    },
+    {
+      "id": "ramda-0-27-to-0-30-contains-merge",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:28.117Z"
+    },
+    {
+      "id": "ramda-0-27-to-0-30-merge",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:31.854Z"
+    },
+    {
+      "id": "ramda-0-27-to-0-30-nested-helpers",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:35.582Z"
+    },
+    {
+      "id": "redux-4-to-5-string-action-types",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:39.050Z"
+    },
+    {
+      "id": "rimraf-3-to-5-glob-cleanup",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:44.146Z"
+    },
+    {
+      "id": "uuid-3-to-11-v4-import",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:47.454Z"
+    },
+    {
+      "id": "uuid-3-to-8-deep-imports",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:50.509Z"
+    },
+    {
+      "id": "ws-7-to-8-text-messages",
+      "checks": {
+        "install": true,
+        "baselinePasses": true,
+        "upgrade": true,
+        "breaksAfterUpgrade": true,
+        "referenceFixPasses": true
+      },
+      "valid": true,
+      "validatedAt": "2026-10-16T19:13:59.868Z"
+    }
+  ]
+}

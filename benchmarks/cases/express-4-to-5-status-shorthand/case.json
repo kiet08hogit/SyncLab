@@ -1,0 +1,10 @@
+{
+  "id": "express-4-to-5-status-shorthand",
+  "package": "express",
+  "fromVersion": "4.21.2",
+  "toVersion": "5.1.0",
+  "category": "signature-change",
+  "difficulty": "easy",
+  "breakingChange": "Express 5 removed the res.send(status, body) and res.json(status, obj) signatures; the status must be set with res.status(status) first, otherwise the number is sent as the body with a 200 status.",
+  "reference": "https://expressjs.com/en/guide/migrating-5.html"
+}

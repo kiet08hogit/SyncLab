@@ -1,0 +1,22 @@
+{
+  "name": "lru-cache-7-to-10-named-export",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "lru-cache-7-to-10-named-export",
+      "dependencies": {
+        "lru-cache": "7.18.3"
+      }
+    },
+    "node_modules/lru-cache": {
+      "version": "7.18.3",
+      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-7.18.3.tgz",
+      "integrity": "sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==",
+      "license": "ISC",
+      "engines": {
+        "node": ">=12"
+      }
+    }
+  }
+}

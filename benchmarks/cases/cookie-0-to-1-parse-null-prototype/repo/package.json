@@ -1,0 +1,11 @@
+{
+  "name": "cookie-0-to-1-parse-null-prototype",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cookie": "0.7.2"
+  }
+}

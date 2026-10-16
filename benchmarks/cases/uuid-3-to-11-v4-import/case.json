@@ -1,0 +1,10 @@
+{
+  "id": "uuid-3-to-11-v4-import",
+  "package": "uuid",
+  "fromVersion": "3.4.0",
+  "toVersion": "11.1.0",
+  "category": "removed-api",
+  "difficulty": "medium",
+  "breakingChange": "uuid 7 removed the default export (the package root is no longer the v4 function) and uuid 8 removed deep imports such as uuid/v4; both are replaced by the named v4 export. src/readme-note.js only mentions uuid in a string.",
+  "reference": "https://github.com/uuidjs/uuid/blob/main/CHANGELOG.md"
+}

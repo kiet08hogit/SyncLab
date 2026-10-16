@@ -1,0 +1,10 @@
+{
+  "id": "prettier-2-to-3-async-format",
+  "package": "prettier",
+  "fromVersion": "2.8.8",
+  "toVersion": "3.3.3",
+  "category": "async-api",
+  "difficulty": "medium",
+  "breakingChange": "Prettier 3 made the public API asynchronous: prettier.format() and prettier.check() return Promises, so callers must await them (and become async themselves). src/parsers.js needs no change.",
+  "reference": "https://prettier.io/blog/2023/07/05/3.0.0.html"
+}

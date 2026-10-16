@@ -1,0 +1,11 @@
+{
+  "name": "marked-3-to-4-named-export",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "marked": "3.0.8"
+  }
+}

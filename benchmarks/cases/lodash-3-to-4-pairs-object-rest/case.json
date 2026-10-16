@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-pairs-object-rest",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "removed-api",
+  "difficulty": "hard",
+  "breakingChange": "lodash 4 renamed _.pairs to _.toPairs, removed _.object (use _.zipObject for key and value arrays, _.fromPairs for pairs), made _.zipObject no longer accept an array of pairs, and changed _.rest into a function-arguments helper (use _.tail). src/columns.js already uses _.zip and _.keys, which are unchanged.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

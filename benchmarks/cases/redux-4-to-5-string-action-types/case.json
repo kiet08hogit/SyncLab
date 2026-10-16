@@ -1,0 +1,10 @@
+{
+  "id": "redux-4-to-5-string-action-types",
+  "package": "redux",
+  "fromVersion": "4.2.1",
+  "toVersion": "5.0.1",
+  "category": "behavior-change",
+  "difficulty": "medium",
+  "breakingChange": "Redux 5 requires action.type to be a string and throws when an action is dispatched with a non-string type such as a Symbol.",
+  "reference": "https://github.com/reduxjs/redux/releases/tag/v5.0.0"
+}

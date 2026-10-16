@@ -1,0 +1,11 @@
+{
+  "name": "ramda-0-27-to-0-30-contains",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ramda": "0.27.2"
+  }
+}

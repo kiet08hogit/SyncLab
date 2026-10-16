@@ -1,0 +1,10 @@
+{
+  "id": "express-4-to-5-req-param-del",
+  "package": "express",
+  "fromVersion": "4.21.2",
+  "toVersion": "5.1.0",
+  "category": "removed-api",
+  "difficulty": "medium",
+  "breakingChange": "Express 5 removed req.param(name) (read req.params, req.query or req.body explicitly) and the app.del() alias (use app.delete()). src/routes/search.js reads a query string value and src/store.js does not use express at all.",
+  "reference": "https://expressjs.com/en/guide/migrating-5.html"
+}

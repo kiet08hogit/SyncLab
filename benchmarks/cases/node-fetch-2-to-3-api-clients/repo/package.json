@@ -1,0 +1,11 @@
+{
+  "name": "node-fetch-2-to-3-api-clients",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "node-fetch": "2.7.0"
+  }
+}

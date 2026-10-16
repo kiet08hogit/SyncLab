@@ -1,0 +1,10 @@
+{
+  "id": "node-fetch-2-to-3-api-clients",
+  "package": "node-fetch",
+  "fromVersion": "2.7.0",
+  "toVersion": "3.3.2",
+  "category": "esm-only",
+  "difficulty": "hard",
+  "breakingChange": "node-fetch 3 is ESM-only, so require('node-fetch') returns the module namespace and the fetch function is on its default export. Three modules call the bare require result (one inside a retry loop, one inside a nested closure); src/headers.js only destructures Headers and src/status.js already reads .default, both of which still work, and src/docs.js only mentions node-fetch in a string.",
+  "reference": "https://github.com/node-fetch/node-fetch/blob/main/docs/v3-UPGRADE-GUIDE.md"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "lru-cache-7-to-10-named-export",
+  "package": "lru-cache",
+  "fromVersion": "7.18.3",
+  "toVersion": "10.4.3",
+  "category": "default-export-change",
+  "difficulty": "easy",
+  "breakingChange": "lru-cache 10 dropped the default export; the cache class must be imported as the named export LRUCache.",
+  "reference": "https://github.com/isaacs/node-lru-cache/blob/main/CHANGELOG.md"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "lru-cache-6-to-7-options",
+  "package": "lru-cache",
+  "fromVersion": "6.0.0",
+  "toVersion": "7.18.3",
+  "category": "option-change",
+  "difficulty": "medium",
+  "breakingChange": "lru-cache 7 requires an options object with max, maxSize or ttl (a bare number is rejected), replaces the length option with sizeCalculation plus maxSize, renames maxAge to ttl, keys()/values() now return iterators instead of arrays, and the length getter (total size) is replaced by calculatedSize.",
+  "reference": "https://github.com/isaacs/node-lru-cache/blob/v7.18.3/CHANGELOG.md#v7---2022-02"
+}

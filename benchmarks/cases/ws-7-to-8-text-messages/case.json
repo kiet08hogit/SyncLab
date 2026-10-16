@@ -1,0 +1,10 @@
+{
+  "id": "ws-7-to-8-text-messages",
+  "package": "ws",
+  "fromVersion": "7.5.10",
+  "toVersion": "8.18.0",
+  "category": "behavior-change",
+  "difficulty": "hard",
+  "breakingChange": "ws 8 always delivers message data as a Buffer (or ArrayBuffer/array per binaryType), including text frames, and passes a second isBinary argument to the 'message' listener; code that detected text frames with typeof data === 'string' now treats every frame as binary. Both the server and the client module are affected.",
+  "reference": "https://github.com/websockets/ws/releases/tag/8.0.0"
+}

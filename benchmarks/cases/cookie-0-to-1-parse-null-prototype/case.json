@@ -1,0 +1,10 @@
+{
+  "id": "cookie-0-to-1-parse-null-prototype",
+  "package": "cookie",
+  "fromVersion": "0.7.2",
+  "toVersion": "1.0.2",
+  "category": "behavior-change",
+  "difficulty": "medium",
+  "breakingChange": "cookie 1.0 returns the parse() result as a null-prototype object, so methods inherited from Object.prototype such as hasOwnProperty are no longer available on it.",
+  "reference": "https://github.com/jshttp/cookie/releases/tag/v1.0.0"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "csv-parse-4-to-5-sync-and-callback",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "csv-parse": "4.16.3"
+  }
+}

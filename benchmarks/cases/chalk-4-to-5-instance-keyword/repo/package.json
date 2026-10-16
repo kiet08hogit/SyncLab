@@ -1,0 +1,11 @@
+{
+  "name": "chalk-4-to-5-instance-keyword",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "chalk": "4.1.2"
+  }
+}

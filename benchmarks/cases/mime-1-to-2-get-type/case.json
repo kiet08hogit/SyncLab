@@ -1,0 +1,10 @@
+{
+  "id": "mime-1-to-2-get-type",
+  "package": "mime",
+  "fromVersion": "1.6.0",
+  "toVersion": "2.6.0",
+  "category": "renamed-api",
+  "difficulty": "medium",
+  "breakingChange": "mime 2 renamed lookup() to getType() and extension() to getExtension(), and removed default_type: getType() returns null for unknown files instead of falling back to application/octet-stream.",
+  "reference": "https://github.com/broofa/mime/blob/v2.6.0/CHANGELOG.md#200-2017-12-17"
+}

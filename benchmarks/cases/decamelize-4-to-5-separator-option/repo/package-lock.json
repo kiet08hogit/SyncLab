@@ -1,0 +1,25 @@
+{
+  "name": "decamelize-4-to-5-separator-option",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "decamelize-4-to-5-separator-option",
+      "dependencies": {
+        "decamelize": "4.0.0"
+      }
+    },
+    "node_modules/decamelize": {
+      "version": "4.0.0",
+      "resolved": "https://registry.npmjs.org/decamelize/-/decamelize-4.0.0.tgz",
+      "integrity": "sha512-9iE1PgSik9HeIIw2JO94IidnE3eBoQrFJ3w7sFuzSX4DpmZ3v5sZpUiV5Swcf6mQEF+Y0ru8Neo+p+nyh2J+hQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=10"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/sindresorhus"
+      }
+    }
+  }
+}
