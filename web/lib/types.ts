@@ -49,7 +49,13 @@ export interface JobDetail extends JobWithRepository {
   executionLogs: ExecutionLog[];
 }
 
-export interface RepositorySummary extends Repository {
+/** A repository the signed-in user can reach, with SyncLab's job totals for it. */
+export interface RepositorySummary {
+  githubRepoId: string;
+  fullName: string;
+  installationId: string;
+  /** null when the API could not tell, which only happens for service callers. */
+  private: boolean | null;
   jobCount: number;
   completed: number;
   failed: number;

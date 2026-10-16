@@ -3,11 +3,16 @@ import { Prisma } from '@prisma/client';
 import { JobStatus, MIGRATION_JOB_NAME } from '../common/constants';
 import { MigrationJobsService } from './migration-jobs.service';
 import { WebhookController } from './webhook.controller';
-import type { GithubReleasePayload } from './webhook.types';
+import type { GithubPullRequestPayload } from './webhook.types';
 
-const PAYLOAD: GithubReleasePayload = {
-  action: 'published',
-  release: { name: 'react', tag_name: 'v19.0.0' },
+const PAYLOAD: GithubPullRequestPayload = {
+  action: 'opened',
+  pull_request: {
+    number: 12,
+    title: 'Bump react from 18.3.1 to 19.0.0',
+    user: { login: 'dependabot[bot]', type: 'Bot' },
+    head: { ref: 'dependabot/npm_and_yarn/react-19.0.0', repo: { full_name: 'acme/widgets' } },
+  },
   repository: {
     id: 42,
     name: 'widgets',
@@ -31,7 +36,7 @@ function duplicateError() {
   });
 }
 
-function setup(existing?: { id: string; status: string }) {
+function setup(existing?: { id: string; status: string }, declared = true) {
   const prisma = {
     repository: { upsert: jest.fn().mockResolvedValue({ id: 'repo-1' }) },
     migrationJob: {
@@ -44,10 +49,12 @@ function setup(existing?: { id: string; status: string }) {
     },
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
+  const githubTokens = { declaresRootDependency: jest.fn().mockResolvedValue(declared) };
   const controller = new WebhookController(
     new MigrationJobsService(queue as never, prisma as never),
+    githubTokens as never,
   );
-  return { controller, prisma, queue };
+  return { controller, githubTokens, prisma, queue };
 }
 
 describe('WebhookController', () => {
@@ -57,37 +64,57 @@ describe('WebhookController', () => {
     expect(queue.add).not.toHaveBeenCalled();
   });
 
-  it('ignores events that are not a published release', async () => {
+  it('ignores events that are not a dependency update pull request', async () => {
     const { controller, queue } = setup();
-    await expect(
-      controller.handleWebhook({ ...PAYLOAD, action: 'created' }, 'release'),
-    ).resolves.toMatchObject({ ignored: true });
-    await expect(controller.handleWebhook(PAYLOAD, 'push')).resolves.toMatchObject({
+    await expect(controller.handleWebhook(PAYLOAD, 'release')).resolves.toMatchObject({
       ignored: true,
     });
+    await expect(
+      controller.handleWebhook({ ...PAYLOAD, action: 'closed' }, 'pull_request'),
+    ).resolves.toMatchObject({ ignored: true });
     expect(queue.add).not.toHaveBeenCalled();
   });
 
   it.each([
     ['repository', { ...PAYLOAD, repository: undefined }],
-    ['tag_name', { ...PAYLOAD, release: { name: 'react' } }],
     ['installation', { ...PAYLOAD, installation: undefined }],
-  ])('rejects a payload missing %s', async (_field, payload) => {
+  ])('rejects an update missing %s', async (_field, payload) => {
     const { controller } = setup();
-    await expect(controller.handleWebhook(payload, 'release')).rejects.toBeInstanceOf(
+    // Without a repository the fork check cannot match, so pin it on the head.
+    const withHead = {
+      ...payload,
+      pull_request: {
+        ...PAYLOAD.pull_request,
+        head: { ...PAYLOAD.pull_request!.head, repo: { full_name: payload.repository?.full_name } },
+      },
+    };
+    await expect(controller.handleWebhook(withHead, 'pull_request')).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
 
-  it('upserts the repository, creates the job and queues it', async () => {
-    const { controller, prisma, queue } = setup();
+  it('ignores a dependency the root package.json does not declare', async () => {
+    const { controller, githubTokens, prisma, queue } = setup(undefined, false);
 
-    await expect(controller.handleWebhook(PAYLOAD, 'release')).resolves.toEqual({
+    await expect(controller.handleWebhook(PAYLOAD, 'pull_request')).resolves.toEqual({
+      ignored: true,
+      reason: 'react is not declared in the root package.json of acme/widgets',
+    });
+    expect(githubTokens.declaresRootDependency).toHaveBeenCalledWith(7n, 'acme/widgets', 'react');
+    expect(prisma.migrationJob.create).not.toHaveBeenCalled();
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('upserts the repository, creates the job and queues it', async () => {
+    const { controller, githubTokens, prisma, queue } = setup();
+
+    await expect(controller.handleWebhook(PAYLOAD, 'pull_request')).resolves.toEqual({
       id: 'job-1',
       status: JobStatus.QUEUED,
       queued: true,
     });
 
+    expect(githubTokens.declaresRootDependency).toHaveBeenCalledWith(7n, 'acme/widgets', 'react');
     expect(prisma.repository.upsert).toHaveBeenCalledWith({
       where: { githubRepoId: 42n },
       create: { githubRepoId: 42n, fullName: 'acme/widgets', installationId: 7n },
@@ -97,7 +124,7 @@ describe('WebhookController', () => {
       data: {
         repositoryId: 'repo-1',
         dependencyName: 'react',
-        targetVersion: 'v19.0.0',
+        targetVersion: '19.0.0',
         status: JobStatus.QUEUED,
       },
     });
@@ -108,19 +135,15 @@ describe('WebhookController', () => {
     );
   });
 
-  it('falls back to the repository name and a github.com clone url', async () => {
-    const { controller, prisma, queue } = setup();
+  it('falls back to a github.com clone url', async () => {
+    const { controller, queue } = setup();
     const payload = {
       ...PAYLOAD,
-      release: { name: null, tag_name: 'v19.0.0' },
       repository: { id: 42, name: 'widgets', full_name: 'acme/widgets' },
     };
 
-    await controller.handleWebhook(payload, 'release');
+    await controller.handleWebhook(payload, 'pull_request');
 
-    expect(prisma.migrationJob.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ dependencyName: 'widgets' }) as unknown,
-    });
     expect(queue.add).toHaveBeenCalledWith(
       MIGRATION_JOB_NAME,
       { jobId: 'job-1', repoUrl: 'https://github.com/acme/widgets.git' },
@@ -129,11 +152,11 @@ describe('WebhookController', () => {
   });
 
   it.each([JobStatus.QUEUED, JobStatus.IN_PROGRESS, JobStatus.COMPLETED])(
-    'does not re-queue a redelivered release whose job is %s',
+    'does not re-queue a redelivered update whose job is %s',
     async (status) => {
       const { controller, prisma, queue } = setup({ id: 'job-1', status });
 
-      await expect(controller.handleWebhook(PAYLOAD, 'release')).resolves.toEqual({
+      await expect(controller.handleWebhook(PAYLOAD, 'pull_request')).resolves.toEqual({
         id: 'job-1',
         status,
         queued: false,
@@ -143,7 +166,7 @@ describe('WebhookController', () => {
           repositoryId_dependencyName_targetVersion: {
             repositoryId: 'repo-1',
             dependencyName: 'react',
-            targetVersion: 'v19.0.0',
+            targetVersion: '19.0.0',
           },
         },
       });
@@ -151,10 +174,10 @@ describe('WebhookController', () => {
     },
   );
 
-  it('re-queues a redelivered release whose job failed', async () => {
+  it('re-queues a redelivered update whose job failed', async () => {
     const { controller, queue } = setup({ id: 'job-1', status: JobStatus.FAILED });
 
-    await expect(controller.handleWebhook(PAYLOAD, 'release')).resolves.toEqual({
+    await expect(controller.handleWebhook(PAYLOAD, 'pull_request')).resolves.toEqual({
       id: 'job-1',
       status: JobStatus.QUEUED,
       queued: true,
@@ -166,7 +189,9 @@ describe('WebhookController', () => {
     const { controller, prisma, queue } = setup();
     prisma.migrationJob.create.mockRejectedValue(new Error('connection lost'));
 
-    await expect(controller.handleWebhook(PAYLOAD, 'release')).rejects.toThrow('connection lost');
+    await expect(controller.handleWebhook(PAYLOAD, 'pull_request')).rejects.toThrow(
+      'connection lost',
+    );
     expect(queue.add).not.toHaveBeenCalled();
   });
 });

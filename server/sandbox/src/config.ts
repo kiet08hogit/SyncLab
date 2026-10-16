@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-export const LLM_PROVIDERS = ['ollama', 'gemini'] as const;
+export const LLM_PROVIDERS = ['ollama', 'gemini', 'anthropic'] as const;
 
 export type LlmProvider = (typeof LLM_PROVIDERS)[number];
 
@@ -96,4 +96,8 @@ export function requireToken(): string {
  */
 export function requireGeminiKey(): string {
   return required('GEMINI_API_KEY');
+}
+
+export function requireAnthropicKey(): string {
+  return required('ANTHROPIC_API_KEY');
 }

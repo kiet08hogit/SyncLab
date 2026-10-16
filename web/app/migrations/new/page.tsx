@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
-import { ArrowLeft, CircleAlert } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { GithubSignIn } from "@/components/github-sign-in";
 import { NewMigrationForm } from "@/components/new-migration-form";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiConfigured } from "@/lib/api";
 import { signInConfigured } from "@/lib/auth";
 import { getAccessibleRepositories, GithubUnauthorizedError, type InstalledRepository } from "@/lib/github";
 import { getSession } from "@/lib/session";
@@ -79,23 +78,7 @@ async function FormLoader() {
     );
   }
 
-  return (
-    <>
-      {!apiConfigured() && (
-        <p
-          role="alert"
-          className="flex items-start gap-2.5 border border-status-failed/30 bg-status-failed/10 px-4 py-3 text-sm"
-        >
-          <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-status-failed" />
-          <span>
-            <code className="font-mono text-xs">MIGRATIONS_API_TOKEN</code> is not set, so this dashboard cannot reach
-            the SyncLab API to start the job.
-          </span>
-        </p>
-      )}
-      <NewMigrationForm repositories={repositories} disabled={!apiConfigured()} />
-    </>
-  );
+  return <NewMigrationForm repositories={repositories} />;
 }
 
 function Notice({ title, body, children }: { title: string; body: string; children: React.ReactNode }) {

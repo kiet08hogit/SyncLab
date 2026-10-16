@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GithubTokenService } from '../github/github-token.service';
 import { DockerSandboxService } from './sandbox/docker-sandbox.service';
 import { JobStatus, LogStep, MIGRATION_QUEUE, type MigrationJobData } from '../common/constants';
-import { configuration, type Configuration } from '../config/configuration';
+import { configuration, LLM_API_KEY_ENV, type Configuration } from '../config/configuration';
 import type { SandboxJobParams, StepLog } from './sandbox/sandbox.types';
 import { claimMigrationJob } from './claim-job';
 
@@ -60,9 +60,11 @@ export class MigrationProcessor extends WorkerHost {
       const token = await this.githubToken.getInstallationToken(record.repository.installationId);
       const llm = this.config.get('llm', { infer: true });
 
-      if (llm.provider === 'gemini' && !llm.apiKey) {
+      const keyEnv = LLM_API_KEY_ENV[llm.provider];
+
+      if (keyEnv && !llm.apiKey) {
         throw new UnrecoverableError(
-          'LLM_PROVIDER is gemini but GEMINI_API_KEY is not set, so the refactoring phase cannot run.',
+          `LLM_PROVIDER is ${llm.provider} but ${keyEnv} is not set, so the refactoring phase cannot run.`,
         );
       }
 

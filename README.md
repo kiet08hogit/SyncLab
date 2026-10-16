@@ -21,7 +21,7 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 
 ## How it works in one minute
 
-1. A trigger arrives: a signed GitHub `release` webhook, or an authenticated `POST /migrations` request.
+1. A trigger arrives: a signed `pull_request` webhook for a Dependabot or Renovate npm update, or an authenticated `POST /migrations` request.
 2. The **gateway** records a `MigrationJob` in PostgreSQL and enqueues it on a BullMQ queue in Redis.
 3. A **worker** claims the job and runs the **sandbox** image as a sequence of containers over one shared Docker volume:
    `prepare` (clone, install, upgrade the dependency, fetch release notes), then `refactor` and `test` in a loop, then `publish`.
@@ -34,8 +34,8 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 ```mermaid
 flowchart LR
     subgraph Triggers
-        GH["GitHub release webhook"]
-        API["POST /migrations<br/>(bearer token)"]
+        GH["Dependabot / Renovate<br/>pull_request webhook"]
+        API["POST /migrations<br/>(user or service token)"]
     end
 
     subgraph Server["server/api (NestJS)"]
@@ -54,7 +54,7 @@ flowchart LR
         PB["publish"]
     end
 
-    LLM["Ollama (local) or Gemini<br/>via LangChain.js"]
+    LLM["Ollama (local), Gemini or Claude<br/>via LangChain.js and the Anthropic SDK"]
     NPM["npm registry"]
     REPO["Target GitHub repository"]
 
@@ -87,11 +87,11 @@ sequenceDiagram
     participant Q as Redis (BullMQ)
     participant WK as Worker
     participant SB as Sandbox containers
-    participant LLM as Model (Ollama or Gemini)
+    participant LLM as Model (Ollama, Gemini or Claude)
     participant GH as GitHub
 
-    Src->>GW: release webhook or POST /migrations
-    GW->>GW: verify HMAC signature or bearer token
+    Src->>GW: bot pull_request webhook or POST /migrations
+    GW->>GW: verify HMAC signature, or resolve the bearer token to a user or the service
     GW->>DB: upsert Repository, create MigrationJob (unique per repo, dependency, version)
     GW->>Q: add process-migration job (3 attempts, exponential backoff)
     GW-->>Src: 202 Accepted {id, status, queued}
@@ -134,17 +134,21 @@ flowchart TD
     B -- no --> X1["401 Unauthorized"]
     B -- yes --> C{"x-github-event"}
     C -- ping --> OK1["202 {ok: true}"]
-    C -- "not a published release" --> IGN["202 {ignored: true}"]
-    C -- "release / published" --> D{"repository.id, full_name,<br/>release.tag_name, installation.id present?"}
+    C -- "pull_request" --> P{"opened by Dependabot or Renovate,<br/>one npm dependency at the root,<br/>exact version readable?"}
+    C -- other --> IGN["202 {ignored: true, reason}"]
+    P -- no --> IGN
+    P -- yes --> D{"repository.id, full_name,<br/>installation.id present?"}
     D -- no --> X2["400 Bad Request"]
     D -- yes --> E["MigrationJobsService.enqueue"]
 
-    M["POST /migrations"] --> MB{"Authorization: Bearer<br/>matches MIGRATIONS_API_TOKEN?"}
+    M["POST /migrations"] --> MB{"Bearer token is MIGRATIONS_API_TOKEN,<br/>or a GitHub user token GitHub accepts?"}
     MB -- no --> X3["401 Unauthorized"]
     MB -- yes --> MV{"repoFullName is owner/repo,<br/>dependencyName and targetVersion valid?"}
     MV -- no --> X4["400 Bad Request"]
     MV -- yes --> ML["Look up repo id, installation id<br/>and clone URL on GitHub"]
-    ML --> E
+    ML --> MA{"service token, or the user's<br/>installations reach the repo?"}
+    MA -- no --> X5["404 Not Found"]
+    MA -- yes --> E
 
     E --> U["Upsert Repository by github_repo_id"]
     U --> J{"INSERT MigrationJob<br/>unique (repo, dependency, version)"}
@@ -160,7 +164,10 @@ flowchart TD
 Key details:
 
 - Signatures are checked over the raw request body with a constant-time comparison, so a forged or re-serialized payload is rejected.
-- Deduplication relies on the database unique constraint rather than read-then-write, so two concurrent deliveries of the same release cannot both create a job.
+- Deduplication relies on the database unique constraint rather than read-then-write, so two concurrent deliveries of the same update cannot both create a job.
+- The webhook reads the dependency and exact version from the bot's pull request title (Renovate's shortened `to v5` from the change table in its body), and ignores grouped updates, other ecosystems, subdirectories, forks and anything not authored by the bot account.
+  See [`server/api/README.md`](server/api/README.md#automatic-trigger-dependabot-and-renovate-pull-requests).
+- A user's bearer token is resolved through GitHub to the repositories their installations reach, and every read and write is limited to those repositories by GitHub repository id.
 - A redelivered webhook never opens a second pull request, but a job that previously `FAILED` is queued again.
   The conditional `FAILED` to `QUEUED` update is the claim on that retry, so concurrent triggers queue it only once.
 - Both triggers share `MigrationJobsService`, so they deduplicate and retry identically.
@@ -187,7 +194,7 @@ For each job the worker:
    If the job is already `COMPLETED`, it writes a `SKIPPED` log and stops; otherwise it sets `IN_PROGRESS`.
 2. Mints a GitHub App installation token (or falls back to `GITHUB_TOKEN` for local development).
    The App private key never leaves the worker.
-3. With `LLM_PROVIDER=gemini`, refuses to start without `GEMINI_API_KEY` (unrecoverable).
+3. With a hosted `LLM_PROVIDER`, refuses to start without its key (`GEMINI_API_KEY` or `ANTHROPIC_API_KEY`, unrecoverable).
 4. Checks the sandbox image exists locally, creates a named volume `synclab-job-<jobId>`, and runs the phases below.
 5. Appends every phase's step logs to `execution_logs`, then removes every container and the volume, whatever the outcome.
 
@@ -248,6 +255,8 @@ These rules live in `server/api/src/worker/sandbox/container-options.ts`.
 4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Ollama by default).
    Gemini answers with structured output `{changed, contents, reason}`.
    Ollama answers with a one-sentence reason followed by the file in a fenced block, because small local models do not reliably end a whole file inside a JSON string, and its output is capped relative to the file size.
+   Claude answers in the same fenced shape over a streamed request, so the file needs no JSON escaping and a reply cut off at `max_tokens` is caught from the stop reason.
+   A Claude refusal is retried server-side on Anthropic's default fallback model before the file is failed.
    The prompt includes the dependency, target version, release notes, the imported names and usage lines, and, on a retry, the previous failing test output.
    The model returns the complete file rather than a diff, because diffs fail to apply too often.
 5. Writes back only files the model actually changed.
@@ -276,13 +285,13 @@ If no result line appears (for example, the container was killed), the raw log b
 | --- | --- |
 | `/` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
 | `/jobs/[id]` | One job's pipeline track (clone, install, upgrade, changelog, refactor, test, pull request), failure reason, and execution log |
-| `/repositories` | Repositories with the GitHub App installed, with job totals and last activity |
+| `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
 
-Job pages read real jobs through `GET /migrations/:id`.
-The API has no list endpoints yet, so the overview and repository pages still serve sample data shaped like the Prisma models.
-See [`web/README.md`](web/README.md) for the environment variables that enable sign-in and the form.
+Signed in, every page reads the API with the user's own GitHub token (`GET /migrations`, `/migrations/counts`, `/migrations/:id`, `/repositories`), and the API limits each answer to that user's repositories.
+Signed out, the pages show sample data shaped like the API's answers, with a prompt to sign in.
+See [`web/README.md`](web/README.md) for the environment variables that enable sign-in.
 
 ## Data model
 
@@ -332,10 +341,11 @@ Only failures that could succeed on a later try are retried; everything else is 
 
 | Failure | Job status | Retried by BullMQ |
 | --- | --- | --- |
-| Gemini rate limit (429, quota or resource exhausted) | `QUEUED` while retrying, then `FAILED` | yes |
+| Gemini or Anthropic rate limit (429, quota or resource exhausted) | `QUEUED` while retrying, then `FAILED` | yes |
+| Anthropic API overloaded (529) | `QUEUED` while retrying, then `FAILED` | yes |
 | Ollama server not reachable (connection refused) | `QUEUED` while retrying, then `FAILED` | yes |
 | Other model errors (bad key, unknown model, malformed output) | `FAILED` | no |
-| `GEMINI_API_KEY` missing with `LLM_PROVIDER=gemini` | `FAILED` | no |
+| `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` missing for the selected provider | `FAILED` | no |
 | Clone, install or dependency upgrade failed | `FAILED` | no |
 | Tests still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
 | Refactor produced no changes | `FAILED` | no |
@@ -365,14 +375,14 @@ SyncLab/
 │       └── src/
 │           ├── phases/        prepare, refactor, test, publish
 │           ├── analysis/      Babel import and usage analysis
-│           ├── llm/           Ollama and Gemini models, refactor chain, retryable error classification
+│           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
 │           └── upgrade.ts     dependency upgrade used by prepare
 └── benchmarks/                synthetic migration cases and runner for the refactor and test loop
 ```
 
 ## Getting started
 
-Prerequisites: Node.js 22 or later, Docker, and either [Ollama](https://ollama.com) with `qwen2.5-coder:14b` pulled (the default) or a Gemini API key.
+Prerequisites: Node.js 22 or later, Docker, and either [Ollama](https://ollama.com) with `qwen2.5-coder:14b` pulled (the default) or a Gemini or Anthropic API key.
 For real repositories you also need a GitHub App (or a personal access token for local experiments).
 
 ```bash
@@ -382,7 +392,7 @@ docker compose up -d
 
 # 2. API: configuration, database, sandbox image
 cd api
-cp .env.example .env          # fill in GITHUB_WEBHOOK_SECRET, GitHub credentials, MIGRATIONS_API_TOKEN (and GEMINI_API_KEY if LLM_PROVIDER=gemini)
+cp .env.example .env          # fill in GITHUB_WEBHOOK_SECRET, GitHub credentials, MIGRATIONS_API_TOKEN (and GEMINI_API_KEY or ANTHROPIC_API_KEY for a hosted LLM_PROVIDER)
 npm install
 npx prisma migrate deploy
 npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
@@ -434,8 +444,8 @@ The refactor container reaches the host's Ollama at `http://host.docker.internal
 Larger models are stronger at migrations but will not fit next to Docker on that machine.
 Set `LLM_MODEL` to try another model you have pulled.
 
-Deployed environments will use a hosted API provider such as OpenAI or Claude instead of a local model.
-Gemini is the hosted provider wired in today (`LLM_PROVIDER=gemini` with `GEMINI_API_KEY`).
+Deployed environments use a hosted provider instead of a local model.
+Two are wired in: Claude (`LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, `claude-opus-5-5` by default) and Gemini (`LLM_PROVIDER=gemini` with `GEMINI_API_KEY`).
 
 ## Testing and benchmarks
 
@@ -443,7 +453,7 @@ Gemini is the hosted provider wired in today (`LLM_PROVIDER=gemini` with `GEMINI
 cd server/api && npm run typecheck && npm test   # unit tests
 cd server/api && npm run test:e2e                # signed webhook, no PostgreSQL or Redis needed
 cd server/sandbox && npm test                    # phase and helper tests, no network or Docker
-cd web && npm run lint && npm run build          # dashboard lint, typecheck and production build
+cd web && npm run lint && npm test && npm run build  # dashboard lint, unit tests, typecheck and production build
 ```
 
 `.github/workflows/verify.yml` runs these checks, plus the sandbox image build and a dependency review, on every pull request and on pushes to `main` and `develop`.
@@ -451,15 +461,15 @@ cd web && npm run lint && npm run build          # dashboard lint, typecheck and
 `benchmarks/` holds synthetic migration cases (lodash, ramda, ajv, node-fetch, query-string, uuid) at easy, medium and hard difficulty.
 The runner drives the real sandbox `refactor` and `test` code for up to 3 attempts and checks AST targeting, removed APIs, `npm run build` and `npm test`.
 Cases marked `"upgrade": true` start on the old version and also exercise the dependency upgrade step.
-It calls a live model (local Ollama by default, or Gemini with `LLM_PROVIDER=gemini`), so it is not part of CI.
+It calls a live model (local Ollama by default, or a hosted one with `LLM_PROVIDER=gemini` or `anthropic`), so it is not part of CI.
 See [`benchmarks/README.md`](benchmarks/README.md).
 
 ## Current limitations and roadmap
 
 Known gaps in the current implementation:
 
-- The `release` webhook fires when the *installed repository* publishes a release, not when one of its dependencies does, and the dependency name is taken from the release name.
-  Until a real dependency-release trigger exists (for example, Dependabot or Renovate pull requests, or npm registry polling), use `POST /migrations`.
+- Automatic migrations need Dependabot or Renovate running on the repository; SyncLab does not watch npm itself.
+  It opens its own pull request next to the bot's rather than pushing onto the bot's branch.
 - `npm ci` in `prepare` runs repository install scripts while the GitHub token is present.
 - With `--ignore-scripts`, an upgraded package that needs a native build step is not built, so its tests fail.
 - Only npm is supported; repositories using `yarn.lock` or `pnpm-lock.yaml` are installed with npm.
@@ -469,4 +479,4 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 
 - Metrics for queue depth, sandbox start time and LLM token usage.
 - Auto-scaling worker deployment (for example, ECS or EKS).
-- List endpoints in the API so the dashboard overview in `web/` shows live jobs instead of sample data.
+- Pagination beyond the first 500 jobs in `GET /migrations`.

@@ -87,7 +87,8 @@ async function containsPattern(repoDir, relativePath, pattern) {
 async function runCase(caseDir) {
   const spec = JSON.parse(await fs.readFile(path.join(caseDir, 'case.json'), 'utf8'));
   const started = Date.now();
-  const workspace = path.join(resultsDir, 'workspaces', spec.id);
+  // Keyed by provider so runs against different providers can go in parallel.
+  const workspace = path.join(resultsDir, 'workspaces', process.env.LLM_PROVIDER, spec.id);
   const repoDir = path.join(workspace, 'repo');
   const stateDir = path.join(workspace, 'state');
   await fs.rm(workspace, { recursive: true, force: true });
@@ -390,7 +391,7 @@ function report(results, meta) {
   lines.push('```');
   lines.push('');
   lines.push(
-    'Uses `LLM_PROVIDER` (default `ollama`, with Ollama running on localhost). With `gemini`, requires `GEMINI_API_KEY` in the environment or in `server/api/.env`.',
+    'Uses `LLM_PROVIDER` (default `ollama`, with Ollama running on localhost). With `gemini` or `anthropic`, requires `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` in the environment or in `server/api/.env`.',
   );
   lines.push('');
   return lines.join('\n');
@@ -398,7 +399,12 @@ function report(results, meta) {
 
 const startedAt = new Date().toISOString();
 await loadEnvFile(path.join(root, 'server', 'api', '.env')).catch(() => undefined);
-const DEFAULT_MODELS = { ollama: 'qwen2.5-coder:14b', gemini: 'gemini-3.1-pro-preview' };
+const DEFAULT_MODELS = {
+  ollama: 'qwen2.5-coder:14b',
+  gemini: 'gemini-3.1-pro-preview',
+  anthropic: 'claude-opus-5-5',
+};
+const API_KEY_ENV = { gemini: 'GEMINI_API_KEY', anthropic: 'ANTHROPIC_API_KEY' };
 if (!process.env.LLM_PROVIDER) {
   process.env.LLM_PROVIDER = 'ollama';
 }
@@ -407,8 +413,9 @@ if (!Object.hasOwn(DEFAULT_MODELS, process.env.LLM_PROVIDER)) {
     `LLM_PROVIDER must be one of ${Object.keys(DEFAULT_MODELS).join(', ')}, got "${process.env.LLM_PROVIDER}".`,
   );
 }
-if (process.env.LLM_PROVIDER === 'gemini' && !process.env.GEMINI_API_KEY) {
-  throw new Error('GEMINI_API_KEY is not set. Refusing to invent benchmark results.');
+const keyEnv = API_KEY_ENV[process.env.LLM_PROVIDER];
+if (keyEnv && !process.env[keyEnv]) {
+  throw new Error(`${keyEnv} is not set. Refusing to invent benchmark results.`);
 }
 
 const onlyArg = process.argv.find((arg) => arg.startsWith('--only='));

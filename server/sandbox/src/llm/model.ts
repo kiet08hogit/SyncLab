@@ -1,6 +1,11 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatOllama } from '@langchain/ollama';
-import { requireGeminiKey, type LlmConfig } from '../config.js';
+import { requireAnthropicKey, requireGeminiKey, type LlmConfig } from '../config.js';
+
+export function createAnthropicClient(): Anthropic {
+  return new Anthropic({ apiKey: requireAnthropicKey() });
+}
 
 export function createGeminiModel(llm: LlmConfig): ChatGoogleGenerativeAI {
   return new ChatGoogleGenerativeAI({

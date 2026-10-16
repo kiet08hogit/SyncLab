@@ -1,8 +1,12 @@
-export interface GithubReleasePayload {
+export interface GithubPullRequestPayload {
   action?: string;
-  release?: {
-    name?: string | null;
-    tag_name?: string;
+  pull_request?: {
+    number?: number;
+    title?: string;
+    body?: string | null;
+    html_url?: string;
+    user?: { login?: string; type?: string };
+    head?: { ref?: string; repo?: { full_name?: string } | null };
   };
   repository?: {
     id?: number;

@@ -16,8 +16,8 @@
     "src/nested.js"
   ],
   "removedPatterns": [
-    "require('query-string');",
-    "require('query-string')\n"
+    "const qs = require('query-string');",
+    "const { parse, stringify } = require('query-string');"
   ],
   "breakingChanges": "query-string 8+ is ESM-only. CommonJS callers must read require('query-string').default before parse or stringify, including when those names are destructured."
 }

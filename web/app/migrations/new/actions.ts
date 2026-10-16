@@ -2,8 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { createMigration } from "@/lib/api";
-import { getAccessibleRepositories, GithubUnauthorizedError } from "@/lib/github";
+import { ApiUnauthorizedError, createMigration } from "@/lib/api";
 import { isPackageName } from "@/lib/npm";
 import { getSession } from "@/lib/session";
 
@@ -27,24 +26,15 @@ export async function startMigration(_previous: StartMigrationState, form: FormD
     return { error: "That dependency or version is not valid." };
   }
 
-  // The API trusts its bearer token, so this is where a user is held to the
-  // repositories their own GitHub access reaches.
+  let result: Awaited<ReturnType<typeof createMigration>>;
+  // The API holds the user to the repositories their installations reach, and
+  // answers 404 for any other repository.
   try {
-    const repositories = await getAccessibleRepositories(session.accessToken);
-    if (!repositories.some((repository) => repository.fullName === repoFullName)) {
-      return { error: `SyncLab is not installed on ${repoFullName}, or you no longer have access to it.` };
-    }
+    result = await createMigration(session.accessToken, { repoFullName, dependencyName, targetVersion });
   } catch (error) {
-    if (error instanceof GithubUnauthorizedError) {
+    if (error instanceof ApiUnauthorizedError) {
       return { error: "Your GitHub session expired. Sign in again to start a migration." };
     }
-    throw error;
-  }
-
-  let result: Awaited<ReturnType<typeof createMigration>>;
-  try {
-    result = await createMigration({ repoFullName, dependencyName, targetVersion });
-  } catch {
     return { error: "The SyncLab API could not be reached. Check that the gateway is running." };
   }
   if ("error" in result) return { error: result.error };

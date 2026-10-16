@@ -167,3 +167,100 @@ describe('the Ollama refactor chain', () => {
     assert.equal(requests.length, 0);
   });
 });
+
+function anthropicConfig(): SandboxConfig {
+  const config = ollamaConfig(32_768);
+  return { ...config, llm: { ...config.llm, provider: 'anthropic', model: 'claude-opus-5-5' } };
+}
+
+/** Answers the Messages API as a server-sent event stream and records the request bodies. */
+function stubAnthropic(
+  t: TestContext,
+  reply: string,
+  stopReason: string,
+  stopDetails: { type: 'refusal'; category: string | null } | null = null,
+) {
+  process.env.ANTHROPIC_API_KEY = 'test-key';
+  t.after(() => {
+    delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  const requests: Array<Record<string, unknown>> = [];
+  const events = [
+    {
+      type: 'message_start',
+      message: {
+        id: 'msg_test',
+        type: 'message',
+        role: 'assistant',
+        model: 'claude-opus-5-5',
+        content: [],
+        stop_reason: null,
+        stop_sequence: null,
+        usage: { input_tokens: 1, output_tokens: 0 },
+      },
+    },
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: reply } },
+    { type: 'content_block_stop', index: 0 },
+    {
+      type: 'message_delta',
+      delta: { stop_reason: stopReason, stop_sequence: null, stop_details: stopDetails },
+      usage: { output_tokens: 1 },
+    },
+    { type: 'message_stop' },
+  ];
+  const body = events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join('');
+
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: { body: string }) => {
+    requests.push(JSON.parse(init.body));
+    return new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  });
+
+  return requests;
+}
+
+describe('the Anthropic refactor chain', () => {
+  it('returns the rewritten file from a fenced reply', async (t) => {
+    const requests = stubAnthropic(
+      t,
+      `Replaced _.pluck with _.map.\n\`\`\`js\n${MIGRATED}\`\`\``,
+      'end_turn',
+    );
+
+    const outcome = await createRefactorChain(anthropicConfig())(request(ORIGINAL));
+
+    assert.deepEqual(outcome, {
+      changed: true,
+      contents: MIGRATED,
+      reason: 'Replaced _.pluck with _.map.',
+    });
+    assert.equal(requests[0].model, 'claude-opus-5-5');
+    assert.equal(requests[0].stream, true);
+    assert.equal(requests[0].fallbacks, 'default');
+  });
+
+  it('refuses a reply that reached max_tokens', async (t) => {
+    stubAnthropic(t, `Updated.\n\`\`\`js\n${MIGRATED}\`\`\``, 'max_tokens');
+
+    const error = await createRefactorChain(anthropicConfig())(request(ORIGINAL)).then(
+      () => assert.fail('expected the reply to be refused'),
+      (reason: unknown) => reason,
+    );
+
+    assert.match(String(error), /reached its output limit/);
+    assert.equal(isRetryableModelError(error), false);
+  });
+
+  it('fails permanently when the model declines', async (t) => {
+    stubAnthropic(t, '', 'refusal', { type: 'refusal', category: 'cyber' });
+
+    const error = await createRefactorChain(anthropicConfig())(request(ORIGINAL)).then(
+      () => assert.fail('expected the refusal to fail the file'),
+      (reason: unknown) => reason,
+    );
+
+    assert.match(String(error), /declined to rewrite the file \(cyber\)/);
+    assert.equal(isRetryableModelError(error), false);
+  });
+});
