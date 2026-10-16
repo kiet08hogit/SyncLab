@@ -115,7 +115,7 @@ sequenceDiagram
         WK->>SB: refactor
         SB->>LLM: rewrite each file that imports the dependency
         WK->>SB: test (no network, no secrets)
-        SB->>SB: npm test, save output for the next attempt
+        SB->>SB: run the test script, save output for the next attempt
     end
 
     alt tests passed
