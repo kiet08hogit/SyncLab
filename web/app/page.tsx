@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GitPullRequestArrow, Plus, Search, SearchX, X } from "lucide-react";
 
 import { JobsTable } from "@/components/jobs-table";
+import { LiveRefresh } from "@/components/live-refresh";
 import { RunningJobs } from "@/components/running-jobs";
 import { SampleDataNotice } from "@/components/sample-data-notice";
 import { OverviewSkeleton } from "@/components/skeletons";
@@ -68,6 +69,8 @@ async function Overview({ searchParams }: Pick<PageProps<"/">, "searchParams">) 
   return (
     <>
       <SampleDataNotice returnTo="/" />
+      {/* Queued jobs count too, so a job a worker picks up appears in Running now. */}
+      <LiveRefresh active={!filtered && counts.QUEUED + counts.IN_PROGRESS > 0} />
       <StatusFilter
         counts={counts}
         active={status}
