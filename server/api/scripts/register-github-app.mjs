@@ -10,7 +10,7 @@
 // webhook secret and private key. Secrets are written to files, never printed.
 
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,6 +75,7 @@ function upsertEnv(path, entries) {
     }
   }
   writeFileSync(path, lines.join('\n').replace(/\n*$/, '\n'), { mode: 0o600 });
+  chmodSync(path, 0o600);
 }
 
 function readEnv(path, key) {
@@ -100,6 +101,7 @@ function saveCredentials(app) {
   const pemFile = `${app.slug}.private-key.pem`;
   const pemPath = resolve(apiDir, pemFile);
   writeFileSync(pemPath, app.pem, { mode: 0o600 });
+  chmodSync(pemPath, 0o600);
 
   upsertEnv(apiEnv, {
     GITHUB_APP_ID: String(app.id),
