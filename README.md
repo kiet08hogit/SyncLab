@@ -495,6 +495,7 @@ cd server/api && npm run typecheck && npm test   # unit tests
 cd server/api && npm run test:e2e                # signed webhook, no PostgreSQL or Redis needed
 cd server/sandbox && npm test                    # phase and helper tests, no network or Docker
 cd web && npm run lint && npm test && npm run build  # dashboard lint, unit tests, typecheck and production build
+cd web && npm run test:e2e                       # dashboard in Chromium against the real API; needs Docker
 ```
 
 `.github/workflows/verify.yml` runs these checks, plus the sandbox image build and a dependency review, on every pull request and on pushes to `main` and `develop`.
