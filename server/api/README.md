@@ -63,6 +63,7 @@ The `/migrations` and `/repositories` routes take a bearer token in `Authorizati
   Leave it empty to accept user tokens only.
 
 Anything else, including a personal access token or a revoked user token, answers `401`.
+If GitHub rate-limits the access check, the route answers `503` instead, since the token is still valid.
 
 `LLM_PROVIDER` picks the model provider for the refactor phase: `ollama` (the default) or `gemini`.
 
