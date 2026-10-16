@@ -322,7 +322,7 @@ If no result line appears (for example, the container was killed), the raw log b
 | Route | Shows |
 | --- | --- |
 | `/` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
-| `/jobs/[id]` | One job's pipeline track (clone, install, upgrade, changelog, refactor, test, pull request), failure reason, and execution log |
+| `/jobs/[id]` | One job's pipeline track (clone, install, upgrade, changelog, refactor, test, pull request), failure reason, a retry button for failed jobs, and execution log |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
@@ -392,6 +392,7 @@ Only failures that could succeed on a later try are retried; everything else is 
 | Already `COMPLETED` when claimed | unchanged | no (logged as `SKIPPED`) |
 
 A failed job can also be retried by triggering the same repository, dependency and version again.
+The **Retry migration** button on a failed job's dashboard page does exactly that, through `POST /migrations`.
 
 ## Repository layout
 

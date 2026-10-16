@@ -315,6 +315,11 @@ export async function getJobs(
     );
 }
 
+/** Whether getJob serves this id from the samples rather than the API. */
+export function isSampleJob(id: string): boolean {
+  return allJobs().some((job) => job.id === id);
+}
+
 export const getJob = cache(async (id: string): Promise<JobDetail | null> => {
   await connection();
   const sample = allJobs().find((job) => job.id === id);
