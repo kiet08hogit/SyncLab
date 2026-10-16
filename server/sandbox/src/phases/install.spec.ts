@@ -82,7 +82,6 @@ describe('install phase', () => {
 
     assert.equal(result.phase, 'install');
     assert.equal(result.ok, true, JSON.stringify(result, null, 2));
-    assert.deepEqual(result.data, { packageManager: 'npm' });
     assert.equal(result.steps.length, 1);
     assert.equal(result.steps[0].step, 'INSTALL');
     assert.equal(result.steps[0].exitCode, 0);

@@ -30,5 +30,5 @@ export async function install(): Promise<PhaseResult> {
     return { phase: 'install', ok: false, error: 'dependency install failed', steps };
   }
 
-  return { phase: 'install', ok: true, steps, data: { packageManager: pm.name } };
+  return { phase: 'install', ok: true, steps };
 }
