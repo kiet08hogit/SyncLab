@@ -83,6 +83,7 @@ async function runCase(spec) {
     toVersion: spec.toVersion,
     category: spec.category,
     difficulty: spec.difficulty,
+    model: `${config.llm.provider}/${config.llm.model}`,
     releaseNotesFound: !notes.startsWith('No release notes were found'),
     success: false,
     firstAttemptPassed: false,
@@ -258,10 +259,19 @@ async function save() {
   );
 }
 
+meta.models = [...new Set([...(meta.models ?? [`${meta.model.provider}/${meta.model.model}`]), `${config.llm.provider}/${config.llm.model}`])];
+
 for (const [index, spec] of cases.entries()) {
   if (done.has(spec.id)) continue;
   process.stdout.write(`[${index + 1}/${cases.length}] ${spec.id} ... `);
   const record = await runCase(spec);
+  // A spent daily quota says nothing about the migration: leave the case
+  // unrecorded so --resume runs it again, possibly with another model.
+  if (record.failureCategory === 'rate_limited' && /PerDay/.test(record.failureReason ?? '')) {
+    process.stdout.write(`daily quota for ${config.llm.model} is spent; stopping without recording this case\n`);
+    await save();
+    process.exit(3);
+  }
   done.set(spec.id, record);
   await save();
   process.stdout.write(

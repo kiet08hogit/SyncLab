@@ -54,7 +54,7 @@ function groupTable(title, key) {
 
 // CSV: one row per case.
 const columns = [
-  'id', 'package', 'fromVersion', 'toVersion', 'category', 'difficulty', 'releaseNotesFound',
+  'id', 'package', 'fromVersion', 'toVersion', 'category', 'difficulty', 'model', 'releaseNotesFound',
   'success', 'firstAttemptPassed', 'attemptsUsed', 'failureCategory', 'changedFiles', 'modifiedTests',
   'installMs', 'baselineMs', 'upgradeMs', 'migrationMs', 'totalMs',
 ];
@@ -121,7 +121,7 @@ Generated from \`${path.basename(inFile)}\` by \`benchmarks/report.mjs\`. Every 
 | --- | --- |
 | Run | ${meta.startedAt} to ${meta.finishedAt} |
 | Base commit | \`${meta.commit.slice(0, 12)}\`${meta.dirty ? ' (server/ had uncommitted changes)' : ''} |
-| Model | ${meta.model.provider} \`${meta.model.model}\`${meta.model.parameterSize ? `, ${meta.model.parameterSize} parameters, ${meta.model.quantization}` : ''}${meta.model.digest ? `, digest \`${meta.model.digest.slice(0, 12)}\`` : ''}${meta.model.source === 'LLM_MODEL override' ? ' (chosen with `LLM_MODEL`, not the worker\'s default for this provider)' : ''} |
+| Model | ${(meta.models ?? []).length > 1 ? `${meta.models.length} models, one per case (see By model); first: ` : ''}${meta.model.provider} \`${meta.model.model}\`${meta.model.parameterSize ? `, ${meta.model.parameterSize} parameters, ${meta.model.quantization}` : ''}${meta.model.digest ? `, digest \`${meta.model.digest.slice(0, 12)}\`` : ''}${meta.model.source === 'LLM_MODEL override' ? ' (chosen with `LLM_MODEL`, not the worker\'s default for this provider)' : ''} |
 | Context window | ${meta.model.numCtx ?? 'provider default'} tokens |
 | Attempts per case | up to ${meta.maxAttempts} (the worker's default \`LLM_MAX_ATTEMPTS\`) |
 | Sandbox | image \`${meta.image}\` (\`${meta.imageId.slice(7, 19)}\`), ${meta.sandbox.memoryBytes / 1024 ** 3} GB memory, ${meta.sandbox.nanoCpus / 1e9} CPU, ${meta.sandbox.pidsLimit} PIDs, ${meta.sandbox.timeoutMs / 60000} min per phase |
@@ -149,7 +149,9 @@ Release notes were found for ${notesFound} of ${all.total} cases. Success with n
 | --- | --- | --- |
 ${[...failureCounts.entries()].sort((a, b) => b[1] - a[1]).map(([category, count]) => `| \`${category}\` | ${count} | ${FAILURE_TEXT[category] ?? ''} |`).join('\n') || '| none | 0 | |'}
 
-${groupTable('By difficulty', 'difficulty')}
+${(meta.models ?? []).length > 1 ? `${groupTable('By model', 'model')}
+
+` : ''}${groupTable('By difficulty', 'difficulty')}
 
 ${groupTable('By category', 'category')}
 
@@ -178,7 +180,8 @@ ${failures.map((row) => `| \`${row.id}\` | \`${row.failureCategory}\` | ${row.at
 **Metrics.** Success means the project's existing test suite passes after the migration and no test file changed. First-attempt pass means it passed after the first refactor. Migration time runs from the start of \`upgrade\` to the end of the last test run (install and baseline excluded); it includes container start-up and model latency on this host.
 
 ## Limitations
-
+${(meta.models ?? []).length > 1 ? `
+- **This run mixed ${meta.models.length} models** (${meta.models.map((model) => `\`${model}\``).join(', ')}), because the provider's free tier allows only a few requests per model per day. Each case ran on exactly one model (see "By model" and the \`model\` column in \`results.csv\`), cases were assigned to models in alphabetical order rather than at random, and the overall rates are a blend, not the score of any single model.` : ''}
 - The cases are small synthetic projects (one dependency, a few files). Real repositories are larger, have more dependencies and slower suites, so these times and rates do not transfer directly.
 - Package selection was made by the benchmark authors and leans on well-known Node libraries with documented breaks; it is not a random sample of real-world upgrades.
 - Results are for one local model (\`${meta.model.model}\`) at the worker's default settings on one machine. Model output can differ between runs even at temperature 0, and timings depend on the host's hardware and load.
