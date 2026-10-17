@@ -521,3 +521,6 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Metrics for queue depth, sandbox start time and LLM token usage.
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
+
+After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs: it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
+See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
