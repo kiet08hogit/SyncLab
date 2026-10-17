@@ -73,7 +73,8 @@ test.describe("API changes, signed in", () => {
 });
 
 test("the sidebar links to the API changes page and marks it current there", async ({ page }) => {
-  await page.goto("/");
+  // The dashboard, since / is the landing page, which has no sidebar.
+  await page.goto("/dashboard");
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "API changes" }).click();
   await expect(page).toHaveURL(/\/api-changes$/);
   await expect(
