@@ -1,0 +1,10 @@
+{
+  "id": "nanoid-2-to-3-custom-alphabet",
+  "package": "nanoid",
+  "fromVersion": "2.1.11",
+  "toVersion": "3.3.20",
+  "category": "removed-api",
+  "difficulty": "medium",
+  "breakingChange": "nanoid 3 removed the nanoid/generate entry point (replaced by customAlphabet(alphabet, size) from the main module) and nanoid/non-secure now exports named functions instead of a default generator.",
+  "reference": "https://github.com/ai/nanoid/blob/main/CHANGELOG.md#30"
+}

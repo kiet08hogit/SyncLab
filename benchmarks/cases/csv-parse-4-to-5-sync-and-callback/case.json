@@ -1,0 +1,10 @@
+{
+  "id": "csv-parse-4-to-5-sync-and-callback",
+  "package": "csv-parse",
+  "fromVersion": "4.16.3",
+  "toVersion": "5.6.0",
+  "category": "default-export-change",
+  "difficulty": "hard",
+  "breakingChange": "csv-parse 5 replaced the default export with the named export parse, moved the sync API from csv-parse/lib/sync to the parse export of csv-parse/sync, and renamed skip_lines_with_error to skip_records_with_error (the old name is silently ignored). src/errors.js already uses the CsvError named export, which is unchanged.",
+  "reference": "https://csv.js.org/parse/migration/#upgrading-from-version-4-to-5"
+}

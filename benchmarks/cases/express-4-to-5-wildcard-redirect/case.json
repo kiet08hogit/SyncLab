@@ -1,0 +1,10 @@
+{
+  "id": "express-4-to-5-wildcard-redirect",
+  "package": "express",
+  "fromVersion": "4.21.2",
+  "toVersion": "5.1.0",
+  "category": "signature-change",
+  "difficulty": "hard",
+  "breakingChange": "Express 5 (path-to-regexp 8) requires wildcards to be named (`/*splat`, captured as an array of segments instead of req.params[0]), removed the res.redirect(url, status) argument order (status must come first) and removed res.sendfile in favour of res.sendFile. The /login redirect already uses the valid order.",
+  "reference": "https://expressjs.com/en/guide/migrating-5.html"
+}

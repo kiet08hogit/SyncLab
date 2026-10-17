@@ -1,0 +1,10 @@
+{
+  "id": "filenamify-4-to-6-path-named-export",
+  "package": "filenamify",
+  "fromVersion": "4.3.0",
+  "toVersion": "6.0.0",
+  "category": "renamed-api",
+  "difficulty": "medium",
+  "breakingChange": "filenamify 5 became a pure ES module and moved filenamify.path() to the separate named export filenamifyPath(); the default export no longer has a path property.",
+  "reference": "https://github.com/sindresorhus/filenamify/releases/tag/v5.0.0"
+}

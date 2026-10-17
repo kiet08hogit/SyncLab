@@ -1,0 +1,11 @@
+{
+  "name": "lru-cache-7-to-10-named-export",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "lru-cache": "7.18.3"
+  }
+}

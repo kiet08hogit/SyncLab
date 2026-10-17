@@ -1,0 +1,11 @@
+{
+  "name": "query-string-7-to-9-read-write",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "query-string": "7.1.3"
+  }
+}

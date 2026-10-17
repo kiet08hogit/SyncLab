@@ -1,0 +1,11 @@
+{
+  "name": "rimraf-3-to-5-glob-cleanup",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "rimraf": "3.0.2"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "joi-14-to-17-error-types",
+  "package": "joi",
+  "fromVersion": "14.3.1",
+  "toVersion": "17.13.3",
+  "category": "behavior-change",
+  "difficulty": "hard",
+  "breakingChange": "joi 16 removed Joi.validate(value, schema, options, callback) (use schema.validate, which is synchronous and returns { error, value }) and renamed error detail types, e.g. any.allowOnly became any.only and an empty string now reports string.empty instead of any.empty. src/schemas.js needs no change and number.min keeps its type.",
+  "reference": "https://github.com/hapijs/joi/issues/2037"
+}

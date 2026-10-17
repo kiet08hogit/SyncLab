@@ -1,0 +1,11 @@
+{
+  "name": "filenamify-4-to-6-path-named-export",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "filenamify": "4.3.0"
+  }
+}

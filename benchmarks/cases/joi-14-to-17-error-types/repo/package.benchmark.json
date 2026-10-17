@@ -1,0 +1,11 @@
+{
+  "name": "joi-14-to-17-error-types",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "joi": "14.3.1"
+  }
+}

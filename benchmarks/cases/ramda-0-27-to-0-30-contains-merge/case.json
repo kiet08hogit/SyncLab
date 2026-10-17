@@ -1,0 +1,10 @@
+{
+  "id": "ramda-0-27-to-0-30-contains-merge",
+  "package": "ramda",
+  "fromVersion": "0.27.2",
+  "toVersion": "0.30.1",
+  "category": "removed-api",
+  "difficulty": "medium",
+  "breakingChange": "ramda 0.28.0 removed R.contains (use R.includes) and R.merge (use R.mergeRight with the same argument order). src/labels.js already uses R.includes and src/notes.js only mentions ramda in a string.",
+  "reference": "https://github.com/ramda/ramda/releases/tag/v0.28.0"
+}

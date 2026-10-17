@@ -1,0 +1,10 @@
+{
+  "id": "js-yaml-3-to-4-safe-load",
+  "package": "js-yaml",
+  "fromVersion": "3.15.2",
+  "toVersion": "4.3.2",
+  "category": "removed-api",
+  "difficulty": "easy",
+  "breakingChange": "js-yaml 4 removed safeLoad (it now throws); load is safe by default and must be used instead.",
+  "reference": "https://github.com/nodeca/js-yaml/blob/master/migrate_v3_to_v4.md"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "immer-9-to-10-default-import",
+  "package": "immer",
+  "fromVersion": "9.0.21",
+  "toVersion": "10.1.1",
+  "category": "default-export-change",
+  "difficulty": "easy",
+  "breakingChange": "immer 10 removed the default export; produce must be imported by name (import { produce } from 'immer').",
+  "reference": "https://github.com/immerjs/immer/releases/tag/v10.0.0"
+}

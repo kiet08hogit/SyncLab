@@ -1,0 +1,10 @@
+{
+  "id": "joi-14-to-17-validate",
+  "package": "joi",
+  "fromVersion": "14.3.1",
+  "toVersion": "17.13.3",
+  "category": "removed-api",
+  "difficulty": "easy",
+  "breakingChange": "joi 16 removed the top-level Joi.validate(value, schema, options); validation is called on the schema itself with schema.validate(value, options).",
+  "reference": "https://github.com/hapijs/joi/issues/2037"
+}

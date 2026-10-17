@@ -1,0 +1,10 @@
+{
+  "id": "node-fetch-2-to-3-default-export",
+  "package": "node-fetch",
+  "fromVersion": "2.7.0",
+  "toVersion": "3.3.2",
+  "category": "esm-only",
+  "difficulty": "easy",
+  "breakingChange": "node-fetch 3 is ESM-only, so require('node-fetch') returns the module namespace and the fetch function is on its default export.",
+  "reference": "https://github.com/node-fetch/node-fetch/blob/main/docs/v3-UPGRADE-GUIDE.md"
+}

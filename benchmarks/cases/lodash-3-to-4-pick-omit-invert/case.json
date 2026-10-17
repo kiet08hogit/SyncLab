@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-pick-omit-invert",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "signature-change",
+  "difficulty": "hard",
+  "breakingChange": "lodash 4 split predicate and customizer forms into separate methods: _.pick and _.omit with a predicate became _.pickBy and _.omitBy, _.invert with multiValue became _.invertBy, and _.isEqual with a customizer became _.isEqualWith. src/public.js already uses _.pick and _.omit with key lists, which are unchanged.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

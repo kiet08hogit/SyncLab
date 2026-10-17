@@ -1,453 +1,285 @@
-import { spawn } from 'node:child_process';
+// Runs every validated case through SyncLab's real migration loop, exactly as
+// the worker sequences it (install -> baseline test -> upgrade -> refactor/test
+// up to LLM_MAX_ATTEMPTS), each phase in the production sandbox image with the
+// production container options. Only prepare (clone) and publish (push, PR)
+// are left out: the checkout is seeded from the case instead of cloned, and
+// nothing is pushed.
+//
+// Success means the project's own test suite passes after the migration and
+// no test file was modified. Results are appended after every case, so an
+// interrupted run continues with --resume.
+import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { analyzeDependencyUsage } from '../server/sandbox/dist/analysis/imports.js';
-import { collectSourceFiles } from '../server/sandbox/dist/files.js';
-import { refactor } from '../server/sandbox/dist/phases/refactor.js';
-import { test as runTests } from '../server/sandbox/dist/phases/test.js';
-import { writeBreakingChanges } from '../server/sandbox/dist/state.js';
-import { normalizeVersion, upgradeDependency } from '../server/sandbox/dist/upgrade.js';
+import {
+  argSet,
+  benchmarkConfig,
+  createDriver,
+  extract,
+  hashFiles,
+  jobParams,
+  listFiles,
+  loadCases,
+  readNotes,
+  removeVolume,
+  resultsDir,
+  root,
+  seedVolume,
+} from './lib/sandbox.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const casesDir = path.join(root, 'benchmarks', 'cases');
-const resultsDir = path.join(root, 'benchmarks', 'results');
-const MAX_ATTEMPTS = 3;
+const config = benchmarkConfig();
+const driver = createDriver(config);
+const MAX_ATTEMPTS = config.llm.maxAttempts;
 
-function loadEnvFile(filePath) {
-  return fs.readFile(filePath, 'utf8').then((text) => {
-    for (const line of text.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) {
-        continue;
-      }
-      const index = trimmed.indexOf('=');
-      const key = trimmed.slice(0, index);
-      const value = trimmed.slice(index + 1).replace(/^["']|["']$/g, '');
-      if (!process.env[key]) {
-        process.env[key] = value;
-      }
-    }
-  });
+const outArg = process.argv.find((arg) => arg.startsWith('--out='));
+const outFile = outArg ? path.resolve(outArg.slice('--out='.length)) : path.join(resultsDir, 'results.json');
+const resume = process.argv.includes('--resume');
+
+// A rate-limited model call does not fail a production job: BullMQ retries it
+// up to 3 times with exponential backoff from 2 minutes. The benchmark waits
+// the same way and retries the attempt, and keeps the wait out of the
+// migration time, since it measures the provider's quota rather than SyncLab.
+const RATE_LIMIT_BACKOFF_MS = [120_000, 240_000];
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function tail(text, lines = 30) {
+  return (text ?? '').split('\n').slice(-lines).join('\n');
 }
 
-function runCommand(command, args, cwd) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let output = '';
-    child.stdout.on('data', (chunk) => {
-      output += chunk.toString('utf8');
-    });
-    child.stderr.on('data', (chunk) => {
-      output += chunk.toString('utf8');
-    });
-    child.on('error', reject);
-    child.on('close', (code) => resolve({ code: code ?? -1, output }));
-  });
+function stepsText(result) {
+  return result.steps.map((step) => step.output).join('\n');
 }
 
-async function copyCase(source, destination) {
-  await fs.cp(source, destination, {
-    recursive: true,
-    filter: (entry) => path.basename(entry) !== 'node_modules' && path.basename(entry) !== 'case.json',
-  });
-}
-
-async function selectedFiles(repoDir, dependencyName) {
-  const files = await collectSourceFiles(repoDir);
-  const selected = [];
-  for (const absolutePath of files) {
-    const contents = await fs.readFile(absolutePath, 'utf8');
-    if (analyzeDependencyUsage(contents, dependencyName)) {
-      selected.push(path.relative(repoDir, absolutePath));
-    }
-  }
-  return selected.sort();
-}
-
-async function isUpgradeApplied(repoDir, spec) {
-  const version = normalizeVersion(spec.targetVersion);
-  const manifest = JSON.parse(await fs.readFile(path.join(repoDir, 'package.json'), 'utf8'));
-  const installed = JSON.parse(
-    await fs.readFile(path.join(repoDir, 'node_modules', spec.dependency, 'package.json'), 'utf8'),
-  );
-  const declared = { ...manifest.devDependencies, ...manifest.dependencies }[spec.dependency] ?? '';
-  return declared.replace(/^[\^~]/, '') === version && installed.version === version;
-}
-
-function sameSet(left, right) {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-async function containsPattern(repoDir, relativePath, pattern) {
-  const contents = await fs.readFile(path.join(repoDir, relativePath), 'utf8');
-  return contents.includes(pattern);
-}
-
-async function runCase(caseDir) {
-  const spec = JSON.parse(await fs.readFile(path.join(caseDir, 'case.json'), 'utf8'));
+async function timed(fn) {
   const started = Date.now();
-  // Keyed by provider so runs against different providers can go in parallel.
-  const workspace = path.join(resultsDir, 'workspaces', process.env.LLM_PROVIDER, spec.id);
-  const repoDir = path.join(workspace, 'repo');
-  const stateDir = path.join(workspace, 'state');
-  await fs.rm(workspace, { recursive: true, force: true });
-  await copyCase(caseDir, repoDir);
-  await writeBreakingChanges(stateDir, spec.breakingChanges);
+  const value = await fn();
+  return { value, ms: Date.now() - started };
+}
 
-  const installStarted = Date.now();
-  const install = await runCommand('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], repoDir);
-  const installMs = Date.now() - installStarted;
-  if (install.code !== 0) {
-    return failureRecord(spec, started, installMs, {
-      failureCategory: 'setup_failed',
-      failureReason: `npm install failed: ${install.output.slice(-500)}`,
-      selectedFiles: [],
-      astCorrect: false,
-    });
-  }
-
-  // Cases marked upgrade start on the old version, so they exercise the same
-  // upgrade step the prepare phase runs before the refactor.
-  if (spec.upgrade) {
-    const upgrade = await upgradeDependency(repoDir, spec.dependency, spec.targetVersion);
-    if (!upgrade.ok) {
-      return failureRecord(spec, started, installMs, {
-        failureCategory: 'setup_failed',
-        failureReason: `${upgrade.error}: ${upgrade.step.output.slice(-500)}`,
-        selectedFiles: [],
-        astCorrect: false,
-      });
-    }
-  }
-  const upgradeApplied = spec.upgrade ? await isUpgradeApplied(repoDir, spec) : true;
-
-  const baseline = await runCommand('npm', ['test'], repoDir);
-  const selected = await selectedFiles(repoDir, spec.dependency);
-  const expected = [...spec.expectedFiles].sort();
-  const astCorrect = sameSet(selected, expected);
-
-  applyEnv(repoDir, stateDir, spec);
-
-  const attempts = [];
-  let finalBuild = { ok: false, output: '' };
-  let finalTest = { ok: false, output: '' };
-  let changedFiles = [];
-
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    process.env.REFACTOR_ATTEMPT = String(attempt);
-    const attemptStarted = Date.now();
-    const refactored = await refactor();
-    const changed = Array.isArray(refactored.data?.changedFiles) ? refactored.data.changedFiles : [];
-    changedFiles = [...new Set([...changedFiles, ...changed])];
-
-    if (!refactored.ok) {
-      attempts.push({
-        attempt,
-        refactorOk: false,
-        retryable: refactored.data?.retryable === true,
-        error: refactored.error ?? 'refactor failed',
-        durationMs: Date.now() - attemptStarted,
-      });
-      if (refactored.data?.retryable !== true) {
-        break;
-      }
-      continue;
-    }
-
-    const build = await runCommand('npm', ['run', 'build'], repoDir);
-    const tested = await runTests();
-    finalBuild = { ok: build.code === 0, output: build.output };
-    finalTest = { ok: tested.ok, output: tested.steps.map((step) => step.output).join('\n') };
-    if (!finalBuild.ok) {
-      const { writeTestOutput } = await import('../server/sandbox/dist/state.js');
-      await writeTestOutput(stateDir, `Build failed:\n${build.output}\n\n${finalTest.output}`);
-    }
-
-    attempts.push({
-      attempt,
-      refactorOk: true,
-      changedFiles: changed,
-      buildOk: finalBuild.ok,
-      testsOk: finalTest.ok,
-      durationMs: Date.now() - attemptStarted,
-    });
-
-    if (finalBuild.ok && finalTest.ok) {
-      break;
-    }
-  }
-
-  const patternsRemaining = [];
-  for (const relativePath of spec.filesThatMustChange) {
-    for (const pattern of spec.removedPatterns) {
-      if (await containsPattern(repoDir, relativePath, pattern)) {
-        patternsRemaining.push(`${relativePath}: ${pattern}`);
-      }
-    }
-  }
-
-  const requiredChangesMade = spec.filesThatMustChange.every((file) => changedFiles.includes(file));
-  const first = attempts[0];
-  const firstAttemptSuccess = Boolean(
-    first && first.buildOk && first.testsOk && patternsRemaining.length === 0 && requiredChangesMade && astCorrect,
-  );
-  const buildPassed = finalBuild.ok;
-  const testsPassed = finalTest.ok;
-  const success =
-    upgradeApplied &&
-    astCorrect &&
-    requiredChangesMade &&
-    patternsRemaining.length === 0 &&
-    buildPassed &&
-    testsPassed &&
-    attempts.length > 0 &&
-    attempts.length <= MAX_ATTEMPTS;
-
-  let failureCategory = null;
-  let failureReason = null;
-  if (!success) {
-    if (!upgradeApplied) {
-      failureCategory = 'upgrade_not_applied';
-      failureReason = `package.json or node_modules is not at ${spec.dependency}@${spec.targetVersion}`;
-    } else if (!astCorrect) {
-      failureCategory = 'ast_mismatch';
-      failureReason = `selected [${selected.join(', ')}], expected [${expected.join(', ')}]`;
-    } else if (attempts.some((attempt) => attempt.retryable)) {
-      failureCategory = 'rate_limit';
-      failureReason = attempts.find((attempt) => attempt.error)?.error ?? 'model rate limited';
-    } else if (attempts.some((attempt) => attempt.refactorOk === false)) {
-      failureCategory = 'model_error';
-      failureReason = attempts.find((attempt) => attempt.error)?.error ?? 'model call failed';
-    } else if (!requiredChangesMade || patternsRemaining.length > 0) {
-      failureCategory = 'incomplete_migration';
-      failureReason = patternsRemaining.join('; ') || `changed [${changedFiles.join(', ')}]`;
-    } else if (!buildPassed) {
-      failureCategory = 'build_failed';
-      failureReason = finalBuild.output.slice(-500);
-    } else if (!testsPassed) {
-      failureCategory = 'tests_failed';
-      failureReason = finalTest.output.slice(-500);
-    } else {
-      failureCategory = 'unknown';
-      failureReason = 'success criteria were not all met';
-    }
-  }
-
+/** Files under repo/ the migration changed, added or removed, excluding the dependency bump. */
+async function compareTrees(originalDir, finalDir) {
+  const before = await listFiles(originalDir);
+  const after = await listFiles(finalDir);
+  const ignored = new Set(['package.json', 'package-lock.json', 'package.benchmark.json', 'package-lock.benchmark.json']);
+  const all = [...new Set([...before, ...after])].filter((file) => !ignored.has(file)).sort();
+  const beforeHashes = await hashFiles(originalDir, before.filter((file) => !ignored.has(file)));
+  const afterHashes = await hashFiles(finalDir, after.filter((file) => !ignored.has(file)));
+  const changed = all.filter((file) => beforeHashes[file] !== afterHashes[file]);
   return {
-    id: spec.id,
-    difficulty: spec.difficulty,
-    dependency: spec.dependency,
-    targetVersion: spec.targetVersion,
-    summary: spec.summary,
-    filesAffected: spec.filesThatMustChange.length,
-    expectedFiles: expected,
-    selectedFiles: selected,
-    astCorrect,
-    upgradeApplied,
-    changedFiles,
-    requiredChangesMade,
-    patternsRemaining,
-    firstAttemptPassed: firstAttemptSuccess,
-    attemptsUsed: attempts.length,
-    attempts,
-    buildPassed,
-    testsPassed,
-    baselineTestsFailed: baseline.code !== 0,
-    success,
-    failureCategory,
-    failureReason,
-    installMs,
-    executionMs: Date.now() - started - installMs,
-    totalMs: Date.now() - started,
+    changedFiles: changed.filter((file) => !file.startsWith('test/')),
+    modifiedTests: changed.filter((file) => file.startsWith('test/')),
   };
 }
 
-function failureRecord(spec, started, installMs, extra) {
-  return {
+async function runCase(spec) {
+  const volume = `synclab-bench-run-${spec.id}`;
+  const params = jobParams(spec, config);
+  const notes = await readNotes(spec.id);
+  const record = {
     id: spec.id,
+    package: spec.package,
+    fromVersion: spec.fromVersion,
+    toVersion: spec.toVersion,
+    category: spec.category,
     difficulty: spec.difficulty,
-    dependency: spec.dependency,
-    targetVersion: spec.targetVersion,
-    summary: spec.summary,
-    filesAffected: spec.filesThatMustChange.length,
-    expectedFiles: [...spec.expectedFiles].sort(),
-    changedFiles: [],
-    requiredChangesMade: false,
-    patternsRemaining: [],
+    model: `${config.llm.provider}/${config.llm.model}`,
+    releaseNotesFound: !notes.startsWith('No release notes were found'),
+    success: false,
     firstAttemptPassed: false,
     attemptsUsed: 0,
+    failureCategory: null,
+    failureReason: null,
+    changedFiles: [],
+    modifiedTests: [],
     attempts: [],
-    buildPassed: false,
-    testsPassed: false,
-    baselineTestsFailed: false,
-    success: false,
-    installMs,
-    executionMs: Date.now() - started - installMs,
-    totalMs: Date.now() - started,
-    ...extra,
+    timings: {},
+  };
+  const started = Date.now();
+
+  try {
+    await seedVolume(volume, path.join(spec.dir, 'repo'), notes);
+
+    const install = await timed(() => driver.runPhase('install', volume, params, 1));
+    record.timings.installMs = install.ms;
+    if (!install.value.ok) {
+      return fail(record, 'install_failed', tail(stepsText(install.value)));
+    }
+
+    const baseline = await timed(() =>
+      driver.runPhase('test', volume, params, 1, { TEST_BASELINE: 'true' }),
+    );
+    record.timings.baselineMs = baseline.ms;
+    if (!baseline.value.ok) {
+      return fail(record, 'baseline_failed', tail(stepsText(baseline.value)));
+    }
+
+    // Migration time: from the upgrade to the last test run, which is the
+    // part of the job SyncLab is responsible for.
+    const migrationStarted = Date.now();
+    const upgrade = await timed(() => driver.runPhase('upgrade', volume, params, 1));
+    record.timings.upgradeMs = upgrade.ms;
+    if (!upgrade.value.ok) {
+      return fail(record, 'upgrade_failed', tail(stepsText(upgrade.value)));
+    }
+
+    let passed = false;
+    let lastTestOutput = '';
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      record.attemptsUsed = attempt;
+      const entry = { attempt };
+      record.attempts.push(entry);
+
+      let refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
+      for (const wait of RATE_LIMIT_BACKOFF_MS) {
+        if (refactor.value.ok || refactor.value.data?.retryable !== true) break;
+        entry.rateLimitRetries = (entry.rateLimitRetries ?? 0) + 1;
+        record.timings.rateLimitWaitMs = (record.timings.rateLimitWaitMs ?? 0) + wait + refactor.ms;
+        await sleep(wait);
+        refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
+      }
+      entry.refactorMs = refactor.ms;
+      entry.refactorOk = refactor.value.ok;
+      entry.refactorChangedFiles = refactor.value.data?.changedFiles ?? [];
+      entry.refactorLog = tail(stepsText(refactor.value), 40);
+      if (!refactor.value.ok) {
+        record.timings.migrationMs = Date.now() - migrationStarted - (record.timings.rateLimitWaitMs ?? 0);
+        const limited = refactor.value.data?.retryable === true;
+        return fail(record, limited ? 'rate_limited' : 'model_error', refactor.value.error ?? 'refactor failed');
+      }
+
+      const tested = await timed(() => driver.runPhase('test', volume, params, attempt));
+      entry.testMs = tested.ms;
+      entry.testPassed = tested.value.ok;
+      lastTestOutput = stepsText(tested.value);
+      entry.testTail = tail(lastTestOutput, 25);
+      if (tested.value.ok) {
+        passed = true;
+        break;
+      }
+    }
+    record.timings.migrationMs = Date.now() - migrationStarted - (record.timings.rateLimitWaitMs ?? 0);
+
+    const finalDir = await fs.mkdtemp(path.join(os.tmpdir(), `synclab-bench-${spec.id}-`));
+    await extract(volume, finalDir);
+    const diff = await compareTrees(path.join(spec.dir, 'repo'), finalDir);
+    await fs.rm(finalDir, { recursive: true, force: true });
+    record.changedFiles = diff.changedFiles;
+    record.modifiedTests = diff.modifiedTests;
+
+    if (diff.modifiedTests.length > 0) {
+      return fail(record, 'tests_modified', `the migration changed ${diff.modifiedTests.join(', ')}`);
+    }
+    if (!passed) {
+      return fail(
+        record,
+        diff.changedFiles.length === 0 ? 'no_changes' : 'tests_failed',
+        tail(lastTestOutput, 25),
+      );
+    }
+
+    record.success = true;
+    record.firstAttemptPassed = record.attemptsUsed === 1;
+    return record;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return fail(record, /exceeded \d+ms and was killed/.test(message) ? 'timeout' : 'harness_error', message);
+  } finally {
+    record.timings.totalMs = Date.now() - started;
+    await removeVolume(volume);
+  }
+}
+
+function fail(record, category, reason) {
+  record.failureCategory = category;
+  record.failureReason = reason;
+  return record;
+}
+
+function git(...args) {
+  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+}
+
+async function modelInfo() {
+  // Whether the model is the worker's default for the provider, or overridden.
+  const source = process.env.LLM_MODEL ? 'LLM_MODEL override' : 'worker default';
+  if (config.llm.provider !== 'ollama') {
+    return { provider: config.llm.provider, model: config.llm.model, source };
+  }
+  // The host reaches Ollama on localhost; the sandbox reaches it via host.docker.internal.
+  const tags = await fetch('http://localhost:11434/api/tags').then((response) => response.json());
+  const entry = tags.models.find((model) => model.name === config.llm.model);
+  return {
+    provider: 'ollama',
+    model: config.llm.model,
+    digest: entry?.digest ?? null,
+    parameterSize: entry?.details?.parameter_size ?? null,
+    quantization: entry?.details?.quantization_level ?? null,
+    numCtx: config.llm.numCtx,
+    source,
   };
 }
 
-function applyEnv(repoDir, stateDir, spec) {
-  process.env.SANDBOX_WORKSPACE = path.dirname(repoDir);
-  process.env.REPO_URL = 'https://example.invalid/synclab/benchmark.git';
-  process.env.REPO_FULL_NAME = `synclab/${spec.id}`;
-  process.env.DEPENDENCY_NAME = spec.dependency;
-  process.env.TARGET_VERSION = spec.targetVersion;
-  process.env.BRANCH_NAME = `synclab/${spec.id}`;
-  process.env.REFACTOR_MAX_ATTEMPTS = String(MAX_ATTEMPTS);
-  process.env.LLM_MAX_FILES = process.env.LLM_MAX_FILES || '20';
-  process.env.LLM_MAX_FILE_BYTES = process.env.LLM_MAX_FILE_BYTES || '60000';
-  if (!process.env.LLM_MODEL) {
-    process.env.LLM_MODEL = DEFAULT_MODELS[process.env.LLM_PROVIDER];
-  }
-  // The benchmark runs on the host, not in a sandbox container, so Ollama is
-  // on localhost rather than host.docker.internal.
-  process.env.LLM_BASE_URL = 'http://localhost:11434';
-  void stateDir;
-}
+const validation = JSON.parse(await fs.readFile(path.join(resultsDir, 'validation.json'), 'utf8'));
+const validIds = new Set(validation.cases.filter((entry) => entry.valid).map((entry) => entry.id));
+const only = argSet('only');
+const cases = (await loadCases(only)).filter((spec) => validIds.has(spec.id));
+const skippedInvalid = (await loadCases(only)).filter((spec) => !validIds.has(spec.id)).map((spec) => spec.id);
 
-function percent(part, total) {
-  if (total === 0) {
-    return 'n/a';
-  }
-  return `${((part / total) * 100).toFixed(1)}% (${part}/${total})`;
-}
-
-function report(results, meta) {
-  const total = results.length;
-  const successes = results.filter((result) => result.success);
-  const first = results.filter((result) => result.firstAttemptPassed);
-  const ast = results.filter((result) => result.astCorrect);
-  const averageAttempts =
-    successes.length === 0
-      ? 'n/a'
-      : (successes.reduce((sum, result) => sum + result.attemptsUsed, 0) / successes.length).toFixed(2);
-  const categories = {};
-  for (const result of results) {
-    if (!result.success) {
-      categories[result.failureCategory ?? 'unknown'] = (categories[result.failureCategory ?? 'unknown'] ?? 0) + 1;
-    }
-  }
-
-  const lines = [
-    '# SyncLab local migration benchmark',
-    '',
-    'Synthetic local fixtures. This is not a production or live-webhook result.',
-    'The runner calls the sandbox `refactor` and `test` phases. It does not receive a GitHub webhook, clone a repository, or open a pull request.',
-    'A case counts as successful only when AST targeting matches, every file that must change was rewritten, removed APIs are gone, `npm run build` passes, and `npm test` passes within 3 attempts.',
-    '',
-    `- Started: ${meta.startedAt}`,
-    `- Model: ${meta.provider}/${meta.model}`,
-    `- Max attempts: ${MAX_ATTEMPTS}`,
-    '',
-    '## Summary',
-    '',
-    `- Total cases: ${total}`,
-    `- First-attempt success rate: ${percent(first.length, total)}`,
-    `- Final success rate within 3 attempts: ${percent(successes.length, total)}`,
-    `- Average attempts for successful migrations: ${averageAttempts}`,
-    `- AST targeting accuracy: ${percent(ast.length, total)}`,
-    `- Failures: ${total - successes.length}`,
-    '',
-    '## Failure categories',
-    '',
-  ];
-
-  if (Object.keys(categories).length === 0) {
-    lines.push('None.');
-  } else {
-    for (const [category, count] of Object.entries(categories)) {
-      lines.push(`- ${category}: ${count}`);
-    }
-  }
-
-  lines.push('', '## Cases', '');
-  for (const result of results) {
-    lines.push(`### ${result.id} (${result.difficulty})`);
-    lines.push('');
-    lines.push(`- Dependency: ${result.dependency}@${result.targetVersion}`);
-    lines.push(`- Files that must change: ${result.filesAffected}`);
-    lines.push(`- AST selected: ${result.selectedFiles.join(', ') || '(none)'}`);
-    lines.push(`- AST correct: ${result.astCorrect}`);
-    lines.push(`- First attempt passed: ${result.firstAttemptPassed}`);
-    lines.push(`- Attempts used: ${result.attemptsUsed}`);
-    lines.push(`- Build passed: ${result.buildPassed}`);
-    lines.push(`- Tests passed: ${result.testsPassed}`);
-    lines.push(`- Success: ${result.success}`);
-    lines.push(`- Execution time excluding install: ${(result.executionMs / 1000).toFixed(1)}s`);
-    if (!result.success) {
-      lines.push(`- Failure category: ${result.failureCategory}`);
-      lines.push(`- Failure reason: ${result.failureReason}`);
-    }
-    lines.push('');
-  }
-
-  lines.push('## Rerun', '');
-  lines.push('```bash');
-  lines.push('cd server/sandbox && npm run build');
-  lines.push('cd ../.. && node benchmarks/run.mjs');
-  lines.push('```');
-  lines.push('');
-  lines.push(
-    'Uses `LLM_PROVIDER` (default `ollama`, with Ollama running on localhost). With `gemini` or `anthropic`, requires `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` in the environment or in `server/api/.env`.',
-  );
-  lines.push('');
-  return lines.join('\n');
-}
-
-const startedAt = new Date().toISOString();
-await loadEnvFile(path.join(root, 'server', 'api', '.env')).catch(() => undefined);
-const DEFAULT_MODELS = {
-  ollama: 'qwen2.5-coder:14b',
-  gemini: 'gemini-3.1-pro-preview',
-  anthropic: 'claude-opus-5-5',
-};
-const API_KEY_ENV = { gemini: 'GEMINI_API_KEY', anthropic: 'ANTHROPIC_API_KEY' };
-if (!process.env.LLM_PROVIDER) {
-  process.env.LLM_PROVIDER = 'ollama';
-}
-if (!Object.hasOwn(DEFAULT_MODELS, process.env.LLM_PROVIDER)) {
-  throw new Error(
-    `LLM_PROVIDER must be one of ${Object.keys(DEFAULT_MODELS).join(', ')}, got "${process.env.LLM_PROVIDER}".`,
-  );
-}
-const keyEnv = API_KEY_ENV[process.env.LLM_PROVIDER];
-if (keyEnv && !process.env[keyEnv]) {
-  throw new Error(`${keyEnv} is not set. Refusing to invent benchmark results.`);
-}
-
-const onlyArg = process.argv.find((arg) => arg.startsWith('--only='));
-const outArg = process.argv.find((arg) => arg.startsWith('--out='));
-const only = onlyArg ? new Set(onlyArg.slice('--only='.length).split(',').filter(Boolean)) : null;
-const outFile = outArg ? outArg.slice('--out='.length) : 'results.json';
-
-const entries = (await fs.readdir(casesDir, { withFileTypes: true }))
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name)
-  .filter((name) => !only || only.has(name))
-  .sort();
-
-const results = [];
-for (const name of entries) {
-  process.stdout.write(`running ${name}\n`);
-  results.push(await runCase(path.join(casesDir, name)));
-  process.stdout.write(`finished ${name}: success=${results.at(-1).success}\n`);
-}
-
-await fs.mkdir(resultsDir, { recursive: true });
-const payload = {
-  kind: 'local-synthetic',
-  startedAt,
-  finishedAt: new Date().toISOString(),
-  provider: process.env.LLM_PROVIDER,
-  model: process.env.LLM_MODEL,
+const previous = resume ? JSON.parse(await fs.readFile(outFile, 'utf8').catch(() => 'null')) : null;
+const done = new Map((previous?.results ?? []).map((entry) => [entry.id, entry]));
+const meta = previous?.meta ?? {
+  startedAt: new Date().toISOString(),
+  commit: git('rev-parse', 'HEAD'),
+  dirty: git('status', '--porcelain', '--', 'server').length > 0,
+  image: config.sandbox.image,
+  imageId: execFileSync('docker', ['image', 'inspect', '--format', '{{.Id}}', config.sandbox.image], {
+    encoding: 'utf8',
+  }).trim(),
+  model: await modelInfo(),
   maxAttempts: MAX_ATTEMPTS,
-  results,
+  sandbox: {
+    memoryBytes: config.sandbox.memoryBytes,
+    nanoCpus: config.sandbox.nanoCpus,
+    pidsLimit: config.sandbox.pidsLimit,
+    timeoutMs: config.sandbox.timeoutMs,
+  },
+  host: { platform: process.platform, arch: process.arch, cpus: os.cpus().length, node: process.version },
 };
-await fs.writeFile(path.join(resultsDir, outFile), `${JSON.stringify(payload, null, 2)}\n`);
-if (outFile === 'results.json') {
-  await fs.writeFile(path.join(resultsDir, 'report.md'), report(results, payload));
+if (skippedInvalid.length > 0) {
+  console.log(`skipping ${skippedInvalid.length} case(s) not marked valid in validation.json: ${skippedInvalid.join(', ')}`);
 }
-process.stdout.write(`wrote benchmarks/results/${outFile}\n`);
+
+async function save() {
+  const results = [...done.values()].sort((a, b) => a.id.localeCompare(b.id));
+  await fs.mkdir(path.dirname(outFile), { recursive: true });
+  await fs.writeFile(
+    outFile,
+    `${JSON.stringify({ meta: { ...meta, finishedAt: new Date().toISOString(), cases: results.length }, results }, null, 2)}\n`,
+  );
+}
+
+meta.commits = [...new Set([...(meta.commits ?? [meta.commit]), git('rev-parse', 'HEAD')])];
+meta.models = [...new Set([...(meta.models ?? [`${meta.model.provider}/${meta.model.model}`]), `${config.llm.provider}/${config.llm.model}`])];
+
+for (const [index, spec] of cases.entries()) {
+  if (done.has(spec.id)) continue;
+  process.stdout.write(`[${index + 1}/${cases.length}] ${spec.id} ... `);
+  const record = await runCase(spec);
+  // A spent daily quota says nothing about the migration: leave the case
+  // unrecorded so --resume runs it again, possibly with another model.
+  if (record.failureCategory === 'rate_limited' && /PerDay/.test(record.failureReason ?? '')) {
+    process.stdout.write(`daily quota for ${config.llm.model} is spent; stopping without recording this case\n`);
+    await save();
+    process.exit(3);
+  }
+  done.set(spec.id, record);
+  await save();
+  process.stdout.write(
+    record.success
+      ? `passed on attempt ${record.attemptsUsed} (${Math.round(record.timings.migrationMs / 1000)}s)\n`
+      : `FAILED: ${record.failureCategory}\n`,
+  );
+}
+await save();
+console.log(`wrote ${path.relative(process.cwd(), outFile)}`);

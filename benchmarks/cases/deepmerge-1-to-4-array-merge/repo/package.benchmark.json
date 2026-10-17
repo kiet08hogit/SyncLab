@@ -1,0 +1,11 @@
+{
+  "name": "deepmerge-1-to-4-array-merge",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "deepmerge": "1.5.2"
+  }
+}

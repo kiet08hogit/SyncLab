@@ -1,0 +1,10 @@
+{
+  "id": "commander-6-to-7-opts",
+  "package": "commander",
+  "fromVersion": "6.2.1",
+  "toVersion": "7.2.0",
+  "category": "behavior-change",
+  "difficulty": "medium",
+  "breakingChange": "commander 7 stopped storing option values as properties on the command by default; values must be read from program.opts().",
+  "reference": "https://github.com/tj/commander.js/blob/master/CHANGELOG.md#700-2021-01-15"
+}

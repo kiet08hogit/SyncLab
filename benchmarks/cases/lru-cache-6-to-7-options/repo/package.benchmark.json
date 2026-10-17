@@ -1,0 +1,11 @@
+{
+  "name": "lru-cache-6-to-7-options",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "lru-cache": "6.0.0"
+  }
+}

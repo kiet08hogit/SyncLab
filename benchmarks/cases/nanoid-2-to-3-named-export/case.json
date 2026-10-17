@@ -1,0 +1,10 @@
+{
+  "id": "nanoid-2-to-3-named-export",
+  "package": "nanoid",
+  "fromVersion": "2.1.11",
+  "toVersion": "3.3.20",
+  "category": "default-export-change",
+  "difficulty": "easy",
+  "breakingChange": "nanoid 3 no longer exports the generator as the default export; it must be imported as the named export nanoid.",
+  "reference": "https://github.com/ai/nanoid/blob/main/CHANGELOG.md#30"
+}

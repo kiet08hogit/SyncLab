@@ -1,0 +1,11 @@
+{
+  "name": "immer-9-to-10-default-import",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "immer": "9.0.21"
+  }
+}

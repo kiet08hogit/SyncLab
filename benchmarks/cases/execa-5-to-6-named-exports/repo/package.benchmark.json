@@ -1,0 +1,11 @@
+{
+  "name": "execa-5-to-6-named-exports",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "execa": "5.1.1"
+  }
+}

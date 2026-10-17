@@ -1,0 +1,10 @@
+{
+  "id": "deepmerge-1-to-4-array-merge",
+  "package": "deepmerge",
+  "fromVersion": "1.5.2",
+  "toVersion": "4.3.1",
+  "category": "behavior-change",
+  "difficulty": "hard",
+  "breakingChange": "deepmerge 2.0 changed the default array merge from merging elements by index (and skipping duplicates) to plain concatenation; the old behaviour must be restored with a custom arrayMerge option.",
+  "reference": "https://github.com/TehShrike/deepmerge/blob/master/changelog.md#200"
+}

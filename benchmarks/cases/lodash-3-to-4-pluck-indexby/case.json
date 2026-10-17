@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-pluck-indexby",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "removed-api",
+  "difficulty": "medium",
+  "breakingChange": "lodash 4 removed _.pluck (use _.map with a property shorthand) and renamed _.indexBy to _.keyBy. src/labels.js already uses _.map and src/notes.js only mentions lodash in a string.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

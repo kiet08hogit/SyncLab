@@ -1,0 +1,11 @@
+{
+  "name": "ajv-6-to-8-instance-path",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ajv": "6.12.6"
+  }
+}

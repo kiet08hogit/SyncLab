@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-pluck",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "removed-api",
+  "difficulty": "easy",
+  "breakingChange": "lodash 4.0.0 removed _.pluck; _.map with a property shorthand returns the same values.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

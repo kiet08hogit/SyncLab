@@ -1,0 +1,11 @@
+{
+  "name": "uuid-3-to-8-deep-imports",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "uuid": "3.4.0"
+  }
+}
