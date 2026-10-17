@@ -36,6 +36,8 @@ Anthropic does not publish an OpenAPI spec, so its changes come from the depreca
 A later improvement is to diff the type declarations of two `@anthropic-ai/sdk` releases, which carry the request parameters and model ID unions.
 
 The monitor stores every fetched source as a snapshot with a content hash, and only a changed hash is processed.
+The hash covers the text extracted from the page (its tables, in 6a), not the raw HTML, so markup that changes on every request does not count as a change.
+Each watched page is an `ApiSource` row that also records when it was last checked and its last error, which the dashboard shows as the source's freshness.
 A classifier result must quote its evidence, and the quote must appear verbatim in the snapshot, or the result is dropped.
 That keeps an LLM from inventing a breaking change.
 
@@ -78,7 +80,8 @@ The scanner extends `server/sandbox/src/analysis/imports.ts`:
 erDiagram
     REPOSITORIES ||--o{ REPOSITORY_SCANS : "is scanned by"
     REPOSITORY_SCANS ||--o{ API_USAGES : "finds"
-    API_PROVIDERS ||--o{ API_SOURCE_SNAPSHOTS : "is watched through"
+    API_PROVIDERS ||--o{ API_SOURCES : "is watched through"
+    API_SOURCES ||--o{ API_SOURCE_SNAPSHOTS : "changed as"
     API_PROVIDERS ||--o{ BREAKING_CHANGES : "ships"
     API_SOURCE_SNAPSHOTS ||--o{ BREAKING_CHANGES : "evidences"
     BREAKING_CHANGES ||--o{ API_IMPACTS : "affects"
@@ -89,12 +92,19 @@ erDiagram
         uuid id PK
         string slug "anthropic or openai"
     }
-    API_SOURCE_SNAPSHOTS {
+    API_SOURCES {
         uuid id PK
         uuid provider_id FK
-        string source_kind "spec, deprecations, release_notes, sdk_changelog"
-        string source_url
+        string kind "spec, deprecations, release_notes, sdk_changelog"
+        string url
+        timestamp last_checked_at
+        string last_error
+    }
+    API_SOURCE_SNAPSHOTS {
+        uuid id PK
+        uuid source_id FK
         string content_hash
+        string content "extracted text, not raw HTML"
         timestamp fetched_at
     }
     BREAKING_CHANGES {
@@ -106,8 +116,10 @@ erDiagram
         string field "parameter or model id, nullable"
         string replacement "nullable"
         date effective_at "nullable"
+        string section "heading the evidence sits under, nullable"
         string evidence "verbatim quote"
         string status "detected, confirmed, dismissed"
+        string subject_key "operation and field, unique per provider and kind"
     }
     REPOSITORY_SCANS {
         uuid id PK
@@ -211,7 +223,7 @@ In 6a every source is a `deprecations` page; 6b adds `spec`, `release_notes` and
 `kind` is one of the kinds in the table above and `status` is `detected`, `confirmed` or `dismissed`.
 `operation`, `field`, `replacement`, `effectiveAt` and `section` are `null` when they do not apply.
 `evidence` is the verbatim line of the snapshot the change was read from, and `section` is the heading it sits under.
-A model retirement names the model in `field`; an endpoint removal names it in `operation`, such as `POST /v1/edits`.
+A model retirement names the model in `field`; an endpoint removal names the path in `operation`, such as `/v1/edits`, because the deprecation pages do not give the HTTP method.
 
 ## Impact analysis
 

@@ -2,6 +2,16 @@ export const MIGRATION_QUEUE = 'migration-queue';
 export const MIGRATION_JOB_NAME = 'process-migration';
 export const SCAN_QUEUE = 'scan-queue';
 export const SCAN_JOB_NAME = 'scan-repository';
+export const API_MONITOR_QUEUE = 'api-monitor-queue';
+export const API_MONITOR_JOB_NAME = 'poll-api-sources';
+
+export const BreakingChangeStatus = {
+  DETECTED: 'detected',
+  CONFIRMED: 'confirmed',
+  DISMISSED: 'dismissed',
+} as const;
+
+export type BreakingChangeStatus = (typeof BreakingChangeStatus)[keyof typeof BreakingChangeStatus];
 
 export const JobStatus = {
   QUEUED: 'QUEUED',
