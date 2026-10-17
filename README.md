@@ -236,6 +236,8 @@ State passes between phases only through the shared `/workspace` volume: the rep
 
 #### Phase isolation
 
+The same image also runs the phases of a repository scan (`clone`, then `scan`) and the change monitor's `classify`, so the table covers them too.
+
 | Phase | Network | GitHub token | Model access | Runs repository code |
 | --- | --- | --- | --- | --- |
 | `prepare` | yes | yes | no | no |
@@ -244,8 +246,11 @@ State passes between phases only through the shared `/workspace` volume: the rep
 | `refactor` | yes | no | yes | no |
 | `test` | **none** | no | no | **yes** (the test suite, baseline and each attempt) |
 | `publish` | yes | yes | no | no |
+| `clone` | yes | yes | no | no |
+| `scan` | **none** | no | no | no (only parses the checkout) |
+| `classify` | yes | no | yes | no (gets only the text to classify) |
 
-The token is only ever present in the two phases that run nothing but SyncLab's own code.
+The token is only ever present in the phases that clone or push and run nothing but SyncLab's own code.
 Repository code can still write to the checkout on the volume, including its `.git` directory, so `publish` never runs git there: a planted hook, `core.fsmonitor` command or filter driver would otherwise run beside the token.
 
 Every container also runs as the non-root `node` user, with all Linux capabilities dropped, `no-new-privileges`, a hard memory ceiling with swap disabled, a CPU quota, a PID limit, and a per-phase timeout.
