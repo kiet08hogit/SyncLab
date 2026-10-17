@@ -283,7 +283,7 @@ Upgrades the migrated dependency with the detected package manager (`server/sand
 
 #### `refactor`
 
-1. Walks the repository's `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
+1. Walks the repository's `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
 2. Parses each file with Babel and keeps only the files that `import` or `require` the dependency (including deep imports such as `pkg/sub`), recording the imported names and the lines that use them.
 3. Caps the work at `LLM_MAX_FILES` files of at most `LLM_MAX_FILE_BYTES` each, and reports anything it skipped.
 4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Ollama by default).
@@ -413,7 +413,7 @@ SyncLab/
 │   └── sandbox/               code that runs inside the sandbox containers
 │       ├── Dockerfile
 │       └── src/
-│           ├── phases/        prepare, install, upgrade, refactor, test, publish
+│           ├── phases/        prepare, install, upgrade, refactor, test, publish, scan
 │           ├── analysis/      Babel import and usage analysis
 │           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
 │           ├── package-manager.ts  npm, pnpm and yarn detection and commands
