@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { ApiMonitorService } from './api-monitor.service';
+import { acceptFor, ApiMonitorService, contentOf } from './api-monitor.service';
 
 function recorded(name: string): string {
   return gunzipSync(readFileSync(join(__dirname, 'fixtures', name))).toString('utf8');
@@ -26,11 +26,12 @@ interface ChangeRow {
  * The three tables the monitor writes, in memory, enforcing the same unique
  * key as breaking_changes so a duplicate insert fails like it would in Postgres.
  */
-function setup() {
+function setup(kind = 'deprecations', sandbox?: { classify: jest.Mock }) {
   const source = {
     id: 'source-1',
     providerId: 'anthropic-id',
-    kind: 'deprecations',
+    provider: { slug: 'anthropic' },
+    kind,
     url: 'https://platform.claude.com/docs/en/about-claude/model-deprecations',
     lastCheckedAt: null as Date | null,
     lastError: null as string | null,
@@ -100,11 +101,21 @@ function setup() {
     $transaction: jest.fn(<T>(fn: (tx: typeof prisma) => Promise<T>) => fn(prisma)),
   };
 
-  const service = new ApiMonitorService(client as never);
+  const service = new ApiMonitorService(client as never, sandbox as never);
   return { service, prisma, source, snapshots, changes };
 }
 
 const BEFORE = recorded('anthropic-deprecations-2026-09-26.html.gz');
+const SPEC_BEFORE = recorded('openai-openapi-35060f5b.json.gz');
+const SPEC_AFTER = recorded('openai-openapi-6ca9cb2b.json.gz');
+const CHANGELOG_BEFORE = recorded('anthropic-sdk-changelog-4951de02.md.gz');
+const CHANGELOG_AFTER = recorded('anthropic-sdk-changelog-4140e0ea.md.gz');
+const CLASSIFIED = JSON.parse(
+  readFileSync(
+    join(__dirname, 'fixtures', 'anthropic-sdk-changelog-0.123.0.classified.json'),
+    'utf8',
+  ),
+) as { changes: unknown[] };
 const AFTER = recorded('anthropic-deprecations-2026-10-01.html.gz');
 const day = (date: string) => new Date(`${date}T12:00:00Z`);
 
@@ -247,6 +258,20 @@ describe('ApiMonitorService', () => {
     expect(changes).toHaveLength(0);
   });
 
+  it('asks each kind of source for the format its reader parses', async () => {
+    const { service, source } = setup();
+    const fetcher = jest.fn().mockResolvedValue(AFTER);
+    service.useFetcher(fetcher);
+
+    await service.pollSource(source, day('2026-10-01'));
+
+    // A docs page offered markdown answers with markdown, which has no tables.
+    expect(fetcher).toHaveBeenCalledWith(source.url, 'text/html');
+    expect(acceptFor('spec')).toBe('application/json');
+    expect(acceptFor('release_notes')).toBe('text/html');
+    expect(acceptFor('sdk_changelog')).toMatch(/text\/plain/);
+  });
+
   it('records a failed fetch on the source and carries on with the next one', async () => {
     const { service, source, prisma } = setup();
     service.useFetcher(() => Promise.reject(new Error('GET https://example returned 503')));
@@ -269,5 +294,226 @@ describe('ApiMonitorService', () => {
     await service.pollSource(source, day('2026-10-01'));
 
     expect(source.lastError).toBeNull();
+  });
+
+  describe('the OpenAI spec', () => {
+    it('stores the first spec as a baseline and turns the real spend_control removal into two confirmed changes', async () => {
+      const { service, source, changes, snapshots } = setup('spec');
+
+      service.useFetcher(() => Promise.resolve(SPEC_BEFORE));
+      const baseline = await service.pollSource(source, day('2026-10-15'));
+      service.useFetcher(() => Promise.resolve(SPEC_AFTER));
+      const next = await service.pollSource(source, day('2026-10-16'));
+
+      expect(baseline).toMatchObject({ changed: true, created: 0 });
+      expect(next).toMatchObject({ changed: true, created: 2, updated: 0 });
+      expect(snapshots).toHaveLength(2);
+      expect(
+        changes.map(({ kind, operation, field, status }) => ({ kind, operation, field, status })),
+      ).toEqual([
+        {
+          kind: 'param_removed',
+          operation: 'POST /v1/agents/sessions',
+          field: 'spend_control',
+          status: 'confirmed',
+        },
+        {
+          kind: 'param_removed',
+          operation: 'POST /v1/agents/sessions/{session_id}',
+          field: 'spend_control',
+          status: 'confirmed',
+        },
+      ]);
+    });
+
+    it('records a body that is not an OpenAPI document as an error', async () => {
+      const { service, source, snapshots } = setup('spec');
+      service.useFetcher(() => Promise.resolve('{"hello":"world"}'));
+
+      const result = await service.pollSource(source, day('2026-10-15'));
+
+      expect(result.error).toMatch(/OpenAPI/);
+      expect(snapshots).toHaveLength(0);
+    });
+  });
+
+  describe('release notes and changelogs', () => {
+    const classifier = (answer: unknown) => ({
+      classify: jest.fn().mockResolvedValue({ ok: true, changes: answer, output: '' }),
+    });
+
+    it('does not classify the first snapshot of a source', async () => {
+      const sandbox = classifier([]);
+      const { service, source, snapshots } = setup('sdk_changelog', sandbox);
+      service.useFetcher(() => Promise.resolve(CHANGELOG_BEFORE));
+
+      await expect(service.pollSource(source, day('2026-08-31'))).resolves.toMatchObject({
+        changed: true,
+        created: 0,
+      });
+      expect(sandbox.classify).not.toHaveBeenCalled();
+      expect(snapshots).toHaveLength(1);
+    });
+
+    it('classifies only the lines a release added and keeps only changes quoted verbatim, as detected', async () => {
+      const sandbox = classifier(CLASSIFIED.changes);
+      const { service, source, changes } = setup('sdk_changelog', sandbox);
+      service.useFetcher(() => Promise.resolve(CHANGELOG_BEFORE));
+      await service.pollSource(source, day('2026-08-31'));
+      service.useFetcher(() => Promise.resolve(CHANGELOG_AFTER));
+
+      const result = await service.pollSource(source, day('2026-09-01'));
+
+      const [input] = sandbox.classify.mock.calls[0] as [
+        { provider: string; sourceKind: string; text: string },
+      ];
+      expect(input).toMatchObject({ provider: 'anthropic', sourceKind: 'sdk_changelog' });
+      expect(input.text).toContain('remove relationship in favor of access_type');
+      expect(input.text).toContain('## Changelog / 0.123.0 (2026-09-01)');
+      // Nothing the previous snapshot already had, apart from the section headings.
+      const known = new Set(contentOf('sdk_changelog', CHANGELOG_BEFORE).split('\n'));
+      const sent = input.text.split('\n').filter((line) => line !== '' && !line.startsWith('## '));
+      expect(sent.length).toBeGreaterThan(0);
+      expect(sent.filter((line) => known.has(line))).toEqual([]);
+
+      expect(result).toMatchObject({ changed: true, created: 1 });
+      expect(changes).toEqual([
+        expect.objectContaining({
+          kind: 'param_renamed',
+          field: 'relationship',
+          replacement: 'access_type',
+          status: 'detected',
+          section: 'Changelog / 0.123.0 (2026-09-01) / Features',
+          evidence:
+            'beta user profiles: add external_user_onboarded_at, remove relationship in favor of access_type',
+        }),
+      ]);
+    });
+
+    it('replays a recorded Gemini answer for the real 0.123.0 release into one detected change', async () => {
+      const recordedAnswer = JSON.parse(
+        readFileSync(
+          join(__dirname, 'fixtures', 'anthropic-sdk-changelog-0.123.0.gemini.json'),
+          'utf8',
+        ),
+      ) as { changes: unknown[] };
+      const { service, source, changes } = setup(
+        'sdk_changelog',
+        classifier(recordedAnswer.changes),
+      );
+      service.useFetcher(() => Promise.resolve(CHANGELOG_BEFORE));
+      await service.pollSource(source, day('2026-08-31'));
+      service.useFetcher(() => Promise.resolve(CHANGELOG_AFTER));
+
+      await service.pollSource(source, day('2026-09-01'));
+
+      expect(changes).toEqual([
+        expect.objectContaining({
+          kind: 'param_removed',
+          field: 'relationship',
+          replacement: 'access_type',
+          effectiveAt: new Date('2026-09-01T00:00:00Z'),
+          status: 'detected',
+          section: 'Changelog / 0.123.0 (2026-09-01) / Features',
+        }),
+      ]);
+    });
+
+    it('stores nothing when classification fails, so the next poll tries the same lines again', async () => {
+      const sandbox = { classify: jest.fn() };
+      const { service, source, snapshots, changes } = setup('sdk_changelog', sandbox);
+      sandbox.classify.mockResolvedValue({ ok: true, changes: [], output: '' });
+      service.useFetcher(() => Promise.resolve(CHANGELOG_BEFORE));
+      await service.pollSource(source, day('2026-08-31'));
+
+      sandbox.classify.mockResolvedValueOnce({
+        ok: false,
+        error: 'model call failed: connect ECONNREFUSED',
+        changes: [],
+        output: '',
+      });
+      service.useFetcher(() => Promise.resolve(CHANGELOG_AFTER));
+      const failed = await service.pollSource(source, day('2026-09-01'));
+
+      expect(failed.error).toMatch(/ECONNREFUSED/);
+      expect(source.lastError).toMatch(/ECONNREFUSED/);
+      expect(snapshots).toHaveLength(1);
+
+      sandbox.classify.mockResolvedValueOnce({ ok: true, changes: CLASSIFIED.changes, output: '' });
+      const retried = await service.pollSource(source, day('2026-09-01'));
+
+      expect(retried).toMatchObject({ changed: true, created: 1 });
+      expect(snapshots).toHaveLength(2);
+      expect(changes).toHaveLength(1);
+      expect(source.lastError).toBeNull();
+    });
+
+    it('never lets a classified change rewrite one the providers published', async () => {
+      const sandbox = classifier([
+        {
+          kind: 'param_renamed',
+          operation: null,
+          field: 'relationship',
+          replacement: 'something-else',
+          effectiveAt: null,
+          evidence:
+            'beta user profiles: add external_user_onboarded_at, remove relationship in favor of access_type',
+        },
+      ]);
+      const { service, source, changes } = setup('sdk_changelog', sandbox);
+      changes.push({
+        id: 'change-0',
+        providerId: 'anthropic-id',
+        snapshotId: 'older',
+        kind: 'param_renamed',
+        operation: null,
+        field: 'relationship',
+        replacement: 'access_type',
+        effectiveAt: null,
+        section: 'from a table',
+        evidence: 'the original evidence',
+        status: 'confirmed',
+        subjectKey: '|relationship',
+      });
+      service.useFetcher(() => Promise.resolve(CHANGELOG_BEFORE));
+      await service.pollSource(source, day('2026-08-31'));
+      service.useFetcher(() => Promise.resolve(CHANGELOG_AFTER));
+
+      const result = await service.pollSource(source, day('2026-09-01'));
+
+      expect(result).toMatchObject({ created: 0, updated: 0 });
+      expect(changes[0]).toMatchObject({
+        replacement: 'access_type',
+        evidence: 'the original evidence',
+        status: 'confirmed',
+      });
+    });
+
+    it('re-baselines without classifying when most of the page is new at once', async () => {
+      const sandbox = classifier(CLASSIFIED.changes);
+      const { service, source, snapshots, changes } = setup('sdk_changelog', sandbox);
+      // The same notes, but the first snapshot was read in another shape.
+      service.useFetcher(() => Promise.resolve('# Changelog\n\n## 0.1.0\n\n* initial release'));
+      await service.pollSource(source, day('2026-08-31'));
+      service.useFetcher(() => Promise.resolve(CHANGELOG_AFTER));
+
+      const result = await service.pollSource(source, day('2026-09-01'));
+
+      expect(result).toMatchObject({ changed: true, created: 0 });
+      expect(sandbox.classify).not.toHaveBeenCalled();
+      expect(snapshots).toHaveLength(2);
+      expect(changes).toHaveLength(0);
+    });
+
+    it('needs a worker to classify', async () => {
+      const { service, source } = setup('sdk_changelog');
+      service.useFetcher(() => Promise.resolve(CHANGELOG_BEFORE));
+      await service.pollSource(source, day('2026-08-31'));
+      service.useFetcher(() => Promise.resolve(CHANGELOG_AFTER));
+
+      const result = await service.pollSource(source, day('2026-09-01'));
+
+      expect(result.error).toMatch(/only workers run/);
+    });
   });
 });

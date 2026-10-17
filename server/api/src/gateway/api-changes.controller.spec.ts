@@ -1,10 +1,11 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApiChangesController } from './api-changes.controller';
 
 function setup() {
   const queries = {
     listProviders: jest.fn().mockResolvedValue([]),
     listChanges: jest.fn().mockResolvedValue([]),
+    setStatus: jest.fn(),
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
   const controller = new ApiChangesController(queries as never, queue as never);
@@ -56,5 +57,25 @@ describe('ApiChangesController', () => {
       expect(data).toEqual({});
       expect(opts.jobId).toBe('manual-poll');
     }
+  });
+
+  it.each([
+    ['confirm', 'confirmed'],
+    ['dismiss', 'dismissed'],
+  ] as const)('%ss a change and returns it', async (action, status) => {
+    const { controller, queries } = setup();
+    const change = { id: 'change-1', status };
+    queries.setStatus.mockResolvedValue(change);
+
+    await expect(controller[action]('change-1')).resolves.toBe(change);
+    expect(queries.setStatus).toHaveBeenCalledWith('change-1', status);
+  });
+
+  it('answers 404 for a change that does not exist', async () => {
+    const { controller, queries } = setup();
+    queries.setStatus.mockResolvedValue(null);
+
+    await expect(controller.confirm('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.dismiss('missing')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

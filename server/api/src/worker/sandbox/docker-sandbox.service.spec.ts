@@ -33,7 +33,22 @@ function resultLine(phase: SandboxPhase, run: NonNullable<ScriptedRun['result']>
  * the next scripted run for its phase, writing to the attached stream the way
  * the sandbox image does.
  */
-function setup(script: Partial<Record<SandboxPhase, ScriptedRun[]>>, sandbox = {}) {
+const OLLAMA_LLM = {
+  provider: 'ollama',
+  apiKey: '',
+  baseUrl: 'http://host.docker.internal:11434',
+  numCtx: 32_768,
+  model: 'qwen2.5-coder:14b',
+  maxAttempts: 1,
+  maxFiles: 20,
+  maxFileBytes: 60_000,
+};
+
+function setup(
+  script: Partial<Record<SandboxPhase, ScriptedRun[]>>,
+  sandbox = {},
+  llm: Record<string, unknown> = OLLAMA_LLM,
+) {
   const created: Array<{ phase: SandboxPhase; env: string[]; binds: string[]; network: string }> =
     [];
   const containers: Array<{ remove: jest.Mock; kill: jest.Mock }> = [];
@@ -98,14 +113,17 @@ function setup(script: Partial<Record<SandboxPhase, ScriptedRun[]>>, sandbox = {
   jest.mocked(Docker).mockImplementation(() => docker as never);
 
   const config = {
-    get: () => ({
-      image: 'synclab-sandbox:test',
-      timeoutMs: TIMEOUT_MS,
-      memoryBytes: 1,
-      nanoCpus: 1,
-      pidsLimit: 1,
-      ...sandbox,
-    }),
+    get: (key: string) =>
+      key === 'llm'
+        ? llm
+        : {
+            image: 'synclab-sandbox:test',
+            timeoutMs: TIMEOUT_MS,
+            memoryBytes: 1,
+            nanoCpus: 1,
+            pidsLimit: 1,
+            ...sandbox,
+          },
   };
   const service = new DockerSandboxService(config as never);
   const onSteps = jest.fn().mockResolvedValue(undefined);
@@ -558,5 +576,115 @@ describe('DockerSandboxService.scan', () => {
     });
 
     await expect(service.scan('scan-1', SCAN_PARAMS)).resolves.toMatchObject({ usages: [USAGE] });
+  });
+});
+
+describe('DockerSandboxService.classify', () => {
+  const INPUT = {
+    provider: 'anthropic' as const,
+    sourceKind: 'sdk_changelog' as const,
+    url: 'https://raw.githubusercontent.com/anthropics/anthropic-sdk-typescript/main/CHANGELOG.md',
+    text: '## Features\n* remove relationship in favor of access_type',
+  };
+  const CHANGE = {
+    kind: 'param_renamed',
+    operation: null,
+    field: 'relationship',
+    replacement: 'access_type',
+    effectiveAt: null,
+    evidence: 'remove relationship in favor of access_type',
+  };
+
+  beforeEach(() => {
+    jest.mocked(Docker).mockReset();
+  });
+
+  it('runs classify on its own volume with the model settings and no token, then removes the volume', async () => {
+    const { service, docker, created, volume } = setup({
+      classify: [
+        {
+          result: {
+            ok: true,
+            steps: [{ step: 'CLASSIFY', output: 'Found 1 breaking change(s).' }],
+            data: { changes: [CHANGE], dropped: 0 },
+          },
+        },
+      ],
+    });
+
+    await expect(service.classify(INPUT)).resolves.toEqual({
+      ok: true,
+      changes: [CHANGE],
+      output: '[CLASSIFY]\nFound 1 breaking change(s).',
+    });
+
+    expect(created.map(({ phase, network }) => [phase, network])).toEqual([['classify', 'bridge']]);
+    const [[volume0]] = docker.createVolume.mock.calls as Array<[{ Name: string }]>;
+    const volumeName = volume0.Name;
+    expect(volumeName).toMatch(/^synclab-classify-[0-9a-f-]{36}$/);
+    expect(created[0].binds).toEqual([`${volumeName}:/workspace`]);
+    const env: Record<string, string> = Object.fromEntries(
+      created[0].env.map((entry) => entry.split(/=(.*)/s) as [string, string]),
+    );
+    expect(JSON.parse(Buffer.from(env.CLASSIFY_INPUT, 'base64').toString('utf8'))).toEqual(INPUT);
+    expect(env.LLM_PROVIDER).toBe('ollama');
+    expect(env.LLM_BASE_URL).toBe('http://host.docker.internal:11434');
+    expect(env.GITHUB_TOKEN).toBeUndefined();
+    expect(volume.remove).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('reports a failed classification, and whether it is worth retrying', async () => {
+    const { service, volume } = setup({
+      classify: [
+        {
+          result: {
+            ok: false,
+            error: 'model call failed: 429 Too Many Requests',
+            steps: [{ step: 'CLASSIFY', output: '429 Too Many Requests' }],
+            data: { retryable: true },
+          },
+        },
+      ],
+    });
+
+    await expect(service.classify(INPUT)).resolves.toEqual({
+      ok: false,
+      error: 'model call failed: 429 Too Many Requests',
+      retryable: true,
+      changes: [],
+      output: '[CLASSIFY]\n429 Too Many Requests',
+    });
+    expect(volume.remove).toHaveBeenCalled();
+  });
+
+  it('reports a container that died without a result, with its log', async () => {
+    const { service } = setup({ classify: [{ output: 'out of memory', exitCode: 137 }] });
+
+    const outcome = await service.classify(INPUT);
+
+    expect(outcome).toMatchObject({ ok: false, retryable: false, changes: [] });
+    expect(outcome.error).toMatch(/"classify" exited with code 137/);
+    expect(outcome.output).toContain('out of memory');
+  });
+
+  it('removes the volume even when the container times out', async () => {
+    const { service, volume } = setup({ classify: [{ hang: true }] });
+
+    await expect(service.classify(INPUT)).rejects.toThrow(/exceeded 1000ms/);
+    expect(volume.remove).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('does not start a container when the hosted provider has no key', async () => {
+    const { service, docker } = setup({}, {}, { ...OLLAMA_LLM, provider: 'anthropic', apiKey: '' });
+
+    await expect(service.classify(INPUT)).resolves.toEqual({
+      ok: false,
+      error:
+        'LLM_PROVIDER is anthropic but ANTHROPIC_API_KEY is not set, so the classify phase cannot run.',
+      changes: [],
+      output: '',
+    });
+    expect(docker.createVolume).not.toHaveBeenCalled();
+    expect(docker.createContainer).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,9 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -77,5 +80,29 @@ export class ApiChangesController {
       status: oneOf('status', status, STATUSES),
       kind: oneOf('kind', kind, KINDS),
     });
+  }
+
+  /**
+   * Changes read from release notes and changelogs start as detected and only
+   * start migrations (Phase 8) once confirmed here.
+   */
+  @Post('api-changes/:id/confirm')
+  @HttpCode(HttpStatus.OK)
+  confirm(@Param('id', ParseUUIDPipe) id: string) {
+    return this.setStatus(id, BreakingChangeStatus.CONFIRMED);
+  }
+
+  @Post('api-changes/:id/dismiss')
+  @HttpCode(HttpStatus.OK)
+  dismiss(@Param('id', ParseUUIDPipe) id: string) {
+    return this.setStatus(id, BreakingChangeStatus.DISMISSED);
+  }
+
+  private async setStatus(id: string, status: BreakingChangeStatus) {
+    const change = await this.queries.setStatus(id, status);
+    if (!change) {
+      throw new NotFoundException(`Breaking change ${id} was not found`);
+    }
+    return change;
   }
 }

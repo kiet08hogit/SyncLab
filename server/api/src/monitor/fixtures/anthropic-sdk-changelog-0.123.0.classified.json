@@ -1,0 +1,37 @@
+{
+  "note": "Hand-written, not recorded from a live run: Ollama was not running when the fixture was made. It is shaped like the classify phase's data.changes for the lines added by @anthropic-ai/sdk 0.123.0 (commit 4140e0ea), with one genuine change, one quote the text does not contain, one unknown kind and one quote too short to trust.",
+  "changes": [
+    {
+      "kind": "param_renamed",
+      "operation": null,
+      "field": "relationship",
+      "replacement": "access_type",
+      "effectiveAt": null,
+      "evidence": "beta user profiles: add external_user_onboarded_at, remove relationship in favor of access_type"
+    },
+    {
+      "kind": "param_removed",
+      "operation": "GET /v1/user_profiles",
+      "field": "order_by",
+      "replacement": null,
+      "effectiveAt": "2026-09-01",
+      "evidence": "The order_by parameter of the user profiles list endpoint has been removed."
+    },
+    {
+      "kind": "schema_changed",
+      "operation": null,
+      "field": "toolset",
+      "replacement": null,
+      "effectiveAt": null,
+      "evidence": "memory-store and toolset schema updates"
+    },
+    {
+      "kind": "param_removed",
+      "operation": null,
+      "field": "relationship",
+      "replacement": null,
+      "effectiveAt": null,
+      "evidence": "remove relationship"
+    }
+  ]
+}

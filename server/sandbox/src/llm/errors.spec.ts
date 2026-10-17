@@ -33,6 +33,23 @@ describe('isRetryableModelError', () => {
     assert.equal(isRetryableModelError(new Error('connect ECONNREFUSED 127.0.0.1:11434')), true);
   });
 
+  it('recognises a network failure wrapped by the Anthropic SDK', () => {
+    const socket = Object.assign(new Error('connect ECONNRESET'), { code: 'ECONNRESET' });
+    const fetchFailed = Object.assign(new TypeError('fetch failed'), { cause: socket });
+    const wrapped = Object.assign(new Error('Connection error.'), {
+      name: 'APIConnectionError',
+      cause: fetchFailed,
+    });
+
+    assert.equal(isRetryableModelError(wrapped), true);
+    assert.equal(
+      isRetryableModelError(Object.assign(new Error('Request timed out.'), { name: 'APIConnectionTimeoutError' })),
+      true,
+    );
+    // Found through the cause chain even without the SDK's error name.
+    assert.equal(isRetryableModelError(Object.assign(new Error('wrapped'), { cause: fetchFailed })), true);
+  });
+
   it('treats failures that would repeat identically as permanent', () => {
     assert.equal(isRetryableModelError(new Error('API key not valid')), false);
     assert.equal(isRetryableModelError(Object.assign(new Error('bad request'), { status: 400 })), false);

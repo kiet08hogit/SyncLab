@@ -17,6 +17,7 @@ export const SANDBOX_PHASES = [
   'publish',
   'clone',
   'scan',
+  'classify',
 ] as const;
 
 export type SandboxPhase = (typeof SANDBOX_PHASES)[number];
@@ -85,6 +86,25 @@ export interface SandboxScanOutcome {
   commitSha?: string;
   usages: ScannedApiUsage[];
   /** The step output of every phase that ran, for diagnosing the scan. */
+  output: string;
+}
+
+/** What the classify phase reads from CLASSIFY_INPUT, base64-encoded JSON. */
+export interface SandboxClassifyInput {
+  provider: ApiProviderSlug;
+  sourceKind: 'release_notes' | 'sdk_changelog';
+  url: string;
+  text: string;
+}
+
+export interface SandboxClassifyOutcome {
+  ok: boolean;
+  error?: string;
+  /** Set when the failure is transient, such as a model rate limit. */
+  retryable?: boolean;
+  /** The model's candidates, unverified: check them with verifyClassified. */
+  changes: unknown[];
+  /** The step output of the phase, for diagnosing the classification. */
   output: string;
 }
 

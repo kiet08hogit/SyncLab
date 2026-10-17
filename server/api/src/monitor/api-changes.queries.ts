@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BreakingChangeStatus } from '../common/constants';
 
@@ -73,24 +74,51 @@ export class ApiChangesQueries {
       },
       orderBy: [{ detectedAt: 'desc' }, { id: 'asc' }],
       take: MAX_CHANGES,
-      include: { provider: true, snapshot: { include: { source: true } } },
+      include: CHANGE_INCLUDE,
     });
 
-    return changes.map((change) => ({
-      id: change.id,
-      provider: change.provider.slug,
-      kind: change.kind,
-      operation: change.operation,
-      field: change.field,
-      replacement: change.replacement,
-      effectiveAt: isoDate(change.effectiveAt),
-      section: change.section,
-      evidence: change.evidence,
-      status: change.status,
-      source: { kind: change.snapshot.source.kind, url: change.snapshot.source.url },
-      snapshotId: change.snapshotId,
-      detectedAt: change.detectedAt.toISOString(),
-      updatedAt: change.updatedAt.toISOString(),
-    }));
+    return changes.map(toChangeView);
   }
+
+  /**
+   * Confirming or dismissing is idempotent, and a dismissed change can be
+   * confirmed again. Returns null for an unknown change.
+   */
+  async setStatus(id: string, status: BreakingChangeStatus) {
+    const { count } = await this.prisma.breakingChange.updateMany({
+      where: { id },
+      data: { status },
+    });
+    if (count === 0) {
+      return null;
+    }
+    const change = await this.prisma.breakingChange.findUniqueOrThrow({
+      where: { id },
+      include: CHANGE_INCLUDE,
+    });
+    return toChangeView(change);
+  }
+}
+
+const CHANGE_INCLUDE = { provider: true, snapshot: { include: { source: true } } } as const;
+
+type ChangeRow = Prisma.BreakingChangeGetPayload<{ include: typeof CHANGE_INCLUDE }>;
+
+function toChangeView(change: ChangeRow) {
+  return {
+    id: change.id,
+    provider: change.provider.slug,
+    kind: change.kind,
+    operation: change.operation,
+    field: change.field,
+    replacement: change.replacement,
+    effectiveAt: isoDate(change.effectiveAt),
+    section: change.section,
+    evidence: change.evidence,
+    status: change.status,
+    source: { kind: change.snapshot.source.kind, url: change.snapshot.source.url },
+    snapshotId: change.snapshotId,
+    detectedAt: change.detectedAt.toISOString(),
+    updatedAt: change.updatedAt.toISOString(),
+  };
 }

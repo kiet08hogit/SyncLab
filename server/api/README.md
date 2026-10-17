@@ -177,6 +177,7 @@ Every read is limited to the caller's repositories (see [Credentials](#credentia
 | `GET /repositories/:githubRepoId/api-usage` | The repository's Anthropic and OpenAI API calls from its newest completed scan (`usageScan`), with the newest scan of any status next to it (`latestScan`). Each usage has its `provider`, `file`, `line`, `style` (`sdk` or `http`), SDK `method`, `operation` (such as `POST /v1/messages`, or `null` when unknown), request `params`, literal `modelIds`, and `dynamic` when part of the request is only known at runtime. `404` for an inaccessible or never-scanned repository. |
 | `GET /api-providers` | Every watched provider with its sources (`kind`, `url`, `lastCheckedAt`, `lastError`, `latestSnapshot`) and its change counts per status. Not limited by repository. |
 | `GET /api-changes` | Breaking changes the monitor read from the providers, newest first. Filters: `provider` (`anthropic`, `openai`), `status` (`detected`, `confirmed`, `dismissed`) and `kind`. Each change has its `field` or `operation`, `replacement`, `effectiveAt` date, the `section` and verbatim `evidence` it was read from, and its `source`. |
+| `POST /api-changes/:id/confirm`, `POST /api-changes/:id/dismiss` | Set a change's status to `confirmed` or `dismissed` and return it in the `GET /api-changes` shape. |
 
 ## Scanning repositories for API usage
 
@@ -199,11 +200,22 @@ Like `POST /migrations`, a user may only scan repositories their installations r
 
 ## Monitoring API changes
 
-The worker watches each provider's model deprecations page, for the self-maintaining API phases in `infra/Architecture/05 - Self-Maintaining API.md`.
-Every `API_MONITOR_INTERVAL_MS` (default 6 hours) it fetches each page, reduces it to the text of its tables, and stores a snapshot only when that text changed, so page markup that changes on every request does not count.
-Each retirement in a changed snapshot becomes a `confirmed` breaking change, since these tables are the providers' own statement of what is retired and when: a model retirement names the model, an endpoint retirement names its path.
-Reading the same retirement again updates its date or replacement and keeps a dismissed change dismissed; a retirement that later disappears from the page is kept.
-A page that fails to load, or no longer has any retirement table, is recorded as the source's `lastError` instead of being read as "nothing is retired".
+The worker watches what Anthropic and OpenAI publish about their APIs, for the self-maintaining API phases in `infra/Architecture/05 - Self-Maintaining API.md`.
+Every `API_MONITOR_INTERVAL_MS` (default 6 hours) it fetches each source, reduces it to the part its reader parses, and stores a snapshot only when that changed, so page markup that changes on every request does not count.
+Each source is requested in exactly the format its reader parses (HTML for the docs pages), because the docs sites answer a request that also accepts markdown with markdown.
+
+| Source | Reader | Status of what it finds |
+| --- | --- | --- |
+| Model deprecations pages (both providers) | retirement tables: a model retirement names the model, an endpoint retirement its path | `confirmed` |
+| OpenAI's OpenAPI spec | the request surface (operations, parameters, required flags, enum values) diffed against the previous snapshot: removed endpoints and parameters, newly required parameters, removed enum values | `confirmed` |
+| API release notes and TypeScript SDK changelogs (both providers) | the lines added since the previous snapshot, classified by the configured model in the `classify` sandbox phase | `detected` |
+
+The tables and the spec are the providers' own statements, so what they show is confirmed directly.
+What a model reads from prose stays `detected` until someone confirms it, and a classified change is kept only if its evidence is a verbatim quote of the snapshot, so a model cannot invent a breaking change.
+The spec, release notes and changelogs compare against their previous snapshot, so a source's first snapshot is a baseline and history is not reported as new; a page where most lines change at once is stored as a new baseline without classifying it.
+Classifying needs `LLM_PROVIDER` `gemini` or `anthropic`; if the model cannot be reached the snapshot is not stored, so the next poll classifies the same lines again.
+Reading the same change again updates its date or replacement, keeps a dismissed change dismissed, and never lets a classified change rewrite one from a table or the spec; a change that later disappears from its source is kept.
+A source that fails to load, or no longer has what its reader expects, is recorded as its `lastError` instead of being read as "nothing changed".
 Set `API_MONITOR_ENABLED=false` to stop the schedule.
 
 ```bash
@@ -212,6 +224,9 @@ curl -X POST http://localhost:3000/api-providers/poll \
 ```
 
 This polls every source now and answers `202 {"queued": true}`; a poll that is already waiting or running absorbs repeated requests.
+
+`POST /api-changes/:id/confirm` and `POST /api-changes/:id/dismiss` set a change's status and return it in the `GET /api-changes` shape (`404` for an unknown change, `400` for an id that is not a UUID).
+Confirming and dismissing are idempotent, and a dismissed change can be confirmed again.
 The response shapes are documented in `infra/Architecture/05 - Self-Maintaining API.md` under "Monitoring endpoints".
 
 ## Scripts

@@ -41,6 +41,8 @@ function setup() {
       ]),
     },
     breakingChange: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findUniqueOrThrow: jest.fn(),
       groupBy: jest.fn().mockResolvedValue([
         { providerId: 'anthropic-id', status: 'confirmed', _count: { _all: 20 } },
         { providerId: 'anthropic-id', status: 'dismissed', _count: { _all: 1 } },
@@ -140,5 +142,31 @@ describe('ApiChangesQueries', () => {
         orderBy: [{ detectedAt: 'desc' }, { id: 'asc' }],
       }),
     );
+  });
+
+  it('sets a status and returns the change in the list shape', async () => {
+    const { queries, prisma } = setup();
+    const [row] = (await prisma.breakingChange.findMany()) as Array<Record<string, unknown>>;
+    prisma.breakingChange.findUniqueOrThrow.mockResolvedValue({ ...row, status: 'dismissed' });
+
+    const change = await queries.setStatus('change-1', 'dismissed');
+
+    expect(prisma.breakingChange.updateMany).toHaveBeenCalledWith({
+      where: { id: 'change-1' },
+      data: { status: 'dismissed' },
+    });
+    expect(change).toMatchObject({
+      id: 'change-1',
+      status: 'dismissed',
+      effectiveAt: '2026-11-30',
+    });
+  });
+
+  it('returns null for an unknown change without reading it back', async () => {
+    const { queries, prisma } = setup();
+    prisma.breakingChange.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(queries.setStatus('missing', 'confirmed')).resolves.toBeNull();
+    expect(prisma.breakingChange.findUniqueOrThrow).not.toHaveBeenCalled();
   });
 });

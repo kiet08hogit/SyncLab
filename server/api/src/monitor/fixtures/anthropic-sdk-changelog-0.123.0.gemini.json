@@ -1,0 +1,13 @@
+{
+  "note": "Recorded from a live run of the classify sandbox phase on 2026-10-17 with LLM_PROVIDER=gemini, LLM_MODEL=gemini-3.5-flash-lite, given the lines @anthropic-ai/sdk 0.123.0 (commit 4140e0ea) added to CHANGELOG.md. This is the phase's data.changes, unedited.",
+  "changes": [
+    {
+      "kind": "param_removed",
+      "operation": null,
+      "field": "relationship",
+      "replacement": "access_type",
+      "effectiveAt": "2026-09-01",
+      "evidence": "* **api:** beta user profiles: add external_user_onboarded_at, remove relationship in favor of access_type ([3efb1a1](https://github.com/anthropics/anthropic-sdk-typescript/commit/3efb1a1a812e30db1da695a1a16cce50cc950cfc))"
+    }
+  ]
+}
