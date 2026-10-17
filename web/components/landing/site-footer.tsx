@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
 import { Tick } from "@/components/landing/frame";
-import { Mascot } from "@/components/mascot";
+import { SectionLink } from "@/components/landing/section-link";
 
 const REPOSITORY = "https://github.com/kiet08hogit/SyncLab";
 
@@ -18,8 +18,8 @@ const COLUMNS = [
   {
     title: "Learn",
     links: [
-      { label: "How it works", href: "#how" },
-      { label: "FAQ", href: "#faq" },
+      { label: "How it works", section: "how" },
+      { label: "FAQ", section: "faq" },
     ],
   },
   {
@@ -31,13 +31,12 @@ const COLUMNS = [
   },
 ];
 
-/** The closing panel: the mark, one line, a framed action, and the site's links. */
+/** The closing panel: one line, a framed action, and the site's links. */
 export function SiteFooter({ action }: { action: { label: string; href: string } }) {
   return (
     <footer className="border-t border-white/10">
       <div className="grid gap-16 px-5 pt-20 pb-16 sm:px-10 min-[900px]:grid-cols-[minmax(0,1fr)_auto]">
         <div className="flex flex-col items-start gap-8">
-          <Mascot className="size-12" />
           <p className="max-w-2xl font-serif text-5xl leading-[1.05] tracking-tight text-balance sm:text-6xl">
             Breaking changes, fixed in a pull request.
           </p>
@@ -61,7 +60,11 @@ export function SiteFooter({ action }: { action: { label: string; href: string }
               <ul className="flex flex-col gap-3">
                 {column.links.map((link) => (
                   <li key={link.label}>
-                    {"external" in link ? (
+                    {"section" in link ? (
+                      <SectionLink section={link.section} className="text-white/80 transition-colors hover:text-white">
+                        {link.label}
+                      </SectionLink>
+                    ) : "external" in link ? (
                       <a href={link.href} className="text-white/80 transition-colors hover:text-white">
                         {link.label}
                       </a>

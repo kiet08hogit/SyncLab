@@ -11,7 +11,8 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   await expect(page.getByRole("region", { name: "The dashboard" }).getByRole("heading", { name: "Running now" })).toBeVisible();
 
   await page.getByRole("link", { name: "How it works" }).first().click();
-  await expect(page).toHaveURL(/#how$/);
+  await expect(page.getByRole("region", { name: "How it works" })).toBeInViewport();
+  await expect(page).toHaveURL("/");
   await expect(page.getByRole("region", { name: "How it works" }).locator("ol > li")).toHaveCount(8);
 
   await page.getByRole("link", { name: "Continue with GitHub" }).first().click();
@@ -40,10 +41,10 @@ test("migrates a dependency, then an API call, and announces each pull request",
   await expect(card).toContainText('"zod": "^3.23.8"');
   await expect(card).toContainText("pull request opened", { timeout: 10_000 });
   await expect(card).toContainText('"zod": "^4.1.0"');
-  // Then a provider change: a retired Claude model in the code that calls it.
+  // Then a provider change: a retired model in the code that calls it.
   await expect(card).toContainText("model retired", { timeout: 10_000 });
-  await expect(card).toContainText('model: "claude-3-5-sonnet-20241022"');
-  await expect(card).toContainText('model: "claude-sonnet-5-5"', { timeout: 10_000 });
+  await expect(card).toContainText('model: "chat-large-2024-06"');
+  await expect(card).toContainText('model: "chat-large-2026-04"', { timeout: 10_000 });
 });
 
 test("holds still for reduced motion", async ({ page }) => {
@@ -98,4 +99,27 @@ test("answers questions in the FAQ and links onward from the footer", async ({ p
   await expect(footer.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/kiet08hogit/SyncLab");
   await page.getByRole("contentinfo").getByRole("link", { name: /Sign in with GitHub/ }).click();
   await page.waitForURL("/dashboard");
+});
+
+test("leaves the dashboard intact after a client-side visit, and Back returns to the landing page", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await expect(page.locator("canvas")).toBeVisible();
+  await page.getByRole("banner").getByRole("link", { name: "How it works" }).click();
+  await expect(page.getByRole("region", { name: "How it works" })).toBeInViewport();
+
+  // A client-side navigation: Next keeps the landing page mounted but hidden.
+  await page.getByRole("region", { name: "The dashboard" }).getByRole("link", { name: /Open the sample dashboard/ }).click();
+  await page.waitForURL("/dashboard");
+  await expect(page.getByRole("heading", { level: 1, name: "Migrations" })).toBeVisible();
+  await page.waitForTimeout(1_500);
+  expect(errors).toEqual([]);
+  // The dashboard keeps its own light page background, not the landing page's.
+  const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(background).toBe("rgb(255, 255, 255)");
+
+  await page.goBack();
+  await expect(page).toHaveURL("/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes that open their own pull requests.");
 });

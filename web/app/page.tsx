@@ -7,7 +7,9 @@ import { GithubSignIn } from "@/components/github-sign-in";
 import { Faq } from "@/components/landing/faq";
 import { Band, Eyebrow } from "@/components/landing/frame";
 import { HeroField } from "@/components/landing/hero-field";
+import { LandingChrome } from "@/components/landing/landing-chrome";
 import { PipelineDiagram } from "@/components/landing/pipeline-diagram";
+import { SectionLink } from "@/components/landing/section-link";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { Mascot } from "@/components/mascot";
 import { RunningJobs } from "@/components/running-jobs";
@@ -27,7 +29,7 @@ const TRIGGERS = [
   },
   {
     label: "An API breaks",
-    body: "Anthropic or OpenAI retires a model or changes a parameter, often with no SDK release at all. SyncLab watches the providers, and its scanner already knows which of your calls the change reaches.",
+    body: "A provider retires a model or changes a parameter, often with no SDK release at all. SyncLab watches the provider, and its scanner already knows which of your calls the change reaches.",
   },
 ];
 
@@ -42,7 +44,7 @@ const FEATURES = [
   },
   {
     title: "Knows where you call each API",
-    body: "A scanner records every Anthropic and OpenAI call in your code: SDK methods and raw fetch or axios requests, with their parameters and model IDs.",
+    body: "A scanner records every call your code makes to the APIs SyncLab watches: SDK methods and raw fetch or axios requests, with their parameters and model IDs.",
   },
   {
     title: "Watches the providers",
@@ -50,7 +52,7 @@ const FEATURES = [
   },
   {
     title: "Your model, your call",
-    body: "A local model through Ollama by default, or Gemini or Claude when you want a hosted one.",
+    body: "Rewrites come from a local model by default, or from a hosted one when you want it.",
   },
   {
     title: "Every step on the record",
@@ -85,6 +87,7 @@ const NAV_LINK = "label-mono hidden text-white/60 transition-colors hover:text-w
 export default function LandingPage() {
   return (
     <div data-landing className="dark min-h-dvh overflow-x-clip bg-[#07090c] text-white">
+      <LandingChrome />
       <div className="mx-auto max-w-[1440px] border-x border-white/10">
         <header className="sticky top-0 z-50 flex h-20 items-center justify-between border-b border-white/10 bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
           <Link href="/" className="flex items-center gap-3">
@@ -92,15 +95,18 @@ export default function LandingPage() {
             <span className="font-serif text-[1.75rem] leading-none">SyncLab</span>
           </Link>
           <nav aria-label="Main" className="flex items-center gap-1 md:gap-7">
-            <a href="#how" className={NAV_LINK}>
+            <SectionLink section="how" className={NAV_LINK}>
               How it works
-            </a>
-            <a href="#faq" className={NAV_LINK}>
+            </SectionLink>
+            <SectionLink section="faq" className={NAV_LINK}>
               FAQ
-            </a>
-            <Link href="/dashboard" className={NAV_LINK}>
-              Dashboard
-            </Link>
+            </SectionLink>
+            {/* Without sign-in, the button beside it already opens the dashboard. */}
+            {signInConfigured() && (
+              <Link href="/dashboard" className={NAV_LINK}>
+                Dashboard
+              </Link>
+            )}
             <PrimaryAction className="h-9 px-3" />
           </nav>
         </header>
@@ -113,17 +119,17 @@ export default function LandingPage() {
                 Breaking changes that open their own pull requests.
               </h1>
               <p className="max-w-xl text-base leading-relaxed text-pretty text-white/65 sm:text-lg">
-                When a dependency ships a breaking release, or Anthropic or OpenAI changes their API, SyncLab finds the
-                code that breaks, rewrites it, proves the fix with your own tests in a locked-down sandbox, and hands you
-                a pull request to merge.
+                When a dependency ships a breaking release, or an API you call changes under you, SyncLab finds the code
+                that breaks, rewrites it, proves the fix with your own tests in a locked-down sandbox, and hands you a
+                pull request to merge.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <PrimaryAction />
                 <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">
-                  <a href="#how">
+                  <SectionLink section="how">
                     How it works
                     <ArrowRight aria-hidden />
-                  </a>
+                  </SectionLink>
                 </Button>
               </div>
             </div>

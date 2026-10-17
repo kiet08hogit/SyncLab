@@ -24,9 +24,9 @@ const MIGRATIONS = [
   },
   {
     file: "src/summarize.ts",
-    open: "anthropic.messages.create({",
-    from: 'model: "claude-3-5-sonnet-20241022",',
-    to: 'model: "claude-sonnet-5-5",',
+    open: "client.messages.create({",
+    from: 'model: "chat-large-2024-06",',
+    to: 'model: "chat-large-2026-04",',
     close: "})",
     found: "model retired",
     noise: IDENTIFIER,
@@ -42,9 +42,9 @@ const MIGRATIONS = [
   },
   {
     file: "src/chat.ts",
-    open: "openai.chat.completions.create({",
+    open: "client.completions.create({",
     from: "max_tokens: 1024,",
-    to: "max_completion_tokens: 1024,",
+    to: "max_output_tokens: 1024,",
     close: "})",
     found: "parameter renamed",
     noise: IDENTIFIER,
@@ -162,6 +162,9 @@ export function HeroField({ children }: { children: ReactNode }) {
     async function layout() {
       // Measure the cell only once JetBrains Mono has loaded, or the grid is sized for the fallback font.
       await document.fonts.ready;
+      // Navigating away hides this page (Next keeps it mounted in an Activity) and detaches the refs.
+      const slotElement = slotRef.current;
+      if (disposed || !slotElement) return;
       const rect = canvas.getBoundingClientRect();
       width = rect.width;
       height = rect.height;
@@ -178,7 +181,7 @@ export function HeroField({ children }: { children: ReactNode }) {
 
       // The pup fills the slot the layout leaves for it (beside the copy, or above it on
       // narrow screens), standing on the slot's bottom edge since the art is a bust.
-      const slot = slotRef.current!.getBoundingClientRect();
+      const slot = slotElement.getBoundingClientRect();
       const side = Math.min(slot.width, slot.height * 0.97);
       const pupRows = Math.max(8, Math.floor(side / cellH));
       const pupCols = Math.round((pupRows * cellH) / cellW);
@@ -351,8 +354,8 @@ export function HeroField({ children }: { children: ReactNode }) {
               {`\n${migration.close}`}
             </pre>
             <p className="sr-only">
-              For example, SyncLab upgrades zod from 3.23.8 to 4.1.0, replaces a retired Claude model, and moves an
-              OpenAI call to a renamed parameter, each time opening a pull request.
+              For example, SyncLab upgrades zod from 3.23.8 to 4.1.0, replaces a retired model, and moves an API call to
+              a renamed parameter, each time opening a pull request.
             </p>
           </figure>
         </div>

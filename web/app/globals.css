@@ -193,12 +193,6 @@
   text-transform: uppercase;
 }
 
-/* The landing page is always dark, overscroll included. */
-body:has([data-landing]) {
-  background: #07090c;
-  color-scheme: dark;
-}
-
 /*
  * The landing pipeline: a pulse crosses the eight stops in 6.3s, then rests,
  * on a 9s loop. Each stop lights as the pulse reaches it, 0.9s apart, through

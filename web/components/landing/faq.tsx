@@ -4,22 +4,22 @@ const QUESTIONS = [
   {
     question: "What is SyncLab?",
     answer:
-      "SyncLab keeps your code working through breaking changes. When a dependency ships a breaking release, or Anthropic or OpenAI changes their API, it finds the code that breaks, rewrites it with a model, proves the fix with your own test suite, and opens a pull request for you to review.",
+      "SyncLab keeps your code working through breaking changes. When a dependency ships a breaking release, or an API you call changes under you, it finds the code that breaks, rewrites it with a model, proves the fix with your own test suite, and opens a pull request for you to review.",
   },
   {
     question: "What kinds of breaking changes does it fix?",
     answer:
-      "Two kinds. Breaking npm releases, which arrive as Dependabot or Renovate pull requests. And provider API changes from Anthropic and OpenAI: a retired model, a removed or renamed parameter, a parameter that becomes required, a removed enum value, or an endpoint replaced by a new one. A change in behavior for the same request is reported rather than rewritten.",
+      "Two kinds. Breaking npm releases, which arrive as Dependabot or Renovate pull requests. And changes to an API you call: a retired model, a removed or renamed parameter, a parameter that becomes required, a removed enum value, or an endpoint replaced by a new one. A change in behavior for the same request is reported rather than rewritten.",
   },
   {
     question: "How does it know where my code calls an API?",
     answer:
-      "A scanner reads your JavaScript and TypeScript and records every call to the official Anthropic and OpenAI SDKs, and every fetch or axios request to their APIs, with the operation, the request parameters, and any model IDs. It runs when the GitHub App is installed, on every push to your default branch, and on request.",
+      "A scanner reads your JavaScript and TypeScript and records every call to the APIs SyncLab watches, through their official SDKs or plain fetch and axios requests, with the operation, the request parameters, and any model IDs. It runs when the GitHub App is installed, on every push to your default branch, and on request.",
   },
   {
     question: "How does it find out a provider changed its API?",
     answer:
-      "By watching each provider's own sources: OpenAI's published OpenAPI spec, both providers' model deprecation pages, and their API release notes and SDK changelogs. A change read from prose has to quote its evidence word for word before it counts, so a model cannot invent one.",
+      "By watching each provider's own sources: its published API spec, its deprecation pages, and its release notes and SDK changelogs. A change read from prose has to quote its evidence word for word before it counts, so a model cannot invent one.",
   },
   {
     question: "Is it safe to run on my repository?",
@@ -29,7 +29,7 @@ const QUESTIONS = [
   {
     question: "Which languages, package managers, and models does it support?",
     answer:
-      "JavaScript and TypeScript, with npm, pnpm, or yarn, and your lockfile is honoured exactly. Rewrites use a local model through Ollama by default, or Gemini or Claude.",
+      "JavaScript and TypeScript, with npm, pnpm, or yarn, and your lockfile is honoured exactly. Rewrites come from a local model by default, or from a hosted one.",
   },
   {
     question: "How do I get started?",
