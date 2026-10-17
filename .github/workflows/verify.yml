@@ -114,3 +114,8 @@ jobs:
       - uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+          # The express-4-to-5 benchmark fixtures pin express 4.21.2 (and so
+          # path-to-regexp 0.1.12) on purpose: it is the pre-migration version
+          # the benchmark was recorded against. They only run in the throwaway
+          # benchmark sandbox, and server/ and web/ use path-to-regexp 8.x.
+          allow-ghsas: GHSA-37ch-88jc-xwx2
