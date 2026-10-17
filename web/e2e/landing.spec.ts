@@ -123,3 +123,26 @@ test("leaves the dashboard intact after a client-side visit, and Back returns to
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes, fixed for you.");
 });
+
+test("plays the intro once, and not again on Back", async ({ page }) => {
+  await page.goto("/");
+  const root = page.locator("[data-landing]");
+  await expect(root).toHaveAttribute("data-intro", "playing");
+  const firstWord = page.getByRole("heading", { level: 1 }).locator(".intro-word").first();
+  expect(await firstWord.evaluate((element) => getComputedStyle(element).animationName)).toBe("landing-rise");
+  await expect(root).toHaveAttribute("data-intro", "done", { timeout: 5_000 });
+
+  await page.getByRole("region", { name: "The dashboard" }).getByRole("link", { name: /Open the sample dashboard/ }).click();
+  await page.waitForURL("/dashboard");
+  await page.goBack();
+  await expect(page).toHaveURL("/");
+  await expect(root).toHaveAttribute("data-intro", "done");
+  expect(await firstWord.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
+});
+
+test("skips the intro for reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const firstWord = page.getByRole("heading", { level: 1 }).locator(".intro-word").first();
+  expect(await firstWord.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
+});

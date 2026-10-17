@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { Fragment, Suspense, type CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
@@ -8,6 +8,7 @@ import { Faq } from "@/components/landing/faq";
 import { Band, Eyebrow } from "@/components/landing/frame";
 import { HeroField } from "@/components/landing/hero-field";
 import { LandingChrome } from "@/components/landing/landing-chrome";
+import { LandingIntro } from "@/components/landing/landing-intro";
 import { PipelineDiagram } from "@/components/landing/pipeline-diagram";
 import { SectionLink } from "@/components/landing/section-link";
 import { SiteFooter } from "@/components/landing/site-footer";
@@ -82,19 +83,26 @@ async function ProductPreview() {
   return <RunningJobs jobs={running.slice(0, 2)} />;
 }
 
+const HEADLINE = "Breaking changes, fixed for you.";
+
+/** Delays one piece of the intro (see `intro-fade` in globals.css). */
+const after = (ms: number) => ({ "--delay": `${ms}ms` }) as CSSProperties;
+
 const NAV_LINK = "label-mono hidden text-white/60 transition-colors hover:text-white md:block";
 
 export default function LandingPage() {
   return (
-    <div data-landing className="dark min-h-dvh overflow-x-clip bg-[#07090c] text-white">
+    <LandingIntro data-landing className="dark min-h-dvh overflow-x-clip bg-[#07090c] text-white">
       <LandingChrome />
       <div className="mx-auto max-w-[1440px] border-x border-white/10">
-        <header className="sticky top-0 z-50 flex h-20 items-center justify-between border-b border-white/10 bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
-          <Link href="/" className="flex items-center gap-3">
+        <header className="sticky top-0 z-50 flex h-20 items-center justify-between bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
+          {/* The header's bottom rule, drawn in from the left by the intro. */}
+          <span aria-hidden className="intro-draw absolute inset-x-0 bottom-0 h-px bg-white/10" />
+          <Link href="/" className="intro-fade flex items-center gap-3">
             <Mascot className="size-10" />
             <span className="font-serif text-[1.75rem] leading-none">SyncLab</span>
           </Link>
-          <nav aria-label="Main" className="flex items-center gap-1 md:gap-7">
+          <nav aria-label="Main" className="intro-stagger flex items-center gap-1 md:gap-7">
             <SectionLink section="how" className={NAV_LINK}>
               How it works
             </SectionLink>
@@ -114,11 +122,20 @@ export default function LandingPage() {
         <main id="main" tabIndex={-1} className="outline-none">
           <HeroField>
             <div className="flex flex-col gap-6">
-              <Eyebrow>Dependency and API migrations</Eyebrow>
+              <div className="intro-fade" style={after(100)}>
+                <Eyebrow>Dependency and API migrations</Eyebrow>
+              </div>
               <h1 id="hero-heading" className="font-serif text-5xl leading-[1.02] tracking-tight text-balance sm:text-6xl lg:text-7xl">
-                Breaking changes, fixed for you.
+                {HEADLINE.split(" ").map((word, index, words) => (
+                  <Fragment key={index}>
+                    <span className="intro-word" style={{ "--word": index } as CSSProperties}>
+                      {word}
+                    </span>
+                    {index < words.length - 1 && " "}
+                  </Fragment>
+                ))}
               </h1>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="intro-fade flex flex-wrap items-center gap-3" style={after(750)}>
                 <PrimaryAction />
                 <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">
                   <SectionLink section="how">
@@ -210,6 +227,6 @@ export default function LandingPage() {
 
         <SiteFooter action={primaryAction()} />
       </div>
-    </div>
+    </LandingIntro>
   );
 }

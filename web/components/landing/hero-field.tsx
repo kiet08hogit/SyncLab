@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 
 import { cellPart, depth, DUST, GLYPHS, hash, pick, pupPart, RIPPLE_GLYPHS, rippleEnergy, scramble, type PupPart } from "@/lib/ascii";
 import { mascotSvg } from "@/lib/mascot";
@@ -57,6 +57,8 @@ const CYCLE_MS = 5200;
 const SCRAMBLE_MS = 1100;
 const RIPPLE = { speed: 0.42, band: 70, life: 3600 };
 const POINTER_RADIUS = 110;
+/** The intro: cells appear over this long, each showing a blue digit briefly before its own glyph. */
+const INTRO = { pupSpread: 900, dustSpread: 1500, decode: 320, start: 250 };
 
 const BLUE = [90, 131, 255] as const;
 const COLORS: Record<PupPart | "dust", readonly [number, number, number]> = {
@@ -79,6 +81,8 @@ interface Cell {
   seed: number;
   /** For fur, how far inside the outline the cell sits, which picks its density. */
   shade: number;
+  /** When, in ms after the intro starts, the cell appears. */
+  delay: number;
 }
 
 /** Samples the pup into character cells that sit at `left`, `top`, `size` (in cells). */
@@ -132,6 +136,8 @@ export function HeroField({ children }: { children: ReactNode }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<HTMLSpanElement>(null);
+  // Set once, so neither a resize nor showing the page again replays the intro.
+  const introStart = useRef<number | null>(null);
   const [step, setStep] = useState(0);
   const [line, setLine] = useState(MIGRATIONS[0].from);
   const [phase, setPhase] = useState<"idle" | "migrating" | "done">("idle");
@@ -193,6 +199,8 @@ export function HeroField({ children }: { children: ReactNode }) {
       // Fur shades against everything that is not fur, so the ears outline the face.
       const fur = new Set(pup.filter(([, , part]) => part !== "ear").map(([x, y]) => y * pupCols + x));
       const isFur = (x: number, y: number) => fur.has(y * pupCols + x) || y >= pupRows;
+      // The pup decodes outward from its middle.
+      const reach = Math.hypot(pupCols, pupRows) / 2;
       const taken = new Set<number>();
       const next: Cell[] = [];
       for (const [x, y, part] of pup) {
@@ -200,13 +208,25 @@ export function HeroField({ children }: { children: ReactNode }) {
         const cy = top + y;
         if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) continue;
         taken.add(cy * cols + cx);
-        next.push({ x: cx, y: cy, part, seed: hash(cx, cy), shade: part === "fur" || part === "patch" ? depth(isFur, x, y, 3) : 0 });
+        const seed = hash(cx, cy);
+        const fromMiddle = Math.hypot(x - pupCols / 2, y - pupRows / 2) / reach;
+        next.push({
+          x: cx,
+          y: cy,
+          part,
+          seed,
+          shade: part === "fur" || part === "patch" ? depth(isFur, x, y, 3) : 0,
+          delay: INTRO.start + fromMiddle * INTRO.pupSpread + seed * 200,
+        });
       }
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
-          if (!taken.has(y * cols + x) && hash(x, y, 7) < 0.07) next.push({ x, y, part: "dust", seed: hash(x, y, 3), shade: 0 });
+          if (taken.has(y * cols + x) || hash(x, y, 7) >= 0.07) continue;
+          const seed = hash(x, y, 3);
+          next.push({ x, y, part: "dust", seed, shade: 0, delay: INTRO.start + hash(x, y, 9) * INTRO.dustSpread });
         }
       }
+      if (!reduced && introStart.current === null) introStart.current = performance.now();
       cells = next;
       draw(performance.now());
     }
@@ -216,8 +236,12 @@ export function HeroField({ children }: { children: ReactNode }) {
       while (ripples.length && now - ripples[0].start > RIPPLE.life) ripples.shift();
       pointer.energy *= 0.94;
       const tick = Math.floor(now / 140);
+      const sinceIntro = introStart.current === null ? Infinity : now - introStart.current;
 
       for (const cell of cells) {
+        if (sinceIntro < cell.delay) continue;
+        // Freshly revealed: a blue digit for a moment, then the cell's own glyph.
+        const decoding = Math.max(0, 1 - (sinceIntro - cell.delay) / INTRO.decode);
         const px = cell.x * cellW;
         const py = cell.y * cellH;
         let energy = 0;
@@ -244,7 +268,12 @@ export function HeroField({ children }: { children: ReactNode }) {
           if (hash(cell.x, cell.y, tick) < energy) glyph = pick(RIPPLE_GLYPHS, hash(cell.y, cell.x, tick));
           alpha = Math.min(1, alpha + energy * (cell.part === "dust" ? 0.9 : 0.4));
         }
-        const mix = cell.part === "arrow" ? 1 : Math.min(1, energy * 1.3);
+        if (decoding > 0) {
+          // Offset from the small seeds above: tick passes 7 (the dust seed) during the intro.
+          glyph = pick(RIPPLE_GLYPHS, hash(cell.x, cell.y, tick + 10_000));
+          alpha = Math.min(1, alpha + decoding * 0.4);
+        }
+        const mix = cell.part === "arrow" ? 1 : Math.min(1, Math.max(energy * 1.3, decoding));
         const r = base[0] + (BLUE[0] - base[0]) * mix;
         const g = base[1] + (BLUE[1] - base[1]) * mix;
         const b = base[2] + (BLUE[2] - base[2]) * mix;
@@ -339,7 +368,7 @@ export function HeroField({ children }: { children: ReactNode }) {
         <div ref={slotRef} data-pup-slot aria-hidden className="h-[38svh] min-[900px]:order-last min-[900px]:h-auto" />
         <div className="flex flex-col justify-end gap-10 px-5 pb-14 sm:px-10 min-[900px]:justify-center min-[900px]:py-16">
           {children}
-          <figure className="relative w-full max-w-sm border border-white/10 bg-[#07090c]/80 font-mono text-[13px] leading-relaxed backdrop-blur-sm">
+          <figure style={{ "--delay": "950ms" } as CSSProperties} className="intro-fade relative w-full max-w-sm border border-white/10 bg-[#07090c]/80 font-mono text-[13px] leading-relaxed backdrop-blur-sm">
             <figcaption className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-2 text-[11px] text-white/45">
               <span>{migration.file}</span>
               <span aria-hidden className={shown.phase === "done" ? "text-[#6f93ff]" : undefined}>
