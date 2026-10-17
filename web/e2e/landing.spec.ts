@@ -5,14 +5,14 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   page.on("pageerror", (error) => errors.push(error.message));
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Upgrades that open their own pull requests.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes that open their own pull requests.");
   await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
   // The product preview is the dashboard's own Running now cards, with sample jobs.
   await expect(page.getByRole("region", { name: "The dashboard" }).getByRole("heading", { name: "Running now" })).toBeVisible();
 
   await page.getByRole("link", { name: "How it works" }).first().click();
   await expect(page).toHaveURL(/#how$/);
-  await expect(page.getByRole("region", { name: "How it works" }).getByRole("listitem")).toHaveCount(8);
+  await expect(page.getByRole("region", { name: "How it works" }).locator("ol > li")).toHaveCount(8);
 
   await page.getByRole("link", { name: "Continue with GitHub" }).first().click();
   await page.waitForURL("/dashboard");
@@ -32,14 +32,18 @@ test("forwards old dashboard links that used to live at /", async ({ page }) => 
   await expect(page.getByRole("table")).toContainText("Failed");
 });
 
-test("upgrades the package.json line and announces the pull request", async ({ page }) => {
+test("migrates a dependency, then an API call, and announces each pull request", async ({ page }) => {
   await page.goto("/");
-  const card = page.locator("figure", { hasText: "package.json" });
+  // The hero's migration card, the first figure on the page.
+  const card = page.locator("figure").first();
+  await expect(card).toContainText("package.json");
   await expect(card).toContainText('"zod": "^3.23.8"');
   await expect(card).toContainText("pull request opened", { timeout: 10_000 });
   await expect(card).toContainText('"zod": "^4.1.0"');
-  // Then on to the next dependency.
-  await expect(card).toContainText('"next": "^14.2.5"', { timeout: 10_000 });
+  // Then a provider change: a retired Claude model in the code that calls it.
+  await expect(card).toContainText("model retired", { timeout: 10_000 });
+  await expect(card).toContainText('model: "claude-3-5-sonnet-20241022"');
+  await expect(card).toContainText('model: "claude-sonnet-5-5"', { timeout: 10_000 });
 });
 
 test("holds still for reduced motion", async ({ page }) => {
@@ -77,4 +81,21 @@ test("keeps the app around a page that does not exist", async ({ page }) => {
     "href",
     "/dashboard",
   );
+});
+
+test("answers questions in the FAQ and links onward from the footer", async ({ page }) => {
+  await page.goto("/");
+  const faq = page.getByRole("region", { name: "FAQ" });
+  const answer = faq.getByText(/^Two kinds\./);
+  await expect(answer).toBeHidden();
+  await faq.getByText("What kinds of breaking changes does it fix?").click();
+  await expect(answer).toBeVisible();
+  await faq.getByText("What kinds of breaking changes does it fix?").click();
+  await expect(answer).toBeHidden();
+
+  const footer = page.getByRole("navigation", { name: "Footer" });
+  await expect(footer.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
+  await expect(footer.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute("href", "https://github.com/kiet08hogit/SyncLab");
+  await page.getByRole("contentinfo").getByRole("link", { name: /Sign in with GitHub/ }).click();
+  await page.waitForURL("/dashboard");
 });

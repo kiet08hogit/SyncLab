@@ -66,6 +66,12 @@ describe("scramble", () => {
     expect(scramble("^3.23.8", "^4.1.0", 1, noise)).toBe("^4.1.0");
   });
 
+  it("keeps the start the two lines share still", () => {
+    const line = scramble("max_tokens: 1024,", "max_completion_tokens: 1024,", 0.01, noise, "x");
+    expect(line.startsWith("max_")).toBe(true);
+    expect(line.slice(4)).toMatch(/^x+$/);
+  });
+
   it("settles left to right, with version-like noise after", () => {
     const halfway = scramble("^3.23.8", "^4.1.0", 0.5, noise);
     expect(halfway.startsWith("^4.")).toBe(true);

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /** A small crosshair where two frame lines meet. */
-function Tick({ className }: { className: string }) {
+export function Tick({ className }: { className: string }) {
   return (
     <span aria-hidden className={cn("pointer-events-none absolute z-10 size-[9px]", className)}>
       <span className="absolute top-1/2 left-0 h-px w-full bg-white/30" />
@@ -28,7 +28,7 @@ export function Band({
   className?: string;
 }) {
   return (
-    <section id={id} aria-label={label} className={cn("relative scroll-mt-16 border-t border-white/10", className)}>
+    <section id={id} aria-label={label} className={cn("relative scroll-mt-20 border-t border-white/10", className)}>
       <Tick className="-top-[5px] -left-[5px]" />
       <Tick className="-top-[5px] -right-[5px]" />
       {children}

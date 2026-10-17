@@ -75,16 +75,25 @@ export function rippleEnergy(distance: number, radius: number, band: number, age
 }
 
 /**
- * The version string partway through a rewrite: characters settle left to
- * right into the new version, and the rest are noise from `RIPPLE_GLYPHS`.
+ * A line of code partway through a rewrite. The start it shares with the new
+ * line stays put, the rest settles left to right into the new line, and what
+ * has not settled yet is noise from `alphabet`.
  */
-export function scramble(from: string, to: string, progress: number, noise: (index: number) => number): string {
+export function scramble(
+  from: string,
+  to: string,
+  progress: number,
+  noise: (index: number) => number,
+  alphabet = "0123456789.",
+): string {
+  if (progress <= 0) return from;
+  if (progress >= 1) return to;
+  let shared = 0;
+  while (shared < from.length && shared < to.length && from[shared] === to[shared]) shared++;
   const length = Math.round(from.length + (to.length - from.length) * Math.min(1, progress * 1.5));
-  const settled = Math.floor(progress * to.length);
+  const settled = shared + Math.floor(progress * (to.length - shared));
   let out = "";
-  for (let i = 0; i < length; i++) {
-    out += i < settled ? to[i] : progress <= 0 ? (from[i] ?? "") : pick("0123456789.", noise(i));
-  }
+  for (let i = 0; i < length; i++) out += i < settled ? to[i] : pick(alphabet, noise(i));
   return out;
 }
 

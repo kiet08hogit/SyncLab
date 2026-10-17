@@ -5,13 +5,50 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { cellPart, depth, DUST, GLYPHS, hash, pick, pupPart, RIPPLE_GLYPHS, rippleEnergy, scramble, type PupPart } from "@/lib/ascii";
 import { mascotSvg } from "@/lib/mascot";
 
-/** Real upgrades SyncLab is built for, shown one after another. */
-const UPGRADES = [
-  { name: "zod", from: "^3.23.8", to: "^4.1.0" },
-  { name: "next", from: "^14.2.5", to: "^15.1.0" },
-  { name: "react", from: "^18.3.1", to: "^19.0.0" },
-  { name: "express", from: "^4.21.0", to: "^5.1.0" },
-  { name: "eslint", from: "^8.57.0", to: "^9.17.0" },
+const DIGITS = "0123456789.";
+const IDENTIFIER = "abcdefghijklmnopqrstuvwxyz0123456789-_";
+
+/**
+ * The two kinds of break SyncLab fixes, taking turns: a dependency's breaking
+ * release, and a provider changing its API under code that did not change.
+ */
+const MIGRATIONS = [
+  {
+    file: "package.json",
+    open: '"dependencies": {',
+    from: '"zod": "^3.23.8"',
+    to: '"zod": "^4.1.0"',
+    close: "}",
+    found: "breaking release",
+    noise: DIGITS,
+  },
+  {
+    file: "src/summarize.ts",
+    open: "anthropic.messages.create({",
+    from: 'model: "claude-3-5-sonnet-20241022",',
+    to: 'model: "claude-sonnet-5-5",',
+    close: "})",
+    found: "model retired",
+    noise: IDENTIFIER,
+  },
+  {
+    file: "package.json",
+    open: '"dependencies": {',
+    from: '"next": "^14.2.5"',
+    to: '"next": "^15.1.0"',
+    close: "}",
+    found: "breaking release",
+    noise: DIGITS,
+  },
+  {
+    file: "src/chat.ts",
+    open: "openai.chat.completions.create({",
+    from: "max_tokens: 1024,",
+    to: "max_completion_tokens: 1024,",
+    close: "})",
+    found: "parameter renamed",
+    noise: IDENTIFIER,
+  },
 ];
 
 const FONT_PX = 11;
@@ -85,26 +122,27 @@ function subscribeReducedMotion(onChange: () => void) {
 }
 
 /**
- * The landing hero's backdrop: the SyncLab pup in characters, and a
- * package.json line that keeps upgrading itself. Each rewrite sends a ripple
- * of version digits out through the field. The pointer stirs the characters
- * near it. With reduced motion it draws one still frame.
+ * The landing hero's backdrop: the SyncLab pup in characters, and a line of
+ * code that keeps getting migrated, from a dependency bump to an API change.
+ * Each rewrite sends a ripple of version digits out through the field. The
+ * pointer stirs the characters near it. With reduced motion it draws one
+ * still frame.
  */
 export function HeroField({ children }: { children: ReactNode }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
-  const versionRef = useRef<HTMLSpanElement>(null);
+  const lineRef = useRef<HTMLSpanElement>(null);
   const [step, setStep] = useState(0);
-  const [version, setVersion] = useState(UPGRADES[0].from);
+  const [line, setLine] = useState(MIGRATIONS[0].from);
   const [phase, setPhase] = useState<"idle" | "migrating" | "done">("idle");
   const reduced = useSyncExternalStore(
     subscribeReducedMotion,
     () => window.matchMedia(REDUCED_MOTION).matches,
     () => false,
   );
-  const upgrade = UPGRADES[step % UPGRADES.length];
-  // Still, the card shows the first upgrade already done.
-  const shown = reduced ? { version: UPGRADES[0].to, phase: "done" as const } : { version, phase };
+  const migration = reduced ? MIGRATIONS[0] : MIGRATIONS[step % MIGRATIONS.length];
+  // Still, the card shows the first migration already done.
+  const shown = reduced ? { line: MIGRATIONS[0].to, phase: "done" as const } : { line, phase };
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -217,12 +255,12 @@ export function HeroField({ children }: { children: ReactNode }) {
       frame = requestAnimationFrame(loop);
     }
 
-    // Each rewrite of the version ends with a ripple from where the version sits.
+    // Each rewrite ends with a ripple from where the changing line sits.
     const onRipple = () => {
-      const version = versionRef.current?.getBoundingClientRect();
+      const line = lineRef.current?.getBoundingClientRect();
       const box = canvas.getBoundingClientRect();
-      if (!version) return;
-      ripples.push({ x: version.left + version.width / 2 - box.left, y: version.top + version.height / 2 - box.top, start: performance.now() });
+      if (!line) return;
+      ripples.push({ x: line.left + line.width / 2 - box.left, y: line.top + line.height / 2 - box.top, start: performance.now() });
     };
     const onPointer = (event: PointerEvent) => {
       const box = canvas.getBoundingClientRect();
@@ -251,10 +289,10 @@ export function HeroField({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // The package.json line: wait, rewrite the version, ripple, then move on to the next dependency.
+  // The changing line: wait, rewrite it, ripple, then move on to the next migration.
   useEffect(() => {
     if (reduced) return;
-    const current = UPGRADES[step % UPGRADES.length];
+    const current = MIGRATIONS[step % MIGRATIONS.length];
     let raf = 0;
     const timers = [
       setTimeout(() => {
@@ -262,7 +300,7 @@ export function HeroField({ children }: { children: ReactNode }) {
         const start = performance.now();
         const run = (now: number) => {
           const progress = Math.min(1, (now - start) / SCRAMBLE_MS);
-          setVersion(scramble(current.from, current.to, progress, (i) => hash(i, Math.floor(now / 60), 11)));
+          setLine(scramble(current.from, current.to, progress, (i) => hash(i, Math.floor(now / 60), 11), current.noise));
           if (progress < 1) {
             raf = requestAnimationFrame(run);
           } else {
@@ -273,9 +311,9 @@ export function HeroField({ children }: { children: ReactNode }) {
         raf = requestAnimationFrame(run);
       }, 1400),
       setTimeout(() => {
-        const next = UPGRADES[(step + 1) % UPGRADES.length];
+        const next = MIGRATIONS[(step + 1) % MIGRATIONS.length];
         setStep(step + 1);
-        setVersion(next.from);
+        setLine(next.from);
         setPhase("idle");
       }, CYCLE_MS),
     ];
@@ -293,30 +331,28 @@ export function HeroField({ children }: { children: ReactNode }) {
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_top,#07090c_40%,transparent_62%)] min-[900px]:bg-[linear-gradient(to_right,#07090c_32%,rgba(7,9,12,0.55)_48%,transparent_60%)]"
       />
-      <div className="grid min-h-[calc(100dvh-4rem)] min-[900px]:grid-cols-[minmax(0,56%)_minmax(0,1fr)]">
+      <div className="grid min-h-[calc(100dvh-5rem)] min-[900px]:grid-cols-[minmax(0,56%)_minmax(0,1fr)]">
         {/* Empty: the canvas draws the pup into this box. */}
         <div ref={slotRef} data-pup-slot aria-hidden className="h-[38svh] min-[900px]:order-last min-[900px]:h-auto" />
         <div className="flex flex-col justify-end gap-10 px-5 pb-14 sm:px-10 min-[900px]:justify-center min-[900px]:py-16">
           {children}
           <figure className="relative w-full max-w-sm border border-white/10 bg-[#07090c]/80 font-mono text-[13px] leading-relaxed backdrop-blur-sm">
-            <figcaption className="flex items-center justify-between border-b border-white/10 px-4 py-2 text-[11px] text-white/45">
-              <span>package.json</span>
+            <figcaption className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-2 text-[11px] text-white/45">
+              <span>{migration.file}</span>
               <span aria-hidden className={shown.phase === "done" ? "text-[#6f93ff]" : undefined}>
-                {shown.phase === "idle" ? "update found" : shown.phase === "migrating" ? "migrating…" : "pull request opened"}
+                {shown.phase === "idle" ? migration.found : shown.phase === "migrating" ? "migrating…" : "pull request opened"}
               </span>
             </figcaption>
             <pre aria-hidden className="overflow-hidden px-4 py-3 text-white/55">
-              {`"dependencies": {\n  `}
-              <span className="text-white/85">{`"${upgrade.name}"`}</span>
-              {": "}
-              <span ref={versionRef} className={shown.phase === "idle" ? "text-white/85" : "text-[#6f93ff]"}>
-                {`"${shown.version}"`}
+              {`${migration.open}\n  `}
+              <span ref={lineRef} className={shown.phase === "idle" ? "text-white/85" : "text-[#6f93ff]"}>
+                {shown.line}
               </span>
-              {`\n}`}
+              {`\n${migration.close}`}
             </pre>
             <p className="sr-only">
-              For example, SyncLab upgrades {UPGRADES[0].name} from {UPGRADES[0].from} to {UPGRADES[0].to} and opens a pull
-              request.
+              For example, SyncLab upgrades zod from 3.23.8 to 4.1.0, replaces a retired Claude model, and moves an
+              OpenAI call to a renamed parameter, each time opening a pull request.
             </p>
           </figure>
         </div>

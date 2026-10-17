@@ -4,9 +4,11 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { GithubSignIn } from "@/components/github-sign-in";
+import { Faq } from "@/components/landing/faq";
 import { Band, Eyebrow } from "@/components/landing/frame";
 import { HeroField } from "@/components/landing/hero-field";
 import { PipelineDiagram } from "@/components/landing/pipeline-diagram";
+import { SiteFooter } from "@/components/landing/site-footer";
 import { Mascot } from "@/components/mascot";
 import { RunningJobs } from "@/components/running-jobs";
 import { Button } from "@/components/ui/button";
@@ -14,8 +16,20 @@ import { signInConfigured } from "@/lib/auth";
 import { getJobs } from "@/lib/data";
 
 export const metadata: Metadata = {
-  title: { absolute: "SyncLab: dependency upgrades that open their own pull requests" },
+  title: { absolute: "SyncLab: breaking changes that open their own pull requests" },
 };
+
+/** The two ways code breaks without anyone touching it, and what sets SyncLab off for each. */
+const TRIGGERS = [
+  {
+    label: "A dependency breaks",
+    body: "Dependabot or Renovate opens a pull request for a breaking npm release. SyncLab picks it up from there: the release notes, your usage of the package, and the code that has to change.",
+  },
+  {
+    label: "An API breaks",
+    body: "Anthropic or OpenAI retires a model or changes a parameter, often with no SDK release at all. SyncLab watches the providers, and its scanner already knows which of your calls the change reaches.",
+  },
+];
 
 const FEATURES = [
   {
@@ -27,16 +41,16 @@ const FEATURES = [
     body: "Your suite runs on the current version first, then after every rewrite. Failing output goes back to the model for another try.",
   },
   {
-    title: "Started by your bots",
-    body: "A Dependabot or Renovate pull request for an npm update starts a migration on its own. You can also start one by hand.",
+    title: "Knows where you call each API",
+    body: "A scanner records every Anthropic and OpenAI call in your code: SDK methods and raw fetch or axios requests, with their parameters and model IDs.",
+  },
+  {
+    title: "Watches the providers",
+    body: "Spec diffs, deprecation tables, and changelogs, with evidence quoted word for word, so a retired model is fixed before its date arrives.",
   },
   {
     title: "Your model, your call",
     body: "A local model through Ollama by default, or Gemini or Claude when you want a hosted one.",
-  },
-  {
-    title: "npm, pnpm and yarn",
-    body: "The package manager comes from packageManager or your lockfile, and the lockfile is honoured exactly.",
   },
   {
     title: "Every step on the record",
@@ -45,6 +59,12 @@ const FEATURES = [
 ];
 
 /** Sign-in when the GitHub App is configured, otherwise the sample dashboard. */
+function primaryAction() {
+  return signInConfigured()
+    ? { label: "Sign in with GitHub", href: "/auth/github?returnTo=%2Fdashboard" }
+    : { label: "Open the dashboard", href: "/dashboard" };
+}
+
 function PrimaryAction({ className }: { className?: string }) {
   return signInConfigured() ? (
     <GithubSignIn returnTo="/dashboard" className={className} />
@@ -60,20 +80,25 @@ async function ProductPreview() {
   return <RunningJobs jobs={running.slice(0, 2)} />;
 }
 
+const NAV_LINK = "label-mono hidden text-white/60 transition-colors hover:text-white md:block";
+
 export default function LandingPage() {
   return (
     <div data-landing className="dark min-h-dvh overflow-x-clip bg-[#07090c] text-white">
       <div className="mx-auto max-w-[1440px] border-x border-white/10">
-        <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-white/10 bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
-          <Link href="/" className="flex items-center gap-2.5">
-            <Mascot className="size-7" />
-            <span className="font-serif text-xl">SyncLab</span>
+        <header className="sticky top-0 z-50 flex h-20 items-center justify-between border-b border-white/10 bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
+          <Link href="/" className="flex items-center gap-3">
+            <Mascot className="size-10" />
+            <span className="font-serif text-[1.75rem] leading-none">SyncLab</span>
           </Link>
-          <nav aria-label="Main" className="flex items-center gap-1 sm:gap-6">
-            <a href="#how" className="label-mono hidden text-white/60 transition-colors hover:text-white sm:block">
+          <nav aria-label="Main" className="flex items-center gap-1 md:gap-7">
+            <a href="#how" className={NAV_LINK}>
               How it works
             </a>
-            <Link href="/dashboard" className="label-mono hidden text-white/60 transition-colors hover:text-white sm:block">
+            <a href="#faq" className={NAV_LINK}>
+              FAQ
+            </a>
+            <Link href="/dashboard" className={NAV_LINK}>
               Dashboard
             </Link>
             <PrimaryAction className="h-9 px-3" />
@@ -83,13 +108,14 @@ export default function LandingPage() {
         <main id="main" tabIndex={-1} className="outline-none">
           <HeroField>
             <div className="flex flex-col gap-6">
-              <Eyebrow>Dependency migrations</Eyebrow>
+              <Eyebrow>Dependency and API migrations</Eyebrow>
               <h1 id="hero-heading" className="font-serif text-[2.6rem] leading-[1.02] tracking-tight text-balance sm:text-6xl lg:text-7xl">
-                Upgrades that open their own pull requests.
+                Breaking changes that open their own pull requests.
               </h1>
               <p className="max-w-xl text-base leading-relaxed text-pretty text-white/65 sm:text-lg">
-                SyncLab takes a breaking npm release, rewrites the code it breaks, proves the change with your own test
-                suite in a locked-down sandbox, and hands you a pull request to merge.
+                When a dependency ships a breaking release, or Anthropic or OpenAI changes their API, SyncLab finds the
+                code that breaks, rewrites it, proves the fix with your own tests in a locked-down sandbox, and hands you
+                a pull request to merge.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <PrimaryAction />
@@ -103,26 +129,26 @@ export default function LandingPage() {
             </div>
           </HeroField>
 
-          <Band label="Works with">
-            <ul className="label-mono flex flex-wrap items-center gap-x-8 gap-y-3 px-5 py-6 text-white/40 sm:px-10">
-              {["Dependabot", "Renovate", "npm", "pnpm", "yarn", "Ollama", "Gemini", "Claude", "GitHub App"].map((name) => (
-                <li key={name}>{name}</li>
-              ))}
-            </ul>
-          </Band>
-
           <Band id="how" label="How it works" className="px-5 py-20 sm:px-10 sm:py-28">
             <div className="flex max-w-2xl flex-col gap-5">
               <Eyebrow>How it works</Eyebrow>
               <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">
-                From a bot&apos;s pull request to one you can merge.
+                Two ways things break. One way they get fixed.
               </h2>
-              <p className="text-pretty text-white/60">
-                Every migration runs the same eight stages in throwaway containers. The repository&apos;s code never runs on
-                the server that orchestrates them.
-              </p>
             </div>
-            <div className="mt-16">
+            <ul className="mt-12 grid border-t border-l border-white/10 sm:grid-cols-2">
+              {TRIGGERS.map((trigger) => (
+                <li key={trigger.label} className="flex flex-col gap-3 border-r border-b border-white/10 p-6 sm:p-8">
+                  <h3 className="text-lg font-medium">{trigger.label}</h3>
+                  <p className="text-sm leading-relaxed text-pretty text-white/55">{trigger.body}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-12 max-w-2xl text-pretty text-white/60">
+              Either way, the fix runs through the same stages in throwaway containers, and the repository&apos;s code
+              never runs on the server that orchestrates them.
+            </p>
+            <div className="mt-14">
               <PipelineDiagram />
             </div>
           </Band>
@@ -176,30 +202,12 @@ export default function LandingPage() {
             </ul>
           </Band>
 
-          <Band label="Get started" className="flex flex-col items-center gap-8 px-5 py-24 text-center sm:px-10 sm:py-32">
-            <Mascot className="size-14" />
-            <h2 className="max-w-3xl font-serif text-4xl leading-tight tracking-tight text-balance sm:text-6xl">
-              Let the next breaking release fix itself.
-            </h2>
-            <div className="flex flex-wrap justify-center gap-3">
-              <PrimaryAction />
-              {/* Without sign-in, the primary action already opens the dashboard. */}
-              {signInConfigured() && (
-                <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">
-                  <Link href="/dashboard">See the dashboard</Link>
-                </Button>
-              )}
-            </div>
+          <Band id="faq" label="FAQ" className="px-5 py-20 sm:px-10 sm:py-28">
+            <Faq />
           </Band>
         </main>
 
-        <footer className="flex flex-col gap-4 border-t border-white/10 px-5 py-8 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-10">
-          <span className="flex items-center gap-2">
-            <Mascot className="size-5" />
-            SyncLab
-          </span>
-          <span className="label-mono">Dependency migrations, opened as pull requests</span>
-        </footer>
+        <SiteFooter action={primaryAction()} />
       </div>
     </div>
   );

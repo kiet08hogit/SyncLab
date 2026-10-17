@@ -25,7 +25,7 @@ Tests sign in through the real OAuth redirect, seed jobs straight into the datab
 
 | Route | Shows |
 | --- | --- |
-| `/` | The landing page: the mascot redrawn in ASCII with a `package.json` line that keeps upgrading itself, how the pipeline works, the live Running now cards, and sign-in. `proxy.ts` sends a signed-in user, and old dashboard links such as `/?status=FAILED`, to `/dashboard` |
+| `/` | The landing page: the mascot redrawn in ASCII beside a line of code that keeps getting migrated (a dependency bump, then an Anthropic or OpenAI API change), how both kinds of break run through the pipeline, the live Running now cards, an FAQ, and sign-in. `proxy.ts` sends a signed-in user, and old dashboard links such as `/?status=FAILED`, to `/dashboard` |
 | `/dashboard` | Job counts per status, the jobs a worker is running now, and a searchable, filterable job table; refreshes every 5 seconds while any job is queued or running and no filter is set |
 | `/jobs/[id]` | One job's pipeline track, failure reason, branch name, how long the latest run took, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running. A failed job has a **Retry migration** button when you are signed in. Output longer than 24 lines folds to its last 12, except on a failed step, and each step's output has a copy button |
 | `/repositories` | Installed repositories with job totals and last activity |

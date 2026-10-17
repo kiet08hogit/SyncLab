@@ -2,11 +2,11 @@ import { PIPELINE_STAGES, type PipelineStage } from "@/lib/types";
 
 const STAGES: Record<PipelineStage, { label: string; detail: string }> = {
   CLONE: { label: "Clone", detail: "A fresh checkout in a volume of its own." },
-  CHANGELOG: { label: "Changelog", detail: "Release notes between your version and the new one." },
+  CHANGELOG: { label: "Changelog", detail: "What changed: the release notes, or the provider's change and its evidence." },
   INSTALL: { label: "Install", detail: "npm, pnpm or yarn, with your lockfile honoured exactly." },
   BASELINE: { label: "Baseline", detail: "Your tests on the current version. A suite that already fails stops here." },
-  UPGRADE: { label: "Upgrade", detail: "The exact new version, in the section it was declared in." },
-  REFACTOR: { label: "Refactor", detail: "A model rewrites only the files that use the dependency." },
+  UPGRADE: { label: "Upgrade", detail: "The exact new version of a dependency. An API change has nothing to bump." },
+  REFACTOR: { label: "Refactor", detail: "A model rewrites only the code that uses what changed." },
   TEST: { label: "Test", detail: "Your suite again, with no network and no secrets. Failures go back to the model." },
   PR: { label: "Pull request", detail: "A branch and a pull request, ready for your review." },
 };
