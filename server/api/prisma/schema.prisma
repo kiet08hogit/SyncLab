@@ -14,6 +14,7 @@ model Repository {
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
   
   migrationJobs   MigrationJob[]
+  scans           RepositoryScan[]
 
   @@map("repositories")
 }
@@ -46,4 +47,65 @@ model ExecutionLog {
   job             MigrationJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@map("execution_logs")
+}
+
+/// An external API SyncLab watches. Seeded with anthropic and openai.
+model ApiProvider {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug            String         @unique @db.VarChar(50)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+
+  usages          ApiUsage[]
+
+  @@map("api_providers")
+}
+
+/// One pass of the scanner over a repository's default branch.
+model RepositoryScan {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repositoryId    String         @map("repository_id") @db.Uuid
+  /// installation, push or manual.
+  trigger         String         @db.VarChar(50)
+  status          String         @default("QUEUED") @db.VarChar(50)
+  /// Set to the repository while the scan waits to start, so a repository has
+  /// at most one waiting scan: a second trigger finds it instead of queueing
+  /// another. Cleared when a worker starts the scan.
+  queuedFor       String?        @unique @map("queued_for") @db.Uuid
+  commitSha       String?        @map("commit_sha") @db.VarChar(40)
+  errorMessage    String?        @map("error_message")
+  /// The clone and scan step output, for diagnosing a scan.
+  output          String?
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  repository      Repository     @relation(fields: [repositoryId], references: [id])
+  usages          ApiUsage[]
+
+  @@index([repositoryId, createdAt])
+  @@map("repository_scans")
+}
+
+/// One call to a provider's API, found by a scan.
+model ApiUsage {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId          String         @map("scan_id") @db.Uuid
+  providerId      String         @map("provider_id") @db.Uuid
+  file            String         @db.VarChar(1024)
+  line            Int
+  /// sdk or http.
+  style           String         @db.VarChar(10)
+  /// The SDK method path relative to the client, such as beta.messages.stream.
+  method          String?        @db.VarChar(255)
+  /// Such as POST /v1/messages. Null when the scanner has no operation for the call.
+  operation       String?        @db.VarChar(255)
+  params          String[]
+  modelIds        String[]       @map("model_ids")
+  dynamic         Boolean
+
+  scan            RepositoryScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  provider        ApiProvider    @relation(fields: [providerId], references: [id])
+
+  @@index([scanId])
+  @@index([providerId, operation])
+  @@map("api_usages")
 }

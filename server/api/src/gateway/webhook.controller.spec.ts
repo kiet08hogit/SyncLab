@@ -50,11 +50,19 @@ function setup(existing?: { id: string; status: string }, declared = true) {
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
   const githubTokens = { declaresRootDependency: jest.fn().mockResolvedValue(declared) };
+  const scans = {
+    enqueue: jest
+      .fn()
+      .mockImplementation(({ fullName }: { fullName: string }) =>
+        Promise.resolve({ id: `scan-${fullName}`, status: JobStatus.QUEUED, queued: true }),
+      ),
+  };
   const controller = new WebhookController(
     new MigrationJobsService(queue as never, prisma as never),
     githubTokens as never,
+    scans as never,
   );
-  return { controller, githubTokens, prisma, queue };
+  return { controller, githubTokens, prisma, queue, scans };
 }
 
 describe('WebhookController', () => {
@@ -193,5 +201,57 @@ describe('WebhookController', () => {
       'connection lost',
     );
     expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  describe('scan triggers', () => {
+    it('queues a scan of every repository a new installation reaches', async () => {
+      const { controller, scans, queue } = setup();
+
+      await expect(
+        controller.handleWebhook(
+          {
+            action: 'created',
+            installation: { id: 42 },
+            repositories: [
+              { id: 1, full_name: 'acme/api' },
+              { id: 2, full_name: 'acme/web' },
+            ],
+          },
+          'installation',
+        ),
+      ).resolves.toEqual({
+        scans: [
+          { id: 'scan-acme/api', status: JobStatus.QUEUED, queued: true },
+          { id: 'scan-acme/web', status: JobStatus.QUEUED, queued: true },
+        ],
+      });
+      expect(scans.enqueue).toHaveBeenCalledWith({
+        githubRepoId: 1n,
+        fullName: 'acme/api',
+        repoUrl: 'https://github.com/acme/api.git',
+        installationId: 42n,
+        trigger: 'installation',
+      });
+      expect(queue.add).not.toHaveBeenCalled();
+    });
+
+    it('queues a scan for a push to the default branch, and ignores other pushes', async () => {
+      const { controller, scans } = setup();
+      const repository = { id: 7, full_name: 'acme/api', default_branch: 'main' };
+
+      await controller.handleWebhook(
+        { ref: 'refs/heads/main', repository, installation: { id: 42 } },
+        'push',
+      );
+      await expect(
+        controller.handleWebhook(
+          { ref: 'refs/heads/feature', repository, installation: { id: 42 } },
+          'push',
+        ),
+      ).resolves.toMatchObject({ ignored: true });
+
+      expect(scans.enqueue).toHaveBeenCalledTimes(1);
+      expect(scans.enqueue).toHaveBeenCalledWith(expect.objectContaining({ trigger: 'push' }));
+    });
   });
 });

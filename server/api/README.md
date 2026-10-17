@@ -96,7 +96,7 @@ npm run github-app:register -- --webhook-url https://smee.io/<channel> --name "S
 ```
 
 1. Open `http://localhost:3002` and press **Continue to GitHub**.
-   GitHub shows the App with its settings filled in: **Contents** and **Pull requests** read and write, **Metadata** read, the **Pull request** event, the webhook URL, and the dashboard's sign-in callback `http://localhost:3001/auth/github/callback`.
+   GitHub shows the App with its settings filled in: **Contents** and **Pull requests** read and write, **Metadata** read, the **Pull request** and **Push** events, the webhook URL, and the dashboard's sign-in callback `http://localhost:3001/auth/github/callback`.
 2. Press **Create GitHub App**.
    GitHub redirects back with a one-time code, which the script exchanges for the App's credentials.
    It writes `GITHUB_APP_ID`, `GITHUB_WEBHOOK_SECRET` and `GITHUB_PRIVATE_KEY_PATH` to `.env`, the private key next to it as `<slug>.private-key.pem` (gitignored), and `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_APP_SLUG` and a `SESSION_SECRET` to `web/.env.local`.
@@ -174,6 +174,25 @@ Every read is limited to the caller's repositories (see [Credentials](#credentia
 | `GET /migrations/counts` | The number of jobs per status, including statuses with none. |
 | `GET /migrations/:id` | One job with its repository and execution log, oldest entry first. `404` for an unknown or inaccessible job, `400` when the id is not a UUID. |
 | `GET /repositories` | For a user, every repository their installations reach, including ones with no jobs yet; for the service token, every repository SyncLab has recorded. Each has `jobCount`, `completed`, `failed`, `active` and `lastActivityAt`. |
+| `GET /repositories/:githubRepoId/api-usage` | The repository's Anthropic and OpenAI API calls from its newest completed scan (`usageScan`), with the newest scan of any status next to it (`latestScan`). Each usage has its `provider`, `file`, `line`, `style` (`sdk` or `http`), SDK `method`, `operation` (such as `POST /v1/messages`, or `null` when unknown), request `params`, literal `modelIds`, and `dynamic` when part of the request is only known at runtime. `404` for an inaccessible or never-scanned repository. |
+
+## Scanning repositories for API usage
+
+The worker keeps a registry of every call each repository makes to the Anthropic or OpenAI API, for the self-maintaining API phases in `infra/Architecture/05 - Self-Maintaining API.md`.
+A scan runs two sandbox containers on one volume: `clone` makes a shallow clone of the default branch with the GitHub token, then `scan` parses it with no token and no network.
+
+Scans start on their own when the App is installed or a repository is added to an installation, and on every push to the default branch.
+Apps registered before the push event was added need it switched on under the App's **Permissions & events** settings.
+A repository has at most one scan waiting to start, so a burst of pushes is scanned once.
+A failed scan is not retried; the next push, or a manual trigger, scans again.
+
+```bash
+curl -X POST http://localhost:3000/repositories/<githubRepoId>/scan \
+  -H "Authorization: Bearer $MIGRATIONS_API_TOKEN"
+```
+
+The response is `202` with the scan `id`, its `status`, and whether it was `queued` (false when it joined a scan already waiting).
+Like `POST /migrations`, a user may only scan repositories their installations reach, and the service token may only scan repositories SyncLab has recorded.
 
 ## Scripts
 

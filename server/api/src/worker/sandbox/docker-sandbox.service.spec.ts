@@ -34,7 +34,8 @@ function resultLine(phase: SandboxPhase, run: NonNullable<ScriptedRun['result']>
  * the sandbox image does.
  */
 function setup(script: Partial<Record<SandboxPhase, ScriptedRun[]>>, sandbox = {}) {
-  const created: Array<{ phase: SandboxPhase; env: string[]; binds: string[] }> = [];
+  const created: Array<{ phase: SandboxPhase; env: string[]; binds: string[]; network: string }> =
+    [];
   const containers: Array<{ remove: jest.Mock; kill: jest.Mock }> = [];
   const volume = { remove: jest.fn().mockResolvedValue(undefined) };
 
@@ -48,12 +49,23 @@ function setup(script: Partial<Record<SandboxPhase, ScriptedRun[]>>, sandbox = {
       },
     },
     createContainer: jest.fn(
-      (options: { Cmd: [SandboxPhase]; Env: string[]; HostConfig: { Binds: string[] } }) => {
+      (options: {
+        Cmd: [SandboxPhase];
+        Env: string[];
+        HostConfig: { Binds: string[]; NetworkMode: string };
+      }) => {
         const phase = options.Cmd[0];
-        created.push({ phase, env: options.Env, binds: options.HostConfig.Binds });
+        created.push({
+          phase,
+          env: options.Env,
+          binds: options.HostConfig.Binds,
+          network: options.HostConfig.NetworkMode,
+        });
         const run: ScriptedRun =
           script[phase]?.shift() ??
-          (phase === 'prepare' ? { result: { ok: true, data: { headSha: HEAD_SHA } } } : PASSED);
+          (phase === 'prepare' || phase === 'clone'
+            ? { result: { ok: true, data: { headSha: HEAD_SHA } } }
+            : PASSED);
         const stream = new PassThrough();
 
         const container = {
@@ -436,5 +448,115 @@ describe('DockerSandboxService', () => {
       await expect(service.run('job-1', params(), onSteps)).resolves.toMatchObject({ ok: true });
       expect(volume.remove).toHaveBeenCalled();
     });
+  });
+});
+
+describe('DockerSandboxService.scan', () => {
+  const USAGE = {
+    provider: 'anthropic',
+    file: 'src/llm/chain.ts',
+    line: 4,
+    style: 'sdk',
+    method: 'beta.messages.stream',
+    operation: 'POST /v1/messages',
+    params: ['max_tokens', 'messages', 'model'],
+    modelIds: [],
+    dynamic: true,
+  };
+  const SCAN_PARAMS = { repoUrl: 'https://github.com/acme/widgets.git', token: 'gh-token' };
+
+  beforeEach(() => {
+    jest.mocked(Docker).mockReset();
+  });
+
+  it('clones with the token, then scans offline without it, on one scan volume', async () => {
+    const { service, docker, created, volume } = setup({
+      clone: [
+        {
+          result: {
+            ok: true,
+            steps: [{ step: 'CLONE', output: 'cloned' }],
+            data: { headSha: HEAD_SHA },
+          },
+        },
+      ],
+      scan: [
+        {
+          result: {
+            ok: true,
+            steps: [{ step: 'SCAN', output: 'found 1' }],
+            data: { usages: [USAGE] },
+          },
+        },
+      ],
+    });
+
+    await expect(service.scan('scan-1', SCAN_PARAMS)).resolves.toEqual({
+      ok: true,
+      commitSha: HEAD_SHA,
+      usages: [USAGE],
+      output: '[CLONE]\ncloned\n\n[SCAN]\nfound 1',
+    });
+
+    expect(docker.createVolume).toHaveBeenCalledWith({
+      Name: 'synclab-scan-scan-1',
+      Labels: { 'com.synclab.scan': 'scan-1' },
+    });
+    expect(created.map(({ phase, network }) => [phase, network])).toEqual([
+      ['clone', 'bridge'],
+      ['scan', 'none'],
+    ]);
+    expect(created[0].env).toContain('GITHUB_TOKEN=gh-token');
+    expect(created[0].env).toContain('REPO_URL=https://github.com/acme/widgets.git');
+    expect(created[1].env.filter((entry) => !entry.startsWith('SANDBOX_WORKSPACE='))).toEqual([]);
+    for (const container of created) {
+      expect(container.binds).toEqual(['synclab-scan-scan-1:/workspace']);
+    }
+    expect(volume.remove).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('stops after a failed clone without scanning', async () => {
+    const { service, created, volume } = setup({
+      clone: [{ result: { ok: false, error: 'git clone failed' } }],
+    });
+
+    await expect(service.scan('scan-1', SCAN_PARAMS)).resolves.toMatchObject({
+      ok: false,
+      error: 'git clone failed',
+      usages: [],
+    });
+    expect(created.map((c) => c.phase)).toEqual(['clone']);
+    expect(volume.remove).toHaveBeenCalled();
+  });
+
+  it('reports a scan container that died without a result, with its log', async () => {
+    const { service } = setup({ scan: [{ output: 'out of memory', exitCode: 137 }] });
+
+    const outcome = await service.scan('scan-1', SCAN_PARAMS);
+
+    expect(outcome).toMatchObject({ ok: false, commitSha: HEAD_SHA, usages: [] });
+    expect(outcome.error).toMatch(/"scan" exited with code 137/);
+    expect(outcome.output).toContain('[SCAN]\nout of memory');
+  });
+
+  it('drops a usage that does not fit the registry', async () => {
+    const { service } = setup({
+      scan: [
+        {
+          result: {
+            ok: true,
+            data: {
+              usages: [
+                USAGE,
+                { ...USAGE, file: 'x'.repeat(1025) },
+                { ...USAGE, provider: 'gemini' },
+              ],
+            },
+          },
+        },
+      ],
+    });
+
+    await expect(service.scan('scan-1', SCAN_PARAMS)).resolves.toMatchObject({ usages: [USAGE] });
   });
 });

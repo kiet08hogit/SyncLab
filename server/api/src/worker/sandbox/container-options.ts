@@ -1,6 +1,6 @@
 import type { ContainerCreateOptions } from 'dockerode';
 import { LLM_API_KEY_ENV } from '../../config/configuration';
-import type { SandboxJobParams, SandboxPhase } from './sandbox.types';
+import type { SandboxJobParams, SandboxPhase, SandboxScanParams } from './sandbox.types';
 
 export const WORKSPACE_MOUNT = '/workspace';
 
@@ -23,20 +23,22 @@ export interface ContainerOptionsInput {
  * Install and upgrade also run untrusted code - dependency lifecycle scripts -
  * but cannot fetch packages without the registry, so they keep the network
  * and instead never receive a token. Refactor needs the model provider and
- * only runs SyncLab's own code.
+ * only runs SyncLab's own code. Scan only parses the clone, so it has no reason
+ * to reach anything.
  */
 export function phaseNeedsNetwork(phase: SandboxPhase): boolean {
-  return phase !== 'test';
+  return phase !== 'test' && phase !== 'scan';
 }
 
 /**
  * Kept separate from network access on purpose: these are independent reasons
- * to withhold something from a phase. Only the two phases that run nothing but
- * SyncLab's own code get the token; install scripts and the test suite never
- * run beside it, and refactor has no business reaching GitHub.
+ * to withhold something from a phase. Only the phases that clone or push, and
+ * run nothing but SyncLab's own code, get the token; install scripts and the
+ * test suite never run beside it, and refactor and scan have no business
+ * reaching GitHub.
  */
 export function phaseNeedsToken(phase: SandboxPhase): boolean {
-  return phase === 'prepare' || phase === 'publish';
+  return phase === 'prepare' || phase === 'clone' || phase === 'publish';
 }
 
 export function phaseNeedsModel(phase: SandboxPhase): boolean {
@@ -76,6 +78,27 @@ export function buildPhaseEnv(
       env.LLM_BASE_URL = params.llm.baseUrl;
       env.LLM_NUM_CTX = String(params.llm.numCtx);
     }
+  }
+
+  return env;
+}
+
+/**
+ * A scan carries no migration, so its phases get only the workspace, what to
+ * clone, and the token where phaseNeedsToken allows it.
+ */
+export function buildScanPhaseEnv(
+  phase: Extract<SandboxPhase, 'clone' | 'scan'>,
+  params: SandboxScanParams,
+): Record<string, string> {
+  const env: Record<string, string> = { SANDBOX_WORKSPACE: WORKSPACE_MOUNT };
+
+  if (phase === 'clone') {
+    env.REPO_URL = params.repoUrl;
+  }
+
+  if (phaseNeedsToken(phase)) {
+    env.GITHUB_TOKEN = params.token;
   }
 
   return env;

@@ -1,5 +1,7 @@
 export const MIGRATION_QUEUE = 'migration-queue';
 export const MIGRATION_JOB_NAME = 'process-migration';
+export const SCAN_QUEUE = 'scan-queue';
+export const SCAN_JOB_NAME = 'scan-repository';
 
 export const JobStatus = {
   QUEUED: 'QUEUED',
@@ -24,6 +26,7 @@ export const LogStep = {
   REFACTOR: 'REFACTOR',
   TEST: 'TEST',
   PR: 'PR',
+  SCAN: 'SCAN',
   SKIPPED: 'SKIPPED',
   FAILED: 'FAILED',
 } as const;
@@ -32,5 +35,19 @@ export type LogStep = (typeof LogStep)[keyof typeof LogStep];
 
 export interface MigrationJobData {
   jobId: string;
+  repoUrl: string;
+}
+
+/** What made SyncLab scan a repository. */
+export const ScanTrigger = {
+  INSTALLATION: 'installation',
+  PUSH: 'push',
+  MANUAL: 'manual',
+} as const;
+
+export type ScanTrigger = (typeof ScanTrigger)[keyof typeof ScanTrigger];
+
+export interface ScanJobData {
+  scanId: string;
   repoUrl: string;
 }
