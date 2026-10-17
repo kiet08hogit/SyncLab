@@ -1,154 +1,233 @@
-import { Suspense } from "react";
+import type { Metadata } from "next";
+import { Fragment, Suspense, type CSSProperties } from "react";
 import Link from "next/link";
-import { GitPullRequestArrow, Plus, Search, SearchX, X } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-import { JobsTable } from "@/components/jobs-table";
-import { LiveRefresh } from "@/components/live-refresh";
+import { GithubSignIn } from "@/components/github-sign-in";
+import { Faq } from "@/components/landing/faq";
+import { Band, Eyebrow } from "@/components/landing/frame";
+import { HeroField } from "@/components/landing/hero-field";
+import { LandingChrome } from "@/components/landing/landing-chrome";
+import { LandingIntro } from "@/components/landing/landing-intro";
+import { PipelineDiagram } from "@/components/landing/pipeline-diagram";
+import { SectionLink } from "@/components/landing/section-link";
+import { SiteFooter } from "@/components/landing/site-footer";
+import { Mascot } from "@/components/mascot";
 import { RunningJobs } from "@/components/running-jobs";
-import { SampleDataNotice } from "@/components/sample-data-notice";
-import { OverviewSkeleton } from "@/components/skeletons";
-import { StatusFilter } from "@/components/status-filter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { getJobs, getStatusCounts } from "@/lib/data";
-import { JOB_STATUSES, type JobStatus } from "@/lib/types";
+import { signInConfigured } from "@/lib/auth";
+import { getJobs } from "@/lib/data";
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
+export const metadata: Metadata = {
+  title: { absolute: "SyncLab: breaking changes that open their own pull requests" },
+};
+
+/** The two ways code breaks without anyone touching it, and what sets SyncLab off for each. */
+const TRIGGERS = [
+  {
+    label: "A dependency breaks",
+    body: "Dependabot or Renovate opens a pull request for a breaking npm release. SyncLab picks it up from there: the release notes, your usage of the package, and the code that has to change.",
+  },
+  {
+    label: "An API breaks",
+    body: "A provider retires a model or changes a parameter, often with no SDK release at all. SyncLab watches the provider, and its scanner already knows which of your calls the change reaches.",
+  },
+];
+
+const FEATURES = [
+  {
+    title: "Sandboxed by default",
+    body: "Repository code only runs in short-lived Docker containers, and the one that executes it has no network and no credentials.",
+  },
+  {
+    title: "Tested before and after",
+    body: "Your suite runs on the current version first, then after every rewrite. Failing output goes back to the model for another try.",
+  },
+  {
+    title: "Knows where you call each API",
+    body: "A scanner records every call your code makes to the APIs SyncLab watches: SDK methods and raw fetch or axios requests, with their parameters and model IDs.",
+  },
+  {
+    title: "Watches the providers",
+    body: "Spec diffs, deprecation tables, and changelogs, with evidence quoted word for word, so a retired model is fixed before its date arrives.",
+  },
+  {
+    title: "Your model, your call",
+    body: "Rewrites come from a local model by default, or from a hosted one when you want it.",
+  },
+  {
+    title: "Every step on the record",
+    body: "The dashboard follows each job through the pipeline live, with the full output of every step and a retry for failures.",
+  },
+];
+
+/** Sign-in when the GitHub App is configured, otherwise the sample dashboard. */
+function primaryAction() {
+  return signInConfigured()
+    ? { label: "Sign in with GitHub", href: "/auth/github?returnTo=%2Fdashboard" }
+    : { label: "Open the dashboard", href: "/dashboard" };
 }
 
-export default function MigrationsPage({ searchParams }: PageProps<"/">) {
-  return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-2">
-          <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Migrations</h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
-            Every Dependabot or Renovate update SyncLab picks up, and every migration you start by hand, becomes a job:
-            cloned, upgraded, refactored, tested in a sandbox, and opened as a pull request.
-          </p>
-        </div>
-        <Button asChild size="lg" className="h-10 w-fit shrink-0 px-4">
-          <Link href="/migrations/new">
-            <Plus aria-hidden />
-            New migration
-          </Link>
-        </Button>
-      </header>
-      <Suspense fallback={<OverviewSkeleton />}>
-        <Overview searchParams={searchParams} />
-      </Suspense>
-    </div>
+function PrimaryAction({ className }: { className?: string }) {
+  return signInConfigured() ? (
+    <GithubSignIn returnTo="/dashboard" className={className} />
+  ) : (
+    <Button asChild size="lg" className={className}>
+      <Link href="/dashboard">Open the dashboard</Link>
+    </Button>
   );
 }
 
-async function Overview({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
-  const params = await searchParams;
-  const statusParam = first(params.status);
-  const status = JOB_STATUSES.find((value) => value === statusParam);
-  const repository = first(params.repo) || undefined;
-  const query = first(params.q)?.trim() || undefined;
+async function ProductPreview() {
+  const running = await getJobs({ status: "IN_PROGRESS" });
+  return <RunningJobs jobs={running.slice(0, 2)} />;
+}
 
-  const [jobs, counts, running] = await Promise.all([
-    getJobs({ status, repository, query }),
-    getStatusCounts(),
-    getJobs({ status: "IN_PROGRESS" }),
-  ]);
+const HEADLINE = "Breaking changes, fixed for you.";
 
-  const hrefFor = (next: { status?: JobStatus; repo?: string; q?: string }) => {
-    const search = new URLSearchParams();
-    if (next.status) search.set("status", next.status);
-    if (next.repo) search.set("repo", next.repo);
-    if (next.q) search.set("q", next.q);
-    const value = search.toString();
-    return value ? `/?${value}` : "/";
-  };
+/** Delays one piece of the intro (see `intro-fade` in globals.css). */
+const after = (ms: number) => ({ "--delay": `${ms}ms` }) as CSSProperties;
 
-  const filtered = Boolean(status || repository || query);
+const NAV_LINK = "label-mono hidden text-white/60 transition-colors hover:text-white md:block";
 
+export default function LandingPage() {
   return (
-    <>
-      <SampleDataNotice returnTo="/" />
-      {/* Queued jobs count too, so a job a worker picks up appears in Running now. */}
-      <LiveRefresh active={!filtered && counts.QUEUED + counts.IN_PROGRESS > 0} />
-      <StatusFilter
-        counts={counts}
-        active={status}
-        hrefFor={(next) => hrefFor({ status: next, repo: repository, q: query })}
-      />
-
-      {!filtered && running.length > 0 && <RunningJobs jobs={running} />}
-
-      <section aria-labelledby="jobs-heading" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 id="jobs-heading" className="label-mono text-muted-foreground">
-              {filtered ? `${jobs.length} matching ${jobs.length === 1 ? "job" : "jobs"}` : "All jobs"}
-            </h2>
-            {repository && (
-              <Link
-                href={hrefFor({ status, q: query })}
-                className="inline-flex h-7 items-center gap-1 border bg-secondary px-2 text-xs text-secondary-foreground hover:bg-accent"
-              >
-                {repository}
-                <X aria-hidden className="size-3" />
-                <span className="sr-only">Clear repository filter</span>
+    <LandingIntro data-landing className="dark min-h-dvh overflow-x-clip bg-[#07090c] text-white">
+      <LandingChrome />
+      <div className="mx-auto max-w-[1440px] border-x border-white/10">
+        <header className="sticky top-0 z-50 flex h-20 items-center justify-between gap-3 bg-[#07090c]/75 px-4 backdrop-blur-md min-[360px]:px-5 sm:px-10">
+          {/* The header's bottom rule, drawn in from the left by the intro. */}
+          <span aria-hidden className="intro-draw absolute inset-x-0 bottom-0 h-px bg-white/10" />
+          <Link href="/" className="intro-fade flex items-center gap-1.5 min-[360px]:gap-2 sm:gap-3">
+            <Mascot className="size-7 min-[360px]:size-8 sm:size-10" />
+            <span className="font-serif text-xl leading-none min-[360px]:text-2xl sm:text-[1.75rem]">SyncLab</span>
+          </Link>
+          <nav aria-label="Main" className="intro-stagger flex items-center gap-1 md:gap-7">
+            <SectionLink section="how" className={NAV_LINK}>
+              How it works
+            </SectionLink>
+            <SectionLink section="faq" className={NAV_LINK}>
+              FAQ
+            </SectionLink>
+            {/* Without sign-in, the button beside it already opens the dashboard. */}
+            {signInConfigured() && (
+              <Link href="/dashboard" className={NAV_LINK}>
+                Dashboard
               </Link>
             )}
-          </div>
-          <form action="/" role="search" className="relative w-full sm:w-72">
-            {status && <input type="hidden" name="status" value={status} />}
-            {repository && <input type="hidden" name="repo" value={repository} />}
-            <label htmlFor="job-search" className="sr-only">
-              Search jobs
-            </label>
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              id="job-search"
-              name="q"
-              type="search"
-              defaultValue={query}
-              placeholder="Package, version, or repository"
-              className="h-10 pl-9"
-            />
-          </form>
-        </div>
+            {/* On phones the label alone fits beside the wordmark. */}
+            <PrimaryAction className="h-9 px-2.5 min-[360px]:px-3 max-sm:[&_svg]:hidden" />
+          </nav>
+        </header>
 
-        {jobs.length > 0 ? (
-          <JobsTable jobs={jobs} />
-        ) : !filtered ? (
-          <div className="flex flex-col items-center gap-3 border border-dashed px-6 py-16 text-center">
-            <GitPullRequestArrow aria-hidden className="size-6 text-muted-foreground" />
-            <div className="flex flex-col gap-1">
-              <p className="font-medium">No migrations yet</p>
-              <p className="max-w-md text-sm text-pretty text-muted-foreground">
-                SyncLab starts one when Dependabot or Renovate opens an npm update on one of your repositories. You can
-                also start one yourself.
+        <main id="main" tabIndex={-1} className="outline-none">
+          <HeroField>
+            <div className="flex flex-col gap-6">
+              <div className="intro-fade" style={after(100)}>
+                <Eyebrow>Dependency and API migrations</Eyebrow>
+              </div>
+              <h1 id="hero-heading" className="font-serif text-5xl leading-[1.02] tracking-tight text-balance sm:text-6xl lg:text-7xl">
+                {HEADLINE.split(" ").map((word, index, words) => (
+                  <Fragment key={index}>
+                    <span className="intro-word" style={{ "--word": index } as CSSProperties}>
+                      {word}
+                    </span>
+                    {index < words.length - 1 && " "}
+                  </Fragment>
+                ))}
+              </h1>
+              <div className="intro-fade flex flex-wrap items-center gap-3" style={after(750)}>
+                <PrimaryAction />
+                <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">
+                  <SectionLink section="how">
+                    How it works
+                    <ArrowRight aria-hidden />
+                  </SectionLink>
+                </Button>
+              </div>
+            </div>
+          </HeroField>
+
+          <Band id="how" label="How it works" className="px-5 py-20 sm:px-10 sm:py-28">
+            <div className="flex max-w-2xl flex-col gap-5">
+              <Eyebrow>How it works</Eyebrow>
+              <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">
+                Two ways things break. One way they get fixed.
+              </h2>
+            </div>
+            <ul className="mt-12 grid border-t border-l border-white/10 sm:grid-cols-2">
+              {TRIGGERS.map((trigger) => (
+                <li key={trigger.label} className="flex flex-col gap-3 border-r border-b border-white/10 p-6 sm:p-8">
+                  <h3 className="text-lg font-medium">{trigger.label}</h3>
+                  <p className="text-sm leading-relaxed text-pretty text-white/55">{trigger.body}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-12 max-w-2xl text-pretty text-white/60">
+              Either way, the fix runs through the same stages in throwaway containers, and the repository&apos;s code
+              never runs on the server that orchestrates them.
+            </p>
+            <div className="mt-14">
+              <PipelineDiagram />
+            </div>
+          </Band>
+
+          <Band label="The dashboard" className="grid gap-12 px-5 py-20 sm:px-10 sm:py-28 min-[900px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[900px]:items-center">
+            <div className="flex flex-col gap-5">
+              <Eyebrow>The dashboard</Eyebrow>
+              <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">Watch it work.</h2>
+              <p className="text-pretty text-white/60">
+                Every job, live: which stage it is on, the output of each step, and the pull request when it lands. A
+                failed job is one click from another try.
               </p>
+              <Button asChild variant="outline" className="w-fit border-white/15 bg-transparent text-white hover:bg-white/5">
+                <Link href="/dashboard">
+                  Open the sample dashboard
+                  <ArrowRight aria-hidden />
+                </Link>
+              </Button>
             </div>
-            <Button asChild size="sm">
-              <Link href="/migrations/new">
-                <Plus aria-hidden />
-                New migration
-              </Link>
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 border border-dashed px-6 py-16 text-center">
-            <SearchX aria-hidden className="size-6 text-muted-foreground" />
-            <div className="flex flex-col gap-1">
-              <p className="font-medium">No jobs match these filters</p>
-              <p className="text-sm text-muted-foreground">Try another status, or clear the search to see every job.</p>
+            <figure className="overflow-hidden border border-white/10 bg-background shadow-[0_40px_120px_-40px_rgba(44,99,255,0.45)]">
+              <div aria-hidden className="flex items-center gap-1.5 border-b border-white/10 px-4 py-3">
+                <span className="size-2.5 rounded-full bg-white/15" />
+                <span className="size-2.5 rounded-full bg-white/15" />
+                <span className="size-2.5 rounded-full bg-white/15" />
+                <span className="ml-3 font-mono text-[11px] text-white/40">synclab / migrations</span>
+              </div>
+              <div className="p-4 sm:p-6">
+                <Suspense fallback={<div className="h-72" />}>
+                  <ProductPreview />
+                </Suspense>
+              </div>
+              <figcaption className="sr-only">The dashboard&apos;s Running now cards, with sample jobs.</figcaption>
+            </figure>
+          </Band>
+
+          <Band label="Why SyncLab" className="px-5 py-20 sm:px-10 sm:py-28">
+            <div className="flex max-w-2xl flex-col gap-5">
+              <Eyebrow>Built to be trusted with your repository</Eyebrow>
+              <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">
+                Careful where it counts.
+              </h2>
             </div>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/">Clear filters</Link>
-            </Button>
-          </div>
-        )}
-      </section>
-    </>
+            <ul className="mt-14 grid border-t border-l border-white/10 sm:grid-cols-2 lg:grid-cols-3">
+              {FEATURES.map((feature, index) => (
+                <li key={feature.title} className="flex flex-col gap-3 border-r border-b border-white/10 p-6 sm:p-8">
+                  <span className="font-mono text-[11px] text-[#6f93ff]">{String(index + 1).padStart(2, "0")}</span>
+                  <h3 className="text-lg font-medium">{feature.title}</h3>
+                  <p className="text-sm leading-relaxed text-pretty text-white/55">{feature.body}</p>
+                </li>
+              ))}
+            </ul>
+          </Band>
+
+          <Band id="faq" label="FAQ" className="px-5 py-20 sm:px-10 sm:py-28">
+            <Faq />
+          </Band>
+        </main>
+
+        <SiteFooter action={primaryAction()} />
+      </div>
+    </LandingIntro>
   );
 }

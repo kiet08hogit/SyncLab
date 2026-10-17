@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Loader2, RotateCcw } from "lucide-react";
 
-import { retryJob, type RetryJobState } from "@/app/jobs/[id]/actions";
+import { retryJob, type RetryJobState } from "@/app/(app)/jobs/[id]/actions";
 import { Button } from "@/components/ui/button";
 
 export function RetryButton({ jobId }: { jobId: string }) {

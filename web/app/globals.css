@@ -192,3 +192,99 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
+/*
+ * The landing pipeline: a pulse crosses the eight stops in 6.3s, then rests,
+ * on a 9s loop. Each stop lights as the pulse reaches it, 0.9s apart, through
+ * an animation-delay set inline.
+ */
+.landing-pulse {
+  animation: landing-pulse-down 9s linear infinite;
+}
+@media (min-width: 900px) {
+  .landing-pulse {
+    animation-name: landing-pulse-across;
+  }
+}
+@keyframes landing-pulse-across {
+  0% { top: 50%; left: 0; opacity: 1; }
+  70% { top: 50%; left: 100%; opacity: 1; }
+  71%, 100% { top: 50%; left: 100%; opacity: 0; }
+}
+@keyframes landing-pulse-down {
+  0% { top: 0; left: 50%; opacity: 1; }
+  70% { top: 100%; left: 50%; opacity: 1; }
+  71%, 100% { top: 100%; left: 50%; opacity: 0; }
+}
+.landing-stop {
+  animation: landing-stop 9s ease-out infinite;
+}
+@keyframes landing-stop {
+  0%, 8% {
+    border-color: #6f93ff;
+    background: #0e1a3d;
+    color: #ffffff;
+    box-shadow: 0 0 22px rgba(90, 131, 255, 0.5);
+  }
+  18%, 100% {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: #07090c;
+    color: rgba(255, 255, 255, 0.5);
+    box-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-pulse {
+    display: none;
+  }
+  .landing-stop {
+    animation: none;
+  }
+}
+
+/*
+ * The landing intro, once per page load: the header hairline draws across,
+ * the headline rises in word by word out of a blur, and the rest fades up
+ * after it. LandingIntro sets data-intro="playing" only for the first run.
+ */
+@keyframes landing-rise {
+  from { opacity: 0; transform: translateY(0.35em); filter: blur(10px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes landing-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes landing-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.intro-word {
+  display: inline-block;
+}
+[data-intro="playing"] .intro-word {
+  animation: landing-rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--word) * 80ms + 250ms);
+}
+[data-intro="playing"] .intro-fade {
+  animation: landing-fade-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: var(--delay, 0ms);
+}
+[data-intro="playing"] .intro-stagger > * {
+  animation: landing-fade-up 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+[data-intro="playing"] .intro-stagger > :nth-child(2) { animation-delay: 70ms; }
+[data-intro="playing"] .intro-stagger > :nth-child(3) { animation-delay: 140ms; }
+[data-intro="playing"] .intro-stagger > :nth-child(4) { animation-delay: 210ms; }
+[data-intro="playing"] .intro-draw {
+  transform-origin: left;
+  animation: landing-draw 1.1s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-intro="playing"] .intro-word,
+  [data-intro="playing"] .intro-fade,
+  [data-intro="playing"] .intro-stagger > *,
+  [data-intro="playing"] .intro-draw {
+    animation: none;
+  }
+}

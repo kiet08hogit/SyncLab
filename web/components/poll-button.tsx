@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 
-import { pollSources, type PollState } from "@/app/api-changes/actions";
+import { pollSources, type PollState } from "@/app/(app)/api-changes/actions";
 import { LiveRefresh } from "@/components/live-refresh";
 import { Button } from "@/components/ui/button";
 

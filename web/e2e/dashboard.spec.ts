@@ -28,7 +28,7 @@ test.beforeEach(() => {
 });
 
 test("shows the signed-in user's jobs with counts, running cards, and the table", async ({ page }) => {
-  await signIn(page, "/");
+  await signIn(page, "/dashboard");
 
   const filter = page.getByRole("navigation", { name: "Filter by status" });
   await expect(filter.getByRole("link", { name: /All jobs/ })).toContainText("4");
@@ -46,13 +46,13 @@ test("shows the signed-in user's jobs with counts, running cards, and the table"
 });
 
 test("filters by status and search, with the filter in the URL", async ({ page }) => {
-  await signIn(page, "/");
+  await signIn(page, "/dashboard");
   await page.getByRole("navigation", { name: "Filter by status" }).getByRole("link", { name: /Failed/ }).click();
   await expect(page).toHaveURL(/\?status=FAILED/);
   await expect(page.getByRole("table").getByRole("row")).toHaveCount(2);
   await expect(page.getByRole("table")).toContainText("vitest");
 
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("searchbox", { name: "Search jobs" }).fill("acme/api");
   await page.getByRole("searchbox", { name: "Search jobs" }).press("Enter");
   await expect(page).toHaveURL(/q=acme%2Fapi/);
@@ -61,7 +61,7 @@ test("filters by status and search, with the filter in the URL", async ({ page }
 });
 
 test("moves a finished job out of Running now without a reload", async ({ page }) => {
-  await signIn(page, "/");
+  await signIn(page, "/dashboard");
   const running = page.getByRole("region", { name: "Running now" });
   await expect(running).toBeVisible();
   await page.evaluate(() => ((window as { notReloaded?: boolean }).notReloaded = true));

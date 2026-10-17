@@ -7,7 +7,7 @@ import { connection } from "next/server";
 // The GitHub user token lives in an encrypted, httpOnly cookie, so the browser
 // can neither read it nor forge a session without SESSION_SECRET.
 
-const COOKIE = "synclab_session";
+export const SESSION_COOKIE = "synclab_session";
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 
@@ -53,18 +53,22 @@ export function unseal<T>(sealed: string): T | null {
   }
 }
 
+/** The session a cookie value holds, or null when it is missing, forged, or expired. */
+export function readSession(value: string | undefined): Session | null {
+  const session = value ? unseal<Session>(value) : null;
+  return session && session.expiresAt > Date.now() ? session : null;
+}
+
 export async function getSession(): Promise<Session | null> {
   // The expiry check reads the clock, which has to happen at request time.
   await connection();
-  const value = (await cookies()).get(COOKIE)?.value;
-  const session = value ? unseal<Session>(value) : null;
-  return session && session.expiresAt > Date.now() ? session : null;
+  return readSession((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
 /** Arguments for `response.cookies.set`, so the sign-in redirect carries the session itself. */
 export function sessionCookie(session: Session) {
   return [
-    COOKIE,
+    SESSION_COOKIE,
     seal(session),
     {
       httpOnly: true,
@@ -77,5 +81,5 @@ export function sessionCookie(session: Session) {
 }
 
 export async function clearSession() {
-  (await cookies()).delete(COOKIE);
+  (await cookies()).delete(SESSION_COOKIE);
 }
