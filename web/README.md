@@ -1,6 +1,6 @@
 # SyncLab web
 
-Dashboard for SyncLab migration jobs: status counts that double as filters, live pipeline progress, per-job execution logs, the repositories the GitHub App is installed on, GitHub sign-in, and a form to start a migration by hand.
+Dashboard for SyncLab migration jobs: status counts that double as filters, live pipeline progress, per-job execution logs, the repositories the GitHub App is installed on, GitHub sign-in, a form to start a migration by hand, and the API change monitor's sources and breaking changes.
 
 Built with Next.js (App Router), Tailwind CSS v4, shadcn/ui, Magic UI (`number-ticker`, `border-beam`), and Aceternity UI (`sidebar`).
 
@@ -58,11 +58,11 @@ Every call to the API sends the same token, and the API resolves it to the user 
 
 Signed in, every getter in `lib/data.ts` reads the API: `GET /migrations`, `GET /migrations/counts`, `GET /migrations/:id` and `GET /repositories`.
 Signed out, they serve the built-in sample data instead, shaped exactly like the API's answers, and the pages say so with a sign-in prompt.
+The samples' job pages stay public; a real job is only readable by a signed-in user whose installations reach its repository, and anyone else gets a 404.
+When the API is down or no longer accepts the session, `app/error.tsx` offers a retry and a way back to Settings.
 
 `/api-changes` reads the change monitor through `lib/api-changes.ts`: `GET /api-providers`, `GET /api-changes` and `POST /api-providers/poll`, with the shapes in the "Monitoring endpoints" section of `infra/Architecture/05 - Self-Maintaining API.md`.
 Signed in to an API that does not run the monitor yet, those routes answer 404, so the page serves its samples too and says the API has no monitor, rather than showing an error.
-The samples' job pages stay public; a real job is only readable by a signed-in user whose installations reach its repository, and anyone else gets a 404.
-When the API is down or no longer accepts the session, `app/error.tsx` offers a retry and a way back to Settings.
 
 The pipeline track in `lib/pipeline.ts` reads a job's `execution_logs` the way the worker writes them: a phase's rows are flushed when the phase finishes, and each retry starts a new attempt.
 
