@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { usePathname } from "next/navigation";
-import { FolderGit2, GitPullRequestArrow, Plus, Settings } from "lucide-react";
+import { FolderGit2, GitPullRequestArrow, Plus, Radar, Settings } from "lucide-react";
 
 import { Mascot } from "@/components/mascot";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -13,6 +13,7 @@ const NAV = [
   { label: "Migrations", href: "/", icon: GitPullRequestArrow },
   { label: "New migration", href: "/migrations/new", icon: Plus },
   { label: "Repositories", href: "/repositories", icon: FolderGit2 },
+  { label: "API changes", href: "/api-changes", icon: Radar },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
