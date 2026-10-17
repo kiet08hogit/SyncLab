@@ -57,7 +57,7 @@ test("holds still for reduced motion", async ({ page }) => {
   await expect(card).toContainText('"zod": "^4.1.0"');
 });
 
-for (const width of [360, 390, 768, 1024, 1440]) {
+for (const width of [320, 360, 390, 768, 1024, 1440]) {
   test(`fits ${width}px without sideways scrolling, with the pup clear of the copy`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");

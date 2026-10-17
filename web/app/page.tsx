@@ -95,12 +95,12 @@ export default function LandingPage() {
     <LandingIntro data-landing className="dark min-h-dvh overflow-x-clip bg-[#07090c] text-white">
       <LandingChrome />
       <div className="mx-auto max-w-[1440px] border-x border-white/10">
-        <header className="sticky top-0 z-50 flex h-20 items-center justify-between gap-3 bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
+        <header className="sticky top-0 z-50 flex h-20 items-center justify-between gap-3 bg-[#07090c]/75 px-4 backdrop-blur-md min-[360px]:px-5 sm:px-10">
           {/* The header's bottom rule, drawn in from the left by the intro. */}
           <span aria-hidden className="intro-draw absolute inset-x-0 bottom-0 h-px bg-white/10" />
-          <Link href="/" className="intro-fade flex items-center gap-2 sm:gap-3">
-            <Mascot className="size-8 sm:size-10" />
-            <span className="font-serif text-2xl leading-none sm:text-[1.75rem]">SyncLab</span>
+          <Link href="/" className="intro-fade flex items-center gap-1.5 min-[360px]:gap-2 sm:gap-3">
+            <Mascot className="size-7 min-[360px]:size-8 sm:size-10" />
+            <span className="font-serif text-xl leading-none min-[360px]:text-2xl sm:text-[1.75rem]">SyncLab</span>
           </Link>
           <nav aria-label="Main" className="intro-stagger flex items-center gap-1 md:gap-7">
             <SectionLink section="how" className={NAV_LINK}>
@@ -116,7 +116,7 @@ export default function LandingPage() {
               </Link>
             )}
             {/* On phones the label alone fits beside the wordmark. */}
-            <PrimaryAction className="h-9 px-3 max-sm:[&_svg]:hidden" />
+            <PrimaryAction className="h-9 px-2.5 min-[360px]:px-3 max-sm:[&_svg]:hidden" />
           </nav>
         </header>
 
