@@ -91,7 +91,8 @@ export default function LandingPage() {
       <div className="mx-auto max-w-[1440px] border-x border-white/10">
         <header className="sticky top-0 z-50 flex h-20 items-center justify-between border-b border-white/10 bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
           <Link href="/" className="flex items-center gap-3">
-            <Mascot className="size-10" />
+            {/* No tile here: the hero already draws the pup, so the mark stays quiet beside it. */}
+            <Mascot tile={false} className="size-11" />
             <span className="font-serif text-[1.75rem] leading-none">SyncLab</span>
           </Link>
           <nav aria-label="Main" className="flex items-center gap-1 md:gap-7">
@@ -115,14 +116,9 @@ export default function LandingPage() {
           <HeroField>
             <div className="flex flex-col gap-6">
               <Eyebrow>Dependency and API migrations</Eyebrow>
-              <h1 id="hero-heading" className="font-serif text-[2.6rem] leading-[1.02] tracking-tight text-balance sm:text-6xl lg:text-7xl">
-                Breaking changes that open their own pull requests.
+              <h1 id="hero-heading" className="font-serif text-5xl leading-[1.02] tracking-tight text-balance sm:text-6xl lg:text-7xl">
+                Breaking changes, fixed for you.
               </h1>
-              <p className="max-w-xl text-base leading-relaxed text-pretty text-white/65 sm:text-lg">
-                When a dependency ships a breaking release, or an API you call changes under you, SyncLab finds the code
-                that breaks, rewrites it, proves the fix with your own tests in a locked-down sandbox, and hands you a
-                pull request to merge.
-              </p>
               <div className="flex flex-wrap items-center gap-3">
                 <PrimaryAction />
                 <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">

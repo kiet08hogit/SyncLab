@@ -5,7 +5,7 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   page.on("pageerror", (error) => errors.push(error.message));
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes that open their own pull requests.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes, fixed for you.");
   await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
   // The product preview is the dashboard's own Running now cards, with sample jobs.
   await expect(page.getByRole("region", { name: "The dashboard" }).getByRole("heading", { name: "Running now" })).toBeVisible();
@@ -121,5 +121,5 @@ test("leaves the dashboard intact after a client-side visit, and Back returns to
 
   await page.goBack();
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes that open their own pull requests.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes, fixed for you.");
 });
