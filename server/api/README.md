@@ -175,6 +175,8 @@ Every read is limited to the caller's repositories (see [Credentials](#credentia
 | `GET /migrations/:id` | One job with its repository and execution log, oldest entry first. `404` for an unknown or inaccessible job, `400` when the id is not a UUID. |
 | `GET /repositories` | For a user, every repository their installations reach, including ones with no jobs yet; for the service token, every repository SyncLab has recorded. Each has `jobCount`, `completed`, `failed`, `active` and `lastActivityAt`. |
 | `GET /repositories/:githubRepoId/api-usage` | The repository's Anthropic and OpenAI API calls from its newest completed scan (`usageScan`), with the newest scan of any status next to it (`latestScan`). Each usage has its `provider`, `file`, `line`, `style` (`sdk` or `http`), SDK `method`, `operation` (such as `POST /v1/messages`, or `null` when unknown), request `params`, literal `modelIds`, and `dynamic` when part of the request is only known at runtime. `404` for an inaccessible or never-scanned repository. |
+| `GET /api-providers` | Every watched provider with its sources (`kind`, `url`, `lastCheckedAt`, `lastError`, `latestSnapshot`) and its change counts per status. Not limited by repository. |
+| `GET /api-changes` | Breaking changes the monitor read from the providers, newest first. Filters: `provider` (`anthropic`, `openai`), `status` (`detected`, `confirmed`, `dismissed`) and `kind`. Each change has its `field` or `operation`, `replacement`, `effectiveAt` date, the `section` and verbatim `evidence` it was read from, and its `source`. |
 
 ## Scanning repositories for API usage
 
@@ -194,6 +196,23 @@ curl -X POST http://localhost:3000/repositories/<githubRepoId>/scan \
 
 The response is `202` with the scan `id`, its `status`, and whether it was `queued` (false when it joined a scan already waiting).
 Like `POST /migrations`, a user may only scan repositories their installations reach, and the service token may only scan repositories SyncLab has recorded.
+
+## Monitoring API changes
+
+The worker watches each provider's model deprecations page, for the self-maintaining API phases in `infra/Architecture/05 - Self-Maintaining API.md`.
+Every `API_MONITOR_INTERVAL_MS` (default 6 hours) it fetches each page, reduces it to the text of its tables, and stores a snapshot only when that text changed, so page markup that changes on every request does not count.
+Each retirement in a changed snapshot becomes a `confirmed` breaking change, since these tables are the providers' own statement of what is retired and when: a model retirement names the model, an endpoint retirement names its path.
+Reading the same retirement again updates its date or replacement and keeps a dismissed change dismissed; a retirement that later disappears from the page is kept.
+A page that fails to load, or no longer has any retirement table, is recorded as the source's `lastError` instead of being read as "nothing is retired".
+Set `API_MONITOR_ENABLED=false` to stop the schedule.
+
+```bash
+curl -X POST http://localhost:3000/api-providers/poll \
+  -H "Authorization: Bearer $MIGRATIONS_API_TOKEN"
+```
+
+This polls every source now and answers `202 {"queued": true}`; a poll that is already waiting or running absorbs repeated requests.
+The response shapes are documented in `infra/Architecture/05 - Self-Maintaining API.md` under "Monitoring endpoints".
 
 ## Scripts
 

@@ -66,6 +66,12 @@ export interface WorkerRuntimeConfig {
   concurrency: number;
 }
 
+export interface ApiMonitorConfig {
+  /** Whether workers poll the providers' sources on a schedule. */
+  enabled: boolean;
+  intervalMs: number;
+}
+
 export interface Configuration {
   appRole: AppRole;
   redis: RedisConfig;
@@ -73,6 +79,7 @@ export interface Configuration {
   sandbox: SandboxConfig;
   llm: LlmConfig;
   worker: WorkerRuntimeConfig;
+  apiMonitor: ApiMonitorConfig;
   migrationsApiToken?: string;
 }
 
@@ -128,6 +135,11 @@ export function configuration(): Configuration {
       // One sandbox is a 2GB container. Extra worker processes are the
       // other way to add parallelism; this only raises concurrency inside one.
       concurrency: Math.max(1, Math.floor(positiveNumber(process.env.WORKER_CONCURRENCY, 1))),
+    },
+    apiMonitor: {
+      enabled: process.env.API_MONITOR_ENABLED !== 'false',
+      // Providers announce retirements months ahead, so a few hours is plenty.
+      intervalMs: positiveNumber(process.env.API_MONITOR_INTERVAL_MS, 6 * 60 * 60 * 1000),
     },
     redis: {
       host: process.env.REDIS_HOST ?? 'localhost',

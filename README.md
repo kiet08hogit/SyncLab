@@ -342,6 +342,9 @@ erDiagram
     REPOSITORIES ||--o{ REPOSITORY_SCANS : "has many"
     REPOSITORY_SCANS ||--o{ API_USAGES : "finds"
     API_PROVIDERS ||--o{ API_USAGES : "is called by"
+    API_PROVIDERS ||--o{ API_SOURCES : "is watched through"
+    API_SOURCES ||--o{ API_SOURCE_SNAPSHOTS : "changed as"
+    API_SOURCE_SNAPSHOTS ||--o{ BREAKING_CHANGES : "evidences"
 
     REPOSITORIES {
         uuid id PK
@@ -400,6 +403,38 @@ erDiagram
         text_array model_ids
         boolean dynamic
     }
+
+    API_SOURCES {
+        uuid id PK
+        uuid provider_id FK
+        varchar kind "deprecations"
+        varchar url
+        timestamptz last_checked_at
+        text last_error
+    }
+
+    API_SOURCE_SNAPSHOTS {
+        uuid id PK
+        uuid source_id FK
+        varchar content_hash
+        text content
+        timestamptz fetched_at
+    }
+
+    BREAKING_CHANGES {
+        uuid id PK
+        uuid provider_id FK
+        uuid snapshot_id FK
+        varchar kind "model_retired, endpoint_removed, ..."
+        varchar operation
+        varchar field
+        varchar replacement
+        date effective_at
+        varchar section
+        text evidence
+        varchar status "detected, confirmed, dismissed"
+        varchar subject_key
+    }
 ```
 
 `migration_jobs` has a unique constraint on `(repository_id, dependency_name, target_version)`, which is what makes triggers idempotent.
@@ -407,6 +442,7 @@ erDiagram
 `repository_scans.queued_for` holds the repository id only while a scan waits to start, so its unique index allows one waiting scan per repository.
 `api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
 Only the newest completed scan of a repository keeps its `api_usages`; completing a scan deletes those of older completed scans, while the `repository_scans` rows stay as history.
+`api_source_snapshots` gets a row only when a source's extracted text changes, and `breaking_changes` is unique on `(provider_id, kind, subject_key)`, so reading the same retirement again updates it instead of adding one.
 
 ## Failure handling and retries
 
