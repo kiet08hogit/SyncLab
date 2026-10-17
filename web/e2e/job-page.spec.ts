@@ -95,7 +95,7 @@ test("follows a running job to its pull request without a reload", async ({ page
 });
 
 test("shows a sample job to a signed-out visitor, without a retry button", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("navigation", { name: "Filter by status" }).getByRole("link", { name: /Failed/ }).click();
   await page.getByRole("table").getByRole("link").first().click();
   await expect(page.getByText("Migration failed")).toBeVisible();

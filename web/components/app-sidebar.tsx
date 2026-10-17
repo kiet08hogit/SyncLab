@@ -10,7 +10,7 @@ import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { label: "Migrations", href: "/", icon: GitPullRequestArrow },
+  { label: "Migrations", href: "/dashboard", icon: GitPullRequestArrow },
   { label: "New migration", href: "/migrations/new", icon: Plus },
   { label: "Repositories", href: "/repositories", icon: FolderGit2 },
   { label: "Settings", href: "/settings", icon: Settings },
@@ -46,7 +46,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string | null; onNavigat
       {NAV.map((item) => {
         const active =
           pathname !== null &&
-          (item.href === "/" ? pathname === "/" || pathname.startsWith("/jobs") : pathname.startsWith(item.href));
+          (item.href === "/dashboard" ? pathname === "/dashboard" || pathname.startsWith("/jobs") : pathname.startsWith(item.href));
         const Icon = item.icon;
         return (
           <SidebarLink

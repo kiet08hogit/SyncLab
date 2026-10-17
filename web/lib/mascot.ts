@@ -51,8 +51,11 @@ export const MASCOT_HEAD: MascotShape[] = [
 
 export const MASCOT_TILT = "rotate(-8 32 34)";
 
-/** The same artwork as a standalone SVG document, for the favicon. */
-export function mascotSvg(): string {
+/**
+ * The same artwork as a standalone SVG document, for the favicon. Without the
+ * tile it is the pup alone, which the landing page redraws in ASCII.
+ */
+export function mascotSvg({ tile = true }: { tile?: boolean } = {}): string {
   const render = (shape: MascotShape) => {
     if (shape.kind === "ellipse") {
       const rotate = shape.rotate ? ` transform="rotate(${shape.rotate} ${shape.cx} ${shape.cy})"` : "";
@@ -65,7 +68,7 @@ export function mascotSvg(): string {
   };
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">`,
-    `<rect width="64" height="64" fill="${MASCOT_COLORS.tile}"/>`,
+    ...(tile ? [`<rect width="64" height="64" fill="${MASCOT_COLORS.tile}"/>`] : []),
     ...MASCOT_BODY.map(render),
     `<g transform="${MASCOT_TILT}">`,
     ...MASCOT_HEAD.map(render),

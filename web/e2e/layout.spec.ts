@@ -69,7 +69,7 @@ for (const width of WIDTHS) {
   test(`pipeline labels never overlap and nothing scrolls sideways at ${width}px`, async ({ page }) => {
     seed();
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ["/", "/jobs/33333333-3333-4333-8333-000000000001"]) {
+    for (const path of ["/dashboard", "/jobs/33333333-3333-4333-8333-000000000001"]) {
       await signIn(page, path);
       await expect(page.locator("ol[aria-label]").first()).toBeVisible();
       expect(await overlappingLabels(page), `${path} at ${width}px`).toEqual([]);

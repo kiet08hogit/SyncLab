@@ -1,154 +1,206 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
-import { GitPullRequestArrow, Plus, Search, SearchX, X } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-import { JobsTable } from "@/components/jobs-table";
-import { LiveRefresh } from "@/components/live-refresh";
+import { GithubSignIn } from "@/components/github-sign-in";
+import { Band, Eyebrow } from "@/components/landing/frame";
+import { HeroField } from "@/components/landing/hero-field";
+import { PipelineDiagram } from "@/components/landing/pipeline-diagram";
+import { Mascot } from "@/components/mascot";
 import { RunningJobs } from "@/components/running-jobs";
-import { SampleDataNotice } from "@/components/sample-data-notice";
-import { OverviewSkeleton } from "@/components/skeletons";
-import { StatusFilter } from "@/components/status-filter";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { getJobs, getStatusCounts } from "@/lib/data";
-import { JOB_STATUSES, type JobStatus } from "@/lib/types";
+import { signInConfigured } from "@/lib/auth";
+import { getJobs } from "@/lib/data";
 
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
+export const metadata: Metadata = {
+  title: { absolute: "SyncLab: dependency upgrades that open their own pull requests" },
+};
 
-export default function MigrationsPage({ searchParams }: PageProps<"/">) {
-  return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-2">
-          <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Migrations</h1>
-          <p className="max-w-2xl text-pretty text-muted-foreground">
-            Every Dependabot or Renovate update SyncLab picks up, and every migration you start by hand, becomes a job:
-            cloned, upgraded, refactored, tested in a sandbox, and opened as a pull request.
-          </p>
-        </div>
-        <Button asChild size="lg" className="h-10 w-fit shrink-0 px-4">
-          <Link href="/migrations/new">
-            <Plus aria-hidden />
-            New migration
-          </Link>
-        </Button>
-      </header>
-      <Suspense fallback={<OverviewSkeleton />}>
-        <Overview searchParams={searchParams} />
-      </Suspense>
-    </div>
+const FEATURES = [
+  {
+    title: "Sandboxed by default",
+    body: "Repository code only runs in short-lived Docker containers, and the one that executes it has no network and no credentials.",
+  },
+  {
+    title: "Tested before and after",
+    body: "Your suite runs on the current version first, then after every rewrite. Failing output goes back to the model for another try.",
+  },
+  {
+    title: "Started by your bots",
+    body: "A Dependabot or Renovate pull request for an npm update starts a migration on its own. You can also start one by hand.",
+  },
+  {
+    title: "Your model, your call",
+    body: "A local model through Ollama by default, or Gemini or Claude when you want a hosted one.",
+  },
+  {
+    title: "npm, pnpm and yarn",
+    body: "The package manager comes from packageManager or your lockfile, and the lockfile is honoured exactly.",
+  },
+  {
+    title: "Every step on the record",
+    body: "The dashboard follows each job through the pipeline live, with the full output of every step and a retry for failures.",
+  },
+];
+
+/** Sign-in when the GitHub App is configured, otherwise the sample dashboard. */
+function PrimaryAction({ className }: { className?: string }) {
+  return signInConfigured() ? (
+    <GithubSignIn returnTo="/dashboard" className={className} />
+  ) : (
+    <Button asChild size="lg" className={className}>
+      <Link href="/dashboard">Open the dashboard</Link>
+    </Button>
   );
 }
 
-async function Overview({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
-  const params = await searchParams;
-  const statusParam = first(params.status);
-  const status = JOB_STATUSES.find((value) => value === statusParam);
-  const repository = first(params.repo) || undefined;
-  const query = first(params.q)?.trim() || undefined;
+async function ProductPreview() {
+  const running = await getJobs({ status: "IN_PROGRESS" });
+  return <RunningJobs jobs={running.slice(0, 2)} />;
+}
 
-  const [jobs, counts, running] = await Promise.all([
-    getJobs({ status, repository, query }),
-    getStatusCounts(),
-    getJobs({ status: "IN_PROGRESS" }),
-  ]);
-
-  const hrefFor = (next: { status?: JobStatus; repo?: string; q?: string }) => {
-    const search = new URLSearchParams();
-    if (next.status) search.set("status", next.status);
-    if (next.repo) search.set("repo", next.repo);
-    if (next.q) search.set("q", next.q);
-    const value = search.toString();
-    return value ? `/?${value}` : "/";
-  };
-
-  const filtered = Boolean(status || repository || query);
-
+export default function LandingPage() {
   return (
-    <>
-      <SampleDataNotice returnTo="/" />
-      {/* Queued jobs count too, so a job a worker picks up appears in Running now. */}
-      <LiveRefresh active={!filtered && counts.QUEUED + counts.IN_PROGRESS > 0} />
-      <StatusFilter
-        counts={counts}
-        active={status}
-        hrefFor={(next) => hrefFor({ status: next, repo: repository, q: query })}
-      />
+    <div data-landing className="dark min-h-dvh overflow-x-clip bg-[#07090c] text-white">
+      <div className="mx-auto max-w-[1440px] border-x border-white/10">
+        <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-white/10 bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Mascot className="size-7" />
+            <span className="font-serif text-xl">SyncLab</span>
+          </Link>
+          <nav aria-label="Main" className="flex items-center gap-1 sm:gap-6">
+            <a href="#how" className="label-mono hidden text-white/60 transition-colors hover:text-white sm:block">
+              How it works
+            </a>
+            <Link href="/dashboard" className="label-mono hidden text-white/60 transition-colors hover:text-white sm:block">
+              Dashboard
+            </Link>
+            <PrimaryAction className="h-9 px-3" />
+          </nav>
+        </header>
 
-      {!filtered && running.length > 0 && <RunningJobs jobs={running} />}
+        <main id="main" tabIndex={-1} className="outline-none">
+          <HeroField>
+            <div className="flex flex-col gap-6">
+              <Eyebrow>Dependency migrations</Eyebrow>
+              <h1 id="hero-heading" className="font-serif text-[2.6rem] leading-[1.02] tracking-tight text-balance sm:text-6xl lg:text-7xl">
+                Upgrades that open their own pull requests.
+              </h1>
+              <p className="max-w-xl text-base leading-relaxed text-pretty text-white/65 sm:text-lg">
+                SyncLab takes a breaking npm release, rewrites the code it breaks, proves the change with your own test
+                suite in a locked-down sandbox, and hands you a pull request to merge.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <PrimaryAction />
+                <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">
+                  <a href="#how">
+                    How it works
+                    <ArrowRight aria-hidden />
+                  </a>
+                </Button>
+              </div>
+            </div>
+          </HeroField>
 
-      <section aria-labelledby="jobs-heading" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 id="jobs-heading" className="label-mono text-muted-foreground">
-              {filtered ? `${jobs.length} matching ${jobs.length === 1 ? "job" : "jobs"}` : "All jobs"}
-            </h2>
-            {repository && (
-              <Link
-                href={hrefFor({ status, q: query })}
-                className="inline-flex h-7 items-center gap-1 border bg-secondary px-2 text-xs text-secondary-foreground hover:bg-accent"
-              >
-                {repository}
-                <X aria-hidden className="size-3" />
-                <span className="sr-only">Clear repository filter</span>
-              </Link>
-            )}
-          </div>
-          <form action="/" role="search" className="relative w-full sm:w-72">
-            {status && <input type="hidden" name="status" value={status} />}
-            {repository && <input type="hidden" name="repo" value={repository} />}
-            <label htmlFor="job-search" className="sr-only">
-              Search jobs
-            </label>
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              id="job-search"
-              name="q"
-              type="search"
-              defaultValue={query}
-              placeholder="Package, version, or repository"
-              className="h-10 pl-9"
-            />
-          </form>
-        </div>
+          <Band label="Works with">
+            <ul className="label-mono flex flex-wrap items-center gap-x-8 gap-y-3 px-5 py-6 text-white/40 sm:px-10">
+              {["Dependabot", "Renovate", "npm", "pnpm", "yarn", "Ollama", "Gemini", "Claude", "GitHub App"].map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+          </Band>
 
-        {jobs.length > 0 ? (
-          <JobsTable jobs={jobs} />
-        ) : !filtered ? (
-          <div className="flex flex-col items-center gap-3 border border-dashed px-6 py-16 text-center">
-            <GitPullRequestArrow aria-hidden className="size-6 text-muted-foreground" />
-            <div className="flex flex-col gap-1">
-              <p className="font-medium">No migrations yet</p>
-              <p className="max-w-md text-sm text-pretty text-muted-foreground">
-                SyncLab starts one when Dependabot or Renovate opens an npm update on one of your repositories. You can
-                also start one yourself.
+          <Band id="how" label="How it works" className="px-5 py-20 sm:px-10 sm:py-28">
+            <div className="flex max-w-2xl flex-col gap-5">
+              <Eyebrow>How it works</Eyebrow>
+              <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">
+                From a bot&apos;s pull request to one you can merge.
+              </h2>
+              <p className="text-pretty text-white/60">
+                Every migration runs the same eight stages in throwaway containers. The repository&apos;s code never runs on
+                the server that orchestrates them.
               </p>
             </div>
-            <Button asChild size="sm">
-              <Link href="/migrations/new">
-                <Plus aria-hidden />
-                New migration
-              </Link>
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 border border-dashed px-6 py-16 text-center">
-            <SearchX aria-hidden className="size-6 text-muted-foreground" />
-            <div className="flex flex-col gap-1">
-              <p className="font-medium">No jobs match these filters</p>
-              <p className="text-sm text-muted-foreground">Try another status, or clear the search to see every job.</p>
+            <div className="mt-16">
+              <PipelineDiagram />
             </div>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/">Clear filters</Link>
-            </Button>
-          </div>
-        )}
-      </section>
-    </>
+          </Band>
+
+          <Band label="The dashboard" className="grid gap-12 px-5 py-20 sm:px-10 sm:py-28 min-[900px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[900px]:items-center">
+            <div className="flex flex-col gap-5">
+              <Eyebrow>The dashboard</Eyebrow>
+              <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">Watch it work.</h2>
+              <p className="text-pretty text-white/60">
+                Every job, live: which stage it is on, the output of each step, and the pull request when it lands. A
+                failed job is one click from another try.
+              </p>
+              <Button asChild variant="outline" className="w-fit border-white/15 bg-transparent text-white hover:bg-white/5">
+                <Link href="/dashboard">
+                  Open the sample dashboard
+                  <ArrowRight aria-hidden />
+                </Link>
+              </Button>
+            </div>
+            <figure className="overflow-hidden border border-white/10 bg-background shadow-[0_40px_120px_-40px_rgba(44,99,255,0.45)]">
+              <div aria-hidden className="flex items-center gap-1.5 border-b border-white/10 px-4 py-3">
+                <span className="size-2.5 rounded-full bg-white/15" />
+                <span className="size-2.5 rounded-full bg-white/15" />
+                <span className="size-2.5 rounded-full bg-white/15" />
+                <span className="ml-3 font-mono text-[11px] text-white/40">synclab / migrations</span>
+              </div>
+              <div className="p-4 sm:p-6">
+                <Suspense fallback={<div className="h-72" />}>
+                  <ProductPreview />
+                </Suspense>
+              </div>
+              <figcaption className="sr-only">The dashboard&apos;s Running now cards, with sample jobs.</figcaption>
+            </figure>
+          </Band>
+
+          <Band label="Why SyncLab" className="px-5 py-20 sm:px-10 sm:py-28">
+            <div className="flex max-w-2xl flex-col gap-5">
+              <Eyebrow>Built to be trusted with your repository</Eyebrow>
+              <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">
+                Careful where it counts.
+              </h2>
+            </div>
+            <ul className="mt-14 grid border-t border-l border-white/10 sm:grid-cols-2 lg:grid-cols-3">
+              {FEATURES.map((feature, index) => (
+                <li key={feature.title} className="flex flex-col gap-3 border-r border-b border-white/10 p-6 sm:p-8">
+                  <span className="font-mono text-[11px] text-[#6f93ff]">{String(index + 1).padStart(2, "0")}</span>
+                  <h3 className="text-lg font-medium">{feature.title}</h3>
+                  <p className="text-sm leading-relaxed text-pretty text-white/55">{feature.body}</p>
+                </li>
+              ))}
+            </ul>
+          </Band>
+
+          <Band label="Get started" className="flex flex-col items-center gap-8 px-5 py-24 text-center sm:px-10 sm:py-32">
+            <Mascot className="size-14" />
+            <h2 className="max-w-3xl font-serif text-4xl leading-tight tracking-tight text-balance sm:text-6xl">
+              Let the next breaking release fix itself.
+            </h2>
+            <div className="flex flex-wrap justify-center gap-3">
+              <PrimaryAction />
+              {/* Without sign-in, the primary action already opens the dashboard. */}
+              {signInConfigured() && (
+                <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">
+                  <Link href="/dashboard">See the dashboard</Link>
+                </Button>
+              )}
+            </div>
+          </Band>
+        </main>
+
+        <footer className="flex flex-col gap-4 border-t border-white/10 px-5 py-8 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-10">
+          <span className="flex items-center gap-2">
+            <Mascot className="size-5" />
+            SyncLab
+          </span>
+          <span className="label-mono">Dependency migrations, opened as pull requests</span>
+        </footer>
+      </div>
+    </div>
   );
 }
