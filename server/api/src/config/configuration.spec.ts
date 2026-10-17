@@ -69,3 +69,23 @@ describe('configuration llm', () => {
     expect(configuration().llm.apiKey).toBe('');
   });
 });
+
+describe('configuration monitorAdminLogins', () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it('reads a comma-separated list, trimmed and lowercased', () => {
+    process.env.MONITOR_ADMIN_LOGINS = ' Octo-Admin , ,kun ';
+
+    expect(configuration().monitorAdminLogins).toEqual(['octo-admin', 'kun']);
+  });
+
+  it('makes no user an admin when unset', () => {
+    delete process.env.MONITOR_ADMIN_LOGINS;
+
+    expect(configuration().monitorAdminLogins).toEqual([]);
+  });
+});

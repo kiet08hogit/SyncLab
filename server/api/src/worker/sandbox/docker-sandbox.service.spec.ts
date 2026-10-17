@@ -594,23 +594,33 @@ describe('DockerSandboxService.classify', () => {
     effectiveAt: null,
     evidence: 'remove relationship in favor of access_type',
   };
+  const ANTHROPIC_LLM = {
+    ...OLLAMA_LLM,
+    provider: 'anthropic',
+    apiKey: 'sk-ant-test',
+    model: 'claude-opus-5-5',
+  };
 
   beforeEach(() => {
     jest.mocked(Docker).mockReset();
   });
 
   it('runs classify on its own volume with the model settings and no token, then removes the volume', async () => {
-    const { service, docker, created, volume } = setup({
-      classify: [
-        {
-          result: {
-            ok: true,
-            steps: [{ step: 'CLASSIFY', output: 'Found 1 breaking change(s).' }],
-            data: { changes: [CHANGE], dropped: 0 },
+    const { service, docker, created, volume } = setup(
+      {
+        classify: [
+          {
+            result: {
+              ok: true,
+              steps: [{ step: 'CLASSIFY', output: 'Found 1 breaking change(s).' }],
+              data: { changes: [CHANGE], dropped: 0 },
+            },
           },
-        },
-      ],
-    });
+        ],
+      },
+      {},
+      ANTHROPIC_LLM,
+    );
 
     await expect(service.classify(INPUT)).resolves.toEqual({
       ok: true,
@@ -627,25 +637,31 @@ describe('DockerSandboxService.classify', () => {
       created[0].env.map((entry) => entry.split(/=(.*)/s) as [string, string]),
     );
     expect(JSON.parse(Buffer.from(env.CLASSIFY_INPUT, 'base64').toString('utf8'))).toEqual(INPUT);
-    expect(env.LLM_PROVIDER).toBe('ollama');
-    expect(env.LLM_BASE_URL).toBe('http://host.docker.internal:11434');
+    expect(env.LLM_PROVIDER).toBe('anthropic');
+    expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-test');
+    expect(env.LLM_BASE_URL).toBeUndefined();
+    expect(env.LLM_NUM_CTX).toBeUndefined();
     expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(volume.remove).toHaveBeenCalledWith({ force: true });
   });
 
   it('reports a failed classification, and whether it is worth retrying', async () => {
-    const { service, volume } = setup({
-      classify: [
-        {
-          result: {
-            ok: false,
-            error: 'model call failed: 429 Too Many Requests',
-            steps: [{ step: 'CLASSIFY', output: '429 Too Many Requests' }],
-            data: { retryable: true },
+    const { service, volume } = setup(
+      {
+        classify: [
+          {
+            result: {
+              ok: false,
+              error: 'model call failed: 429 Too Many Requests',
+              steps: [{ step: 'CLASSIFY', output: '429 Too Many Requests' }],
+              data: { retryable: true },
+            },
           },
-        },
-      ],
-    });
+        ],
+      },
+      {},
+      ANTHROPIC_LLM,
+    );
 
     await expect(service.classify(INPUT)).resolves.toEqual({
       ok: false,
@@ -658,7 +674,11 @@ describe('DockerSandboxService.classify', () => {
   });
 
   it('reports a container that died without a result, with its log', async () => {
-    const { service } = setup({ classify: [{ output: 'out of memory', exitCode: 137 }] });
+    const { service } = setup(
+      { classify: [{ output: 'out of memory', exitCode: 137 }] },
+      {},
+      ANTHROPIC_LLM,
+    );
 
     const outcome = await service.classify(INPUT);
 
@@ -668,19 +688,33 @@ describe('DockerSandboxService.classify', () => {
   });
 
   it('removes the volume even when the container times out', async () => {
-    const { service, volume } = setup({ classify: [{ hang: true }] });
+    const { service, volume } = setup({ classify: [{ hang: true }] }, {}, ANTHROPIC_LLM);
 
     await expect(service.classify(INPUT)).rejects.toThrow(/exceeded 1000ms/);
     expect(volume.remove).toHaveBeenCalledWith({ force: true });
   });
 
   it('does not start a container when the hosted provider has no key', async () => {
-    const { service, docker } = setup({}, {}, { ...OLLAMA_LLM, provider: 'anthropic', apiKey: '' });
+    const { service, docker } = setup({}, {}, { ...ANTHROPIC_LLM, apiKey: '' });
 
     await expect(service.classify(INPUT)).resolves.toEqual({
       ok: false,
       error:
         'LLM_PROVIDER is anthropic but ANTHROPIC_API_KEY is not set, so the classify phase cannot run.',
+      changes: [],
+      output: '',
+    });
+    expect(docker.createVolume).not.toHaveBeenCalled();
+    expect(docker.createContainer).not.toHaveBeenCalled();
+  });
+
+  it('refuses ollama without starting a container', async () => {
+    const { service, docker } = setup({}, {}, OLLAMA_LLM);
+
+    await expect(service.classify(INPUT)).resolves.toEqual({
+      ok: false,
+      error:
+        'Classifying release notes needs LLM_PROVIDER gemini or anthropic; ollama is not supported.',
       changes: [],
       output: '',
     });

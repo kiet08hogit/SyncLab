@@ -130,7 +130,7 @@ export function validateChanges(reply: unknown): ClassifyOutcome {
 }
 
 /**
- * Reads the JSON object out of a plain-text reply. A local model sometimes
+ * Reads the JSON object out of a plain-text reply. A model sometimes
  * wraps it in a fenced block or adds a sentence around it despite the format.
  */
 export function parseJsonReply(reply: string): unknown {
@@ -183,7 +183,7 @@ export function buildUserPrompt(input: ClassifyInput): string {
 }
 
 // The answer is a short list, so a few thousand tokens are plenty, and a cap
-// stops a local model that loses its way from running until the timeout.
+// stops a model that loses its way from running until the timeout.
 const MAX_OUTPUT_TOKENS = 4_096;
 
 export type ClassifyChain = (input: ClassifyInput) => Promise<ClassifyOutcome>;

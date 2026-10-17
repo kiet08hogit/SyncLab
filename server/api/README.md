@@ -227,6 +227,9 @@ This polls every source now and answers `202 {"queued": true}`; a poll that is a
 
 `POST /api-changes/:id/confirm` and `POST /api-changes/:id/dismiss` set a change's status and return it in the `GET /api-changes` shape (`404` for an unknown change, `400` for an id that is not a UUID).
 Confirming and dismissing are idempotent, and a dismissed change can be confirmed again.
+A change is global, not tied to a repository, so only an admin may confirm or dismiss it: the `MIGRATIONS_API_TOKEN` service caller, or a user whose GitHub login is listed in `MONITOR_ADMIN_LOGINS` (comma-separated, matched case-insensitively).
+Any other user gets `403`, and with `MONITOR_ADMIN_LOGINS` empty or unset no user is an admin.
+Every change in `GET /api-changes` carries `canReview`, true when the caller may confirm or dismiss it, so the dashboard can hide the buttons.
 The response shapes are documented in `infra/Architecture/05 - Self-Maintaining API.md` under "Monitoring endpoints".
 
 ## Scripts

@@ -173,18 +173,6 @@ describe('buildClassifyPhaseEnv', () => {
     expect(Object.values(env)).not.toContain(TOKEN);
   });
 
-  it('gives a local Ollama its endpoint and no key', () => {
-    const env = buildClassifyPhaseEnv(input, {
-      ...PARAMS.llm,
-      provider: 'ollama',
-      model: 'qwen2.5-coder:14b',
-    });
-
-    expect(env.LLM_BASE_URL).toBe('http://host.docker.internal:11434');
-    expect(env.LLM_NUM_CTX).toBe('32768');
-    expect(env.GEMINI_API_KEY).toBeUndefined();
-  });
-
   it('caps the text so the environment stays far under the OS limit', () => {
     const line = `${'x'.repeat(99)}\n`;
     const env = buildClassifyPhaseEnv({ ...input, text: line.repeat(5_000) }, PARAMS.llm);

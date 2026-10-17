@@ -115,7 +115,7 @@ export function buildScanPhaseEnv(
 /**
  * The most text one classification sends. Base64 makes it a third larger, so
  * CLASSIFY_INPUT stays near 64 KB: well under the 128 KB Linux allows a single
- * environment string, and a prompt a local model's context can hold.
+ * environment string.
  */
 export const MAX_CLASSIFY_TEXT_BYTES = 48 * 1024;
 
@@ -144,20 +144,21 @@ export function capClassifyText(text: string): { text: string; truncated: boolea
 
 /**
  * Classify reads nothing from the volume and reaches nothing but the model, so
- * it gets only its input and the model settings: never the GitHub token.
+ * it gets only its input and the hosted model's key: never the GitHub token.
  */
 export function buildClassifyPhaseEnv(
   input: SandboxClassifyInput,
   llm: SandboxLlmParams,
 ): Record<string, string> {
   const capped: SandboxClassifyInput = { ...input, text: capClassifyText(input.text).text };
+  const keyEnv = LLM_API_KEY_ENV[llm.provider];
 
   return {
     SANDBOX_WORKSPACE: WORKSPACE_MOUNT,
     CLASSIFY_INPUT: Buffer.from(JSON.stringify(capped), 'utf8').toString('base64'),
     LLM_PROVIDER: llm.provider,
     LLM_MODEL: llm.model,
-    ...modelEnv(llm),
+    ...(keyEnv ? { [keyEnv]: llm.apiKey } : {}),
   };
 }
 
