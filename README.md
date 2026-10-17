@@ -408,7 +408,7 @@ erDiagram
     API_SOURCES {
         uuid id PK
         uuid provider_id FK
-        varchar kind "deprecations"
+        varchar kind "deprecations, spec, release_notes, sdk_changelog"
         varchar url
         timestamptz last_checked_at
         text last_error
@@ -488,7 +488,7 @@ SyncLab/
 │       └── src/
 │           ├── phases/        prepare, clone, install, upgrade, refactor, test, publish, scan, classify
 │           ├── analysis/      Babel import and usage analysis
-│           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
+│           ├── llm/           Ollama, Gemini and Claude models, refactor and classify chains, retryable error classification
 │           ├── package-manager.ts  npm, pnpm and yarn detection and commands
 │           └── upgrade.ts     dependency upgrade used by the upgrade phase
 └── benchmarks/                validated migration cases, the sandbox benchmark runner and its results
@@ -614,5 +614,5 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 
-After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, is built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
+After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, and Phase 6, change monitoring, are built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
 See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
