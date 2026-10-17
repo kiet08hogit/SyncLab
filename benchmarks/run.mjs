@@ -61,7 +61,7 @@ async function timed(fn) {
 async function compareTrees(originalDir, finalDir) {
   const before = await listFiles(originalDir);
   const after = await listFiles(finalDir);
-  const ignored = new Set(['package.json', 'package-lock.json', 'package-lock.benchmark.json']);
+  const ignored = new Set(['package.json', 'package-lock.json', 'package.benchmark.json', 'package-lock.benchmark.json']);
   const all = [...new Set([...before, ...after])].filter((file) => !ignored.has(file)).sort();
   const beforeHashes = await hashFiles(originalDir, before.filter((file) => !ignored.has(file)));
   const afterHashes = await hashFiles(finalDir, after.filter((file) => !ignored.has(file)));
