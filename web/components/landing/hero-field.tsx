@@ -57,6 +57,10 @@ const CYCLE_MS = 5200;
 const SCRAMBLE_MS = 1100;
 const RIPPLE = { speed: 0.42, band: 70, life: 3600 };
 const POINTER_RADIUS = 110;
+/** Where the face sits in the 64x64 mascot art, as a share of its height. */
+const FACE_Y = 0.52;
+/** The art is a bust: below this share of its height the pup fades out instead of ending in a hard edge. */
+const FADE_FROM = 0.9;
 /** The intro: cells appear over this long, each showing a blue digit briefly before its own glyph. */
 const INTRO = { pupSpread: 900, dustSpread: 1500, decode: 320, start: 250 };
 
@@ -83,6 +87,8 @@ interface Cell {
   shade: number;
   /** When, in ms after the intro starts, the cell appears. */
   delay: number;
+  /** 1, falling to 0 across the bottom of the bust. */
+  fade: number;
 }
 
 /** Samples the pup into character cells that sit at `left`, `top`, `size` (in cells). */
@@ -185,14 +191,23 @@ export function HeroField({ children }: { children: ReactNode }) {
       const cols = Math.ceil(width / cellW);
       const rows = Math.ceil(height / cellH);
 
-      // The pup fills the slot the layout leaves for it (beside the copy, or above it on
-      // narrow screens), standing on the slot's bottom edge since the art is a bust.
+      // The pup fills the slot the layout leaves for it. Beside the copy, its face lines
+      // up with the headline; above the copy on narrow screens, it sits on the slot's
+      // bottom edge.
       const slot = slotElement.getBoundingClientRect();
       const side = Math.min(slot.width, slot.height * 0.97);
       const pupRows = Math.max(8, Math.floor(side / cellH));
       const pupCols = Math.round((pupRows * cellH) / cellW);
       const left = Math.round((slot.left - rect.left + slot.width / 2) / cellW - pupCols / 2);
-      const top = Math.round((slot.bottom - rect.top) / cellH) - pupRows;
+      const heading = canvas.closest("section")?.querySelector("h1")?.getBoundingClientRect();
+      const beside = slot.left - rect.left > rect.width * 0.3;
+      const top =
+        beside && heading
+          ? Math.min(
+              rows - Math.round(pupRows * FADE_FROM),
+              Math.max(1, Math.round((heading.top + heading.height / 2 - rect.top) / cellH - pupRows * FACE_Y)),
+            )
+          : Math.round((slot.bottom - rect.top) / cellH) - pupRows;
       const pup = await sampleMascot(pupCols, pupRows, cellW, cellH);
       if (disposed) return;
 
@@ -217,13 +232,14 @@ export function HeroField({ children }: { children: ReactNode }) {
           seed,
           shade: part === "fur" || part === "patch" ? depth(isFur, x, y, 3) : 0,
           delay: INTRO.start + fromMiddle * INTRO.pupSpread + seed * 200,
+          fade: Math.min(1, Math.max(0, (1 - y / pupRows) / (1 - FADE_FROM))),
         });
       }
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
           if (taken.has(y * cols + x) || hash(x, y, 7) >= 0.07) continue;
           const seed = hash(x, y, 3);
-          next.push({ x, y, part: "dust", seed, shade: 0, delay: INTRO.start + hash(x, y, 9) * INTRO.dustSpread });
+          next.push({ x, y, part: "dust", seed, shade: 0, delay: INTRO.start + hash(x, y, 9) * INTRO.dustSpread, fade: 1 });
         }
       }
       if (!reduced && introStart.current === null) introStart.current = performance.now();
@@ -253,7 +269,7 @@ export function HeroField({ children }: { children: ReactNode }) {
         energy = Math.max(energy, near * near * 0.55 * pointer.energy);
 
         const base = COLORS[cell.part];
-        let alpha = ALPHA[cell.part];
+        let alpha = ALPHA[cell.part] * cell.fade;
         // Fur takes its density from its depth, with a little grain; a few cells flicker now and then.
         const flicker = hash(cell.x, cell.y, Math.floor(now / 2400)) < 0.03 ? 0.12 : 0;
         let glyph =
