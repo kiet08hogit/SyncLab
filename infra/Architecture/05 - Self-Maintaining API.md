@@ -139,6 +139,80 @@ erDiagram
 `MIGRATION_JOBS` gains a `kind` (`dependency` or `api_change`) and a nullable `api_impact_id`.
 `dependency_name` and `target_version` become nullable, and an API-change job is unique per repository and breaking change.
 
+## Monitoring endpoints
+
+The dashboard reads the monitor through these endpoints, and both sides build against the shapes below.
+All of them take the same bearer token as the rest of the API: a signed-in user's GitHub token or `MIGRATIONS_API_TOKEN`.
+Breaking changes are not tied to a repository, so any authenticated caller can read them.
+Timestamps are ISO 8601 strings; `effectiveAt` is a calendar date (`YYYY-MM-DD`).
+
+| Endpoint | Phase | Returns |
+| --- | --- | --- |
+| `GET /api-providers` | 6a | every provider with its watched sources and change counts |
+| `POST /api-providers/poll` | 6a | `202 {"queued": true}`; fetches every source now instead of waiting for the schedule |
+| `GET /api-changes` | 6a | breaking changes, newest first, filterable with `?provider=`, `?status=` and `?kind=` |
+| `POST /api-changes/:id/confirm` | 6b | the updated change, with `status: "confirmed"` |
+| `POST /api-changes/:id/dismiss` | 6b | the updated change, with `status: "dismissed"` |
+| `GET /api-changes/:id/impact` | 7 | the repositories and files the change affects |
+
+`GET /api-providers`:
+
+```json
+[
+  {
+    "slug": "anthropic",
+    "sources": [
+      {
+        "kind": "deprecations",
+        "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+        "lastCheckedAt": "2026-10-17T06:00:00.000Z",
+        "lastError": null,
+        "latestSnapshot": {
+          "id": "6f1c...",
+          "contentHash": "9b2e...",
+          "fetchedAt": "2026-10-01T14:35:59.000Z"
+        }
+      }
+    ],
+    "changeCounts": { "detected": 0, "confirmed": 21, "dismissed": 0 }
+  }
+]
+```
+
+`lastCheckedAt` is the last fetch, successful or not; `lastError` is the last fetch's error or `null`; `latestSnapshot` is the last fetch whose content changed, or `null` before the first one.
+In 6a every source is a `deprecations` page; 6b adds `spec`, `release_notes` and `sdk_changelog`.
+
+`GET /api-changes`:
+
+```json
+[
+  {
+    "id": "0d4a...",
+    "provider": "anthropic",
+    "kind": "model_retired",
+    "operation": null,
+    "field": "claude-sonnet-4-5-20250929",
+    "replacement": "claude-sonnet-5-5",
+    "effectiveAt": "2026-11-30",
+    "section": "2026-09-30: Claude Sonnet 4.5 model",
+    "evidence": "November 30, 2026 | claude-sonnet-4-5-20250929 | claude-sonnet-5-5",
+    "status": "confirmed",
+    "source": {
+      "kind": "deprecations",
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+    },
+    "snapshotId": "6f1c...",
+    "detectedAt": "2026-10-01T14:36:02.000Z",
+    "updatedAt": "2026-10-01T14:36:02.000Z"
+  }
+]
+```
+
+`kind` is one of the kinds in the table above and `status` is `detected`, `confirmed` or `dismissed`.
+`operation`, `field`, `replacement`, `effectiveAt` and `section` are `null` when they do not apply.
+`evidence` is the verbatim line of the snapshot the change was read from, and `section` is the heading it sits under.
+A model retirement names the model in `field`; an endpoint removal names it in `operation`, such as `POST /v1/edits`.
+
 ## Impact analysis
 
 Impact is a deterministic join, not a model call.
