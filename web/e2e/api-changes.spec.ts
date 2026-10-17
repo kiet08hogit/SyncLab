@@ -1,8 +1,8 @@
 import { expect, signIn, test } from "./fixtures";
 
-// The API change monitor page. Until the API serves the monitor's routes, a
-// signed-in visitor sees the samples too, with a notice saying why; the API
-// these tests run is the real one, so that is the path they take signed in.
+// The API change monitor page. The API these tests run is the real one, with
+// the monitor's routes but no worker, so signed in, its sources are never
+// checked and it has found no changes.
 
 const WIDTHS = [390, 768, 1024, 1440];
 
@@ -59,15 +59,16 @@ test.describe("API changes, signed out", () => {
   }
 });
 
-test.describe("API changes, signed in to an API without the monitor", () => {
-  test("falls back to the samples, says why, and explains why it cannot check now", async ({ page }) => {
+test.describe("API changes, signed in", () => {
+  test("shows the monitor's own providers instead of the samples, and can check now", async ({ page }) => {
     await signIn(page, "/api-changes");
 
-    await expect(page.getByText("does not run the change monitor yet")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 3, name: "Anthropic" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 3, name: "OpenAI" })).toBeVisible();
+    await expect(page.getByText("No breaking changes found yet")).toBeVisible();
+    await expect(page.getByText("does not run the change monitor yet")).toHaveCount(0);
     await expect(page.getByText("Sign in with GitHub to see the changes")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Check now" })).toBeDisabled();
-    await expect(page.getByText("Available once the API runs the change monitor.")).toBeVisible();
-    await expect(page.getByRole("row")).toHaveCount(7);
+    await expect(page.getByRole("button", { name: "Check now" })).toBeEnabled();
   });
 });
 
