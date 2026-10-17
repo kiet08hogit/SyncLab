@@ -168,15 +168,17 @@ export function HeroField({ children }: { children: ReactNode }) {
     let frame = 0;
     let visible = true;
     let disposed = false;
+    let generation = 0;
     const ripples: Array<{ x: number; y: number; start: number }> = [];
     const pointer = { x: -1e4, y: -1e4, energy: 0 };
 
     async function layout() {
+      const current = ++generation;
       // Measure the cell only once JetBrains Mono has loaded, or the grid is sized for the fallback font.
       await document.fonts.ready;
       // Navigating away hides this page (Next keeps it mounted in an Activity) and detaches the refs.
       const slotElement = slotRef.current;
-      if (disposed || !slotElement) return;
+      if (disposed || current !== generation || !slotElement) return;
       const rect = canvas.getBoundingClientRect();
       width = rect.width;
       height = rect.height;
@@ -209,7 +211,7 @@ export function HeroField({ children }: { children: ReactNode }) {
             )
           : Math.round((slot.bottom - rect.top) / cellH) - pupRows;
       const pup = await sampleMascot(pupCols, pupRows, cellW, cellH);
-      if (disposed) return;
+      if (disposed || current !== generation) return;
 
       // Fur shades against everything that is not fur, so the ears outline the face.
       const fur = new Set(pup.filter(([, , part]) => part !== "ear").map(([x, y]) => y * pupCols + x));
