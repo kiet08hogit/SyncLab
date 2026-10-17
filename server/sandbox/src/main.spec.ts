@@ -107,7 +107,7 @@ describe('main', () => {
       assert.equal(code, 2, label);
       assert.equal(
         stderr,
-        `Expected one of prepare, install, upgrade, refactor, test, publish, clone, scan but received "${args[0] ?? ''}"\n`,
+        `Expected one of prepare, install, upgrade, refactor, test, publish, clone, scan, classify but received "${args[0] ?? ''}"\n`,
         label,
       );
       assert.equal(stdout, '', label);
@@ -125,6 +125,19 @@ describe('main', () => {
     assert.equal(result?.phase, 'scan');
     assert.equal(result?.ok, true);
     assert.deepEqual(result?.data?.usages, []);
+  });
+
+  it('runs classify with no job settings and reports a missing input as a failed result', async () => {
+    const noJob = Object.fromEntries(Object.keys(JOB_ENV).map((name) => [name, '']));
+    const { code, stdout } = await runMain(['classify'], { ...noJob, CLASSIFY_INPUT: '' });
+
+    assert.equal(code, 1);
+    assert.deepEqual(parseResult(stdout), {
+      phase: 'classify',
+      ok: false,
+      error: 'Missing required environment variable CLASSIFY_INPUT',
+      steps: [],
+    });
   });
 
   it('accepts install and upgrade as phases', async () => {

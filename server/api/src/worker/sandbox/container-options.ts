@@ -1,6 +1,12 @@
 import type { ContainerCreateOptions } from 'dockerode';
 import { LLM_API_KEY_ENV } from '../../config/configuration';
-import type { SandboxJobParams, SandboxPhase, SandboxScanParams } from './sandbox.types';
+import type {
+  SandboxClassifyInput,
+  SandboxJobParams,
+  SandboxLlmParams,
+  SandboxPhase,
+  SandboxScanParams,
+} from './sandbox.types';
 
 export const WORKSPACE_MOUNT = '/workspace';
 
@@ -22,9 +28,9 @@ export interface ContainerOptionsInput {
  * The test phase runs the repository's own suite, so it is cut off entirely.
  * Install and upgrade also run untrusted code - dependency lifecycle scripts -
  * but cannot fetch packages without the registry, so they keep the network
- * and instead never receive a token. Refactor needs the model provider and
- * only runs SyncLab's own code. Scan only parses the clone, so it has no reason
- * to reach anything.
+ * and instead never receive a token. Refactor and classify need the model
+ * provider and only run SyncLab's own code. Scan only parses the clone, so it
+ * has no reason to reach anything.
  */
 export function phaseNeedsNetwork(phase: SandboxPhase): boolean {
   return phase !== 'test' && phase !== 'scan';
@@ -34,15 +40,24 @@ export function phaseNeedsNetwork(phase: SandboxPhase): boolean {
  * Kept separate from network access on purpose: these are independent reasons
  * to withhold something from a phase. Only the phases that clone or push, and
  * run nothing but SyncLab's own code, get the token; install scripts and the
- * test suite never run beside it, and refactor and scan have no business
- * reaching GitHub.
+ * test suite never run beside it, and refactor, scan and classify have no
+ * business reaching GitHub.
  */
 export function phaseNeedsToken(phase: SandboxPhase): boolean {
   return phase === 'prepare' || phase === 'clone' || phase === 'publish';
 }
 
 export function phaseNeedsModel(phase: SandboxPhase): boolean {
-  return phase === 'refactor';
+  return phase === 'refactor' || phase === 'classify';
+}
+
+/** The key of a hosted provider, or the endpoint of a local Ollama, which needs none. */
+function modelEnv(llm: SandboxLlmParams): Record<string, string> {
+  const keyEnv = LLM_API_KEY_ENV[llm.provider];
+
+  return keyEnv
+    ? { [keyEnv]: llm.apiKey }
+    : { LLM_BASE_URL: llm.baseUrl, LLM_NUM_CTX: String(llm.numCtx) };
 }
 
 export function buildPhaseEnv(
@@ -70,14 +85,7 @@ export function buildPhaseEnv(
   }
 
   if (phaseNeedsModel(phase)) {
-    const keyEnv = LLM_API_KEY_ENV[params.llm.provider];
-
-    if (keyEnv) {
-      env[keyEnv] = params.llm.apiKey;
-    } else {
-      env.LLM_BASE_URL = params.llm.baseUrl;
-      env.LLM_NUM_CTX = String(params.llm.numCtx);
-    }
+    Object.assign(env, modelEnv(params.llm));
   }
 
   return env;
@@ -102,6 +110,56 @@ export function buildScanPhaseEnv(
   }
 
   return env;
+}
+
+/**
+ * The most text one classification sends. Base64 makes it a third larger, so
+ * CLASSIFY_INPUT stays near 64 KB: well under the 128 KB Linux allows a single
+ * environment string.
+ */
+export const MAX_CLASSIFY_TEXT_BYTES = 48 * 1024;
+
+/**
+ * Cuts the text to MAX_CLASSIFY_TEXT_BYTES at a line break. Release notes and
+ * changelogs list the newest entries first, so keeping the start keeps the
+ * newest changes; what is cut is the oldest, which an earlier poll has
+ * usually already classified.
+ */
+export function capClassifyText(text: string): { text: string; truncated: boolean } {
+  const bytes = Buffer.from(text, 'utf8');
+  if (bytes.length <= MAX_CLASSIFY_TEXT_BYTES) {
+    return { text, truncated: false };
+  }
+
+  // Decoding a cut that splits a character leaves a replacement character at
+  // the end, which the cut at the last line break then removes.
+  const head = bytes.subarray(0, MAX_CLASSIFY_TEXT_BYTES).toString('utf8');
+  const lastBreak = head.lastIndexOf('\n');
+
+  return {
+    text: lastBreak > 0 ? head.slice(0, lastBreak) : head.replace(/\uFFFD+$/, ''),
+    truncated: true,
+  };
+}
+
+/**
+ * Classify reads nothing from the volume and reaches nothing but the model, so
+ * it gets only its input and the hosted model's key: never the GitHub token.
+ */
+export function buildClassifyPhaseEnv(
+  input: SandboxClassifyInput,
+  llm: SandboxLlmParams,
+): Record<string, string> {
+  const capped: SandboxClassifyInput = { ...input, text: capClassifyText(input.text).text };
+  const keyEnv = LLM_API_KEY_ENV[llm.provider];
+
+  return {
+    SANDBOX_WORKSPACE: WORKSPACE_MOUNT,
+    CLASSIFY_INPUT: Buffer.from(JSON.stringify(capped), 'utf8').toString('base64'),
+    LLM_PROVIDER: llm.provider,
+    LLM_MODEL: llm.model,
+    ...(keyEnv ? { [keyEnv]: llm.apiKey } : {}),
+  };
 }
 
 export function buildContainerOptions(input: ContainerOptionsInput): ContainerCreateOptions {

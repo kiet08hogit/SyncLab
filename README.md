@@ -236,6 +236,8 @@ State passes between phases only through the shared `/workspace` volume: the rep
 
 #### Phase isolation
 
+The same image also runs the phases of a repository scan (`clone`, then `scan`) and the change monitor's `classify`, so the table covers them too.
+
 | Phase | Network | GitHub token | Model access | Runs repository code |
 | --- | --- | --- | --- | --- |
 | `prepare` | yes | yes | no | no |
@@ -244,8 +246,11 @@ State passes between phases only through the shared `/workspace` volume: the rep
 | `refactor` | yes | no | yes | no |
 | `test` | **none** | no | no | **yes** (the test suite, baseline and each attempt) |
 | `publish` | yes | yes | no | no |
+| `clone` | yes | yes | no | no |
+| `scan` | **none** | no | no | no (only parses the checkout) |
+| `classify` | yes | no | yes | no (gets only the text to classify) |
 
-The token is only ever present in the two phases that run nothing but SyncLab's own code.
+The token is only ever present in the phases that clone or push and run nothing but SyncLab's own code.
 Repository code can still write to the checkout on the volume, including its `.git` directory, so `publish` never runs git there: a planted hook, `core.fsmonitor` command or filter driver would otherwise run beside the token.
 
 Every container also runs as the non-root `node` user, with all Linux capabilities dropped, `no-new-privileges`, a hard memory ceiling with swap disabled, a CPU quota, a PID limit, and a per-phase timeout.
@@ -409,7 +414,7 @@ erDiagram
     API_SOURCES {
         uuid id PK
         uuid provider_id FK
-        varchar kind "deprecations"
+        varchar kind "deprecations, spec, release_notes, sdk_changelog"
         varchar url
         timestamptz last_checked_at
         text last_error
@@ -487,9 +492,9 @@ SyncLab/
 │   └── sandbox/               code that runs inside the sandbox containers
 │       ├── Dockerfile
 │       └── src/
-│           ├── phases/        prepare, clone, install, upgrade, refactor, test, publish, scan
+│           ├── phases/        prepare, clone, install, upgrade, refactor, test, publish, scan, classify
 │           ├── analysis/      Babel import and usage analysis
-│           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
+│           ├── llm/           Ollama, Gemini and Claude models, refactor and classify chains, retryable error classification
 │           ├── package-manager.ts  npm, pnpm and yarn detection and commands
 │           └── upgrade.ts     dependency upgrade used by the upgrade phase
 └── benchmarks/                validated migration cases, the sandbox benchmark runner and its results
@@ -615,5 +620,5 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 
-After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, is built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
+After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, and Phase 6, change monitoring, are built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
 See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).

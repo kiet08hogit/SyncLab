@@ -81,6 +81,8 @@ export interface Configuration {
   worker: WorkerRuntimeConfig;
   apiMonitor: ApiMonitorConfig;
   migrationsApiToken?: string;
+  /** Lowercased GitHub logins that may confirm or dismiss breaking changes. */
+  monitorAdminLogins: string[];
 }
 
 export function resolveAppRole(value: string | undefined): AppRole {
@@ -153,6 +155,10 @@ export function configuration(): Configuration {
       apiUrl: process.env.GITHUB_API_URL ?? 'https://api.github.com',
     },
     migrationsApiToken: process.env.MIGRATIONS_API_TOKEN,
+    monitorAdminLogins: (process.env.MONITOR_ADMIN_LOGINS ?? '')
+      .split(',')
+      .map((login) => login.trim().toLowerCase())
+      .filter(Boolean),
     sandbox: {
       image: process.env.SANDBOX_IMAGE ?? 'synclab-sandbox:latest',
       timeoutMs: positiveNumber(process.env.SANDBOX_TIMEOUT_MS, 10 * 60 * 1000),

@@ -1,19 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import { PassThrough } from 'node:stream';
 import Docker from 'dockerode';
-import type { Configuration } from '../../config/configuration';
+import { LLM_API_KEY_ENV, type Configuration } from '../../config/configuration';
 import { LogStep } from '../../common/constants';
 import {
+  buildClassifyPhaseEnv,
   buildContainerOptions,
   buildPhaseEnv,
   buildScanPhaseEnv,
+  capClassifyText,
   type SandboxLimits,
 } from './container-options';
 import {
   parsePhaseResult,
   parseScannedUsages,
   type PhaseResult,
+  type SandboxClassifyInput,
+  type SandboxClassifyOutcome,
   type SandboxJobParams,
   type SandboxPhase,
   type SandboxRunOutcome,
@@ -38,6 +43,9 @@ const FALLBACK_STEP: Record<SandboxPhase, LogStep> = {
   publish: LogStep.PR,
   clone: LogStep.CLONE,
   scan: LogStep.SCAN,
+  // Classify reads release notes and changelogs; its output is returned to the
+  // monitor rather than written to a job's log.
+  classify: LogStep.CHANGELOG,
 };
 
 @Injectable()
@@ -48,7 +56,7 @@ export class DockerSandboxService {
   private readonly limits: SandboxLimits;
   private readonly timeoutMs: number;
 
-  constructor(config: ConfigService<Configuration, true>) {
+  constructor(private readonly config: ConfigService<Configuration, true>) {
     const sandbox = config.get('sandbox', { infer: true });
 
     this.docker = sandbox.dockerSocketPath
@@ -253,6 +261,67 @@ export class DockerSandboxService {
         usages: parseScannedUsages(scanned.data?.usages),
         output: output(),
       };
+    } finally {
+      await this.docker
+        .getVolume(volumeName)
+        .remove({ force: true })
+        .catch((error: unknown) =>
+          this.logger.warn(`Failed to remove volume ${volumeName}: ${String(error)}`),
+        );
+    }
+  }
+
+  /**
+   * Asks the model which breaking changes a source's new lines announce. The
+   * phase needs no volume content, but every container mounts one, so a
+   * short-lived empty volume is created and always removed. The model is the
+   * one configured for migrations. The changes come back unverified: the
+   * caller checks each one's evidence against the snapshot.
+   */
+  async classify(input: SandboxClassifyInput): Promise<SandboxClassifyOutcome> {
+    const llm = this.config.get('llm', { infer: true });
+    if (llm.provider === 'ollama') {
+      return {
+        ok: false,
+        error:
+          'Classifying release notes needs LLM_PROVIDER gemini or anthropic; ollama is not supported.',
+        changes: [],
+        output: '',
+      };
+    }
+    const keyEnv = LLM_API_KEY_ENV[llm.provider];
+    if (!llm.apiKey) {
+      return {
+        ok: false,
+        error: `LLM_PROVIDER is ${llm.provider} but ${keyEnv} is not set, so the classify phase cannot run.`,
+        changes: [],
+        output: '',
+      };
+    }
+
+    const runId = randomUUID();
+    const volumeName = `synclab-classify-${runId}`;
+    if (capClassifyText(input.text).truncated) {
+      this.logger.warn(`Classifying only the first part of the new text from ${input.url}`);
+    }
+    await this.docker.createVolume({ Name: volumeName, Labels: { 'com.synclab.classify': runId } });
+
+    try {
+      const result = await this.runPhase('classify', volumeName, buildClassifyPhaseEnv(input, llm));
+      const output = result.steps.map((step) => `[${step.step}]\n${step.output}`).join('\n\n');
+      const changes = result.data?.changes;
+
+      if (!result.ok) {
+        return {
+          ok: false,
+          error: result.error ?? 'sandbox phase "classify" failed',
+          retryable: result.data?.retryable === true,
+          changes: [],
+          output,
+        };
+      }
+
+      return { ok: true, changes: Array.isArray(changes) ? changes : [], output };
     } finally {
       await this.docker
         .getVolume(volumeName)

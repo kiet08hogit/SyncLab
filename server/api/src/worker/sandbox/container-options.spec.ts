@@ -1,8 +1,14 @@
 import {
+  MAX_CLASSIFY_TEXT_BYTES,
   WORKSPACE_MOUNT,
+  buildClassifyPhaseEnv,
   buildContainerOptions,
   buildPhaseEnv,
   buildScanPhaseEnv,
+  capClassifyText,
+  phaseNeedsModel,
+  phaseNeedsNetwork,
+  phaseNeedsToken,
   type SandboxLimits,
 } from './container-options';
 import { SANDBOX_PHASES, type SandboxJobParams, type SandboxPhase } from './sandbox.types';
@@ -141,6 +147,72 @@ describe('buildScanPhaseEnv', () => {
   });
 });
 
+describe('buildClassifyPhaseEnv', () => {
+  const input = {
+    provider: 'openai' as const,
+    sourceKind: 'release_notes' as const,
+    url: 'https://developers.openai.com/api/docs/changelog',
+    text: '## Oct 1\nThe `functions` parameter has been removed. Ünïcode ✓',
+  };
+
+  function decode(env: Record<string, string>): unknown {
+    return JSON.parse(Buffer.from(env.CLASSIFY_INPUT, 'base64').toString('utf8'));
+  }
+
+  it('passes the input as base64 JSON with the model key and nothing else', () => {
+    const env = buildClassifyPhaseEnv(input, PARAMS.llm);
+
+    expect(decode(env)).toEqual(input);
+    expect(env).toEqual({
+      SANDBOX_WORKSPACE: WORKSPACE_MOUNT,
+      CLASSIFY_INPUT: env.CLASSIFY_INPUT,
+      LLM_PROVIDER: 'gemini',
+      LLM_MODEL: 'gemini-3.1-pro-preview',
+      GEMINI_API_KEY: API_KEY,
+    });
+    expect(Object.values(env)).not.toContain(TOKEN);
+  });
+
+  it('caps the text so the environment stays far under the OS limit', () => {
+    const line = `${'x'.repeat(99)}\n`;
+    const env = buildClassifyPhaseEnv({ ...input, text: line.repeat(5_000) }, PARAMS.llm);
+    const { text } = decode(env) as { text: string };
+
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(MAX_CLASSIFY_TEXT_BYTES);
+    expect(text.startsWith(line)).toBe(true);
+    expect(env.CLASSIFY_INPUT.length).toBeLessThan(70 * 1024);
+  });
+
+  it('treats classify like refactor: model and network, never the GitHub token', () => {
+    expect(phaseNeedsModel('classify')).toBe(true);
+    expect(phaseNeedsNetwork('classify')).toBe(true);
+    expect(phaseNeedsToken('classify')).toBe(false);
+  });
+});
+
+describe('capClassifyText', () => {
+  it('leaves text under the cap alone', () => {
+    expect(capClassifyText('a\nb')).toEqual({ text: 'a\nb', truncated: false });
+  });
+
+  it('keeps the start, which holds the newest notes, and cuts at a line break', () => {
+    const newest = '## Oct 2\nNewest entry';
+    const { text, truncated } = capClassifyText(`${newest}\n${'old line\n'.repeat(10_000)}`);
+
+    expect(truncated).toBe(true);
+    expect(text.startsWith(newest)).toBe(true);
+    expect(text.endsWith('old line')).toBe(true);
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(MAX_CLASSIFY_TEXT_BYTES);
+  });
+
+  it('never splits a multibyte character when there is no line break', () => {
+    const { text } = capClassifyText('✓'.repeat(MAX_CLASSIFY_TEXT_BYTES));
+
+    expect(text).toMatch(/^✓+$/);
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(MAX_CLASSIFY_TEXT_BYTES);
+  });
+});
+
 describe('buildContainerOptions', () => {
   it('disables networking for the test suite and for the scan, which only parses files', () => {
     expect(optionsFor('prepare').HostConfig?.NetworkMode).toBe('bridge');
@@ -151,6 +223,7 @@ describe('buildContainerOptions', () => {
     expect(optionsFor('publish').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('clone').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('scan').HostConfig?.NetworkMode).toBe('none');
+    expect(optionsFor('classify').HostConfig?.NetworkMode).toBe('bridge');
   });
 
   it('keeps every credential out of the test container environment', () => {

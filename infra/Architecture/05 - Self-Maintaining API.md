@@ -36,7 +36,12 @@ Anthropic does not publish an OpenAPI spec, so its changes come from the depreca
 A later improvement is to diff the type declarations of two `@anthropic-ai/sdk` releases, which carry the request parameters and model ID unions.
 
 The monitor stores every fetched source as a snapshot with a content hash, and only a changed hash is processed.
-The hash covers the text extracted from the page (its tables, in 6a), not the raw HTML, so markup that changes on every request does not count as a change.
+The hash covers what each reader parses, not the raw page: the tables of a deprecations page, the request surface of the spec (one line per operation and per request parameter, with its required flag and enum values), and the text of release notes and changelogs, one line per heading, paragraph or list item.
+Markup that changes on every request therefore does not count as a change.
+Each source is requested in exactly that format, because the docs sites answer a request that also accepts markdown with markdown.
+The spec, release notes and changelogs are compared with their previous snapshot, so a source's first snapshot is a baseline and history is not reported as new.
+When most of a release notes page is new at once, its markup or the extraction changed rather than the notes, so it becomes a new baseline without being classified.
+Release notes and changelogs are classified in a `classify` sandbox phase with the configured hosted model (`gemini` or `anthropic`), given only the lines added since the previous snapshot; it runs no repository code and holds no GitHub token.
 Each watched page is an `ApiSource` row that also records when it was last checked and its last error, which the dashboard shows as the source's freshness.
 A classifier result must quote its evidence, and the quote must appear verbatim in the snapshot, or the result is dropped.
 That keeps an LLM from inventing a breaking change.
@@ -156,6 +161,8 @@ erDiagram
 The dashboard reads the monitor through these endpoints, and both sides build against the shapes below.
 All of them take the same bearer token as the rest of the API: a signed-in user's GitHub token or `MIGRATIONS_API_TOKEN`.
 Breaking changes are not tied to a repository, so any authenticated caller can read them.
+Confirming or dismissing one changes what every installation sees, so only an admin may: the `MIGRATIONS_API_TOKEN` service caller, or a user whose GitHub login is listed in `MONITOR_ADMIN_LOGINS` (comma-separated, case-insensitive; empty or unset means no user is an admin).
+Any other user gets `403`.
 Timestamps are ISO 8601 strings; `effectiveAt` is a calendar date (`YYYY-MM-DD`).
 
 | Endpoint | Phase | Returns |
@@ -163,8 +170,8 @@ Timestamps are ISO 8601 strings; `effectiveAt` is a calendar date (`YYYY-MM-DD`)
 | `GET /api-providers` | 6a | every provider with its watched sources and change counts |
 | `POST /api-providers/poll` | 6a | `202 {"queued": true}`; fetches every source now instead of waiting for the schedule |
 | `GET /api-changes` | 6a | breaking changes, newest first, filterable with `?provider=`, `?status=` and `?kind=` |
-| `POST /api-changes/:id/confirm` | 6b | the updated change, with `status: "confirmed"` |
-| `POST /api-changes/:id/dismiss` | 6b | the updated change, with `status: "dismissed"` |
+| `POST /api-changes/:id/confirm` | 6b | the updated change, with `status: "confirmed"`; admins only |
+| `POST /api-changes/:id/dismiss` | 6b | the updated change, with `status: "dismissed"`; admins only |
 | `GET /api-changes/:id/impact` | 7 | the repositories and files the change affects |
 
 `GET /api-providers`:
@@ -192,7 +199,7 @@ Timestamps are ISO 8601 strings; `effectiveAt` is a calendar date (`YYYY-MM-DD`)
 ```
 
 `lastCheckedAt` is the last fetch, successful or not; `lastError` is the last fetch's error or `null`; `latestSnapshot` is the last fetch whose content changed, or `null` before the first one.
-In 6a every source is a `deprecations` page; 6b adds `spec`, `release_notes` and `sdk_changelog`.
+Sources are of kind `deprecations`, `spec` (OpenAI's OpenAPI spec), `release_notes` and `sdk_changelog`.
 
 `GET /api-changes`:
 
@@ -215,7 +222,8 @@ In 6a every source is a `deprecations` page; 6b adds `spec`, `release_notes` and
     },
     "snapshotId": "6f1c...",
     "detectedAt": "2026-10-01T14:36:02.000Z",
-    "updatedAt": "2026-10-01T14:36:02.000Z"
+    "updatedAt": "2026-10-01T14:36:02.000Z",
+    "canReview": false
   }
 ]
 ```
@@ -223,7 +231,11 @@ In 6a every source is a `deprecations` page; 6b adds `spec`, `release_notes` and
 `kind` is one of the kinds in the table above and `status` is `detected`, `confirmed` or `dismissed`.
 `operation`, `field`, `replacement`, `effectiveAt` and `section` are `null` when they do not apply.
 `evidence` is the verbatim line of the snapshot the change was read from, and `section` is the heading it sits under.
-A model retirement names the model in `field`; an endpoint removal names the path in `operation`, such as `/v1/edits`, because the deprecation pages do not give the HTTP method.
+A removal read from the spec diff (`endpoint_removed`, `param_removed` or `enum_value_removed`) is the exception: the removed line is no longer in the linked snapshot, so `evidence` is the verbatim line of the previous snapshot's surface, the snapshot before the one `snapshotId` names.
+`canReview` is `true` when the caller may confirm or dismiss the change, so the dashboard can hide those actions from everyone else; the confirm and dismiss responses always carry `true`.
+A model retirement names the model in `field`; an endpoint removal from a deprecations page names the path in `operation`, such as `/v1/edits`, because those pages do not give the HTTP method, while one from the spec diff carries it, such as `POST /v1/agents/sessions`.
+A parameter change names the parameter in `field`, and a removed enum value is written `parameter=value`.
+The spec diff only reads top-level request parameters; a change inside a nested object is not reported.
 
 ## Impact analysis
 

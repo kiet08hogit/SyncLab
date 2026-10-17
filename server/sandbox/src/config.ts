@@ -75,16 +75,21 @@ export function loadConfig(): SandboxConfig {
     targetVersion: required('TARGET_VERSION'),
     branchName: required('BRANCH_NAME'),
     githubApiUrl: process.env.GITHUB_API_URL ?? 'https://api.github.com',
-    llm: {
-      provider: resolveLlmProvider(process.env.LLM_PROVIDER),
-      model: required('LLM_MODEL'),
-      baseUrl: process.env.LLM_BASE_URL ?? 'http://host.docker.internal:11434',
-      numCtx: positiveNumber(process.env.LLM_NUM_CTX, 32_768),
-      attempt: positiveNumber(process.env.REFACTOR_ATTEMPT, 1),
-      maxAttempts: positiveNumber(process.env.REFACTOR_MAX_ATTEMPTS, 1),
-      maxFiles: positiveNumber(process.env.LLM_MAX_FILES, 20),
-      maxFileBytes: positiveNumber(process.env.LLM_MAX_FILE_BYTES, 60_000),
-    },
+    llm: loadLlmConfig(),
+  };
+}
+
+/** The model settings alone, for the classify phase, which has no repository or job. */
+export function loadLlmConfig(): LlmConfig {
+  return {
+    provider: resolveLlmProvider(process.env.LLM_PROVIDER),
+    model: required('LLM_MODEL'),
+    baseUrl: process.env.LLM_BASE_URL ?? 'http://host.docker.internal:11434',
+    numCtx: positiveNumber(process.env.LLM_NUM_CTX, 32_768),
+    attempt: positiveNumber(process.env.REFACTOR_ATTEMPT, 1),
+    maxAttempts: positiveNumber(process.env.REFACTOR_MAX_ATTEMPTS, 1),
+    maxFiles: positiveNumber(process.env.LLM_MAX_FILES, 20),
+    maxFileBytes: positiveNumber(process.env.LLM_MAX_FILE_BYTES, 60_000),
   };
 }
 
@@ -103,8 +108,8 @@ export function requireToken(): string {
 }
 
 /**
- * Only the refactor phase talks to the model provider, and only a hosted
- * provider needs a key.
+ * Only the refactor and classify phases talk to the model provider, and only
+ * a hosted provider needs a key.
  */
 export function requireGeminiKey(): string {
   return required('GEMINI_API_KEY');
