@@ -283,7 +283,7 @@ Upgrades the migrated dependency with the detected package manager (`server/sand
 
 #### `refactor`
 
-1. Walks the repository's `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
+1. Walks the repository's `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
 2. Parses each file with Babel and keeps only the files that `import` or `require` the dependency (including deep imports such as `pkg/sub`), recording the imported names and the lines that use them.
 3. Caps the work at `LLM_MAX_FILES` files of at most `LLM_MAX_FILE_BYTES` each, and reports anything it skipped.
 4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Ollama by default).
@@ -339,6 +339,9 @@ Schema: `server/api/prisma/schema.prisma`.
 erDiagram
     REPOSITORIES ||--o{ MIGRATION_JOBS : "has many"
     MIGRATION_JOBS ||--o{ EXECUTION_LOGS : "has many"
+    REPOSITORIES ||--o{ REPOSITORY_SCANS : "has many"
+    REPOSITORY_SCANS ||--o{ API_USAGES : "finds"
+    API_PROVIDERS ||--o{ API_USAGES : "is called by"
 
     REPOSITORIES {
         uuid id PK
@@ -367,10 +370,43 @@ erDiagram
         text output
         timestamptz created_at
     }
+
+    API_PROVIDERS {
+        uuid id PK
+        varchar slug UK "anthropic, openai"
+    }
+
+    REPOSITORY_SCANS {
+        uuid id PK
+        uuid repository_id FK
+        varchar trigger "installation, push, manual"
+        varchar status "QUEUED, IN_PROGRESS, COMPLETED, FAILED"
+        uuid queued_for UK "set while waiting"
+        varchar commit_sha
+        text error_message
+        text output
+    }
+
+    API_USAGES {
+        uuid id PK
+        uuid scan_id FK
+        uuid provider_id FK
+        varchar file
+        int line
+        varchar style "sdk, http"
+        varchar method "beta.messages.stream"
+        varchar operation "POST /v1/messages"
+        text_array params
+        text_array model_ids
+        boolean dynamic
+    }
 ```
 
 `migration_jobs` has a unique constraint on `(repository_id, dependency_name, target_version)`, which is what makes triggers idempotent.
 `execution_logs` is append-only and cascades on job deletion.
+`repository_scans.queued_for` holds the repository id only while a scan waits to start, so its unique index allows one waiting scan per repository.
+`api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
+Only the newest completed scan of a repository keeps its `api_usages`; completing a scan deletes those of older completed scans, while the `repository_scans` rows stay as history.
 
 ## Failure handling and retries
 
@@ -413,12 +449,12 @@ SyncLab/
 │   └── sandbox/               code that runs inside the sandbox containers
 │       ├── Dockerfile
 │       └── src/
-│           ├── phases/        prepare, install, upgrade, refactor, test, publish
+│           ├── phases/        prepare, clone, install, upgrade, refactor, test, publish, scan
 │           ├── analysis/      Babel import and usage analysis
 │           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
 │           ├── package-manager.ts  npm, pnpm and yarn detection and commands
 │           └── upgrade.ts     dependency upgrade used by the upgrade phase
-└── benchmarks/                synthetic migration cases and runner for the refactor and test loop
+└── benchmarks/                validated migration cases, the sandbox benchmark runner and its results
 ```
 
 ## Getting started
@@ -500,11 +536,30 @@ cd web && npm run test:e2e                       # dashboard in Chromium against
 
 `.github/workflows/verify.yml` runs these checks, plus the sandbox image build and a dependency review, on every pull request and on pushes to `main` and `develop`.
 
-`benchmarks/` holds synthetic migration cases (lodash, ramda, ajv, node-fetch, query-string, uuid) at easy, medium and hard difficulty.
-The runner drives the real sandbox `refactor` and `test` code for up to 3 attempts and checks AST targeting, removed APIs, `npm run build` and `npm test`.
-Cases marked `"upgrade": true` start on the old version and also exercise the dependency upgrade step.
-It calls a live model (local Ollama by default, or a hosted one with `LLM_PROVIDER=gemini` or `anthropic`), so it is not part of CI.
-See [`benchmarks/README.md`](benchmarks/README.md).
+`benchmarks/` measures how often the real migration pipeline repairs a project after a breaking release.
+It runs 60 validated cases across 33 npm packages through the worker's own sandbox driver and the production sandbox image: install, a baseline test, upgrade, then refactor and test up to 3 attempts.
+Every case is proven valid first: its suite passes on the old version, fails after the upgrade alone, and passes with a reference fix.
+The model sees only what production gives it, each case runs in a fresh Docker volume, and editing a test counts as a failure.
+It calls a live model, so it is not part of CI.
+
+Latest run (2026-10-16 to 2026-10-17), success meaning the project's own test suite passes after the migration:
+
+| Metric | Result |
+| --- | --- |
+| First-attempt test pass rate | 19/60 (31.7%) |
+| Success rate after retries | 46/60 (76.7%) |
+| Migration time (upgrade to last test) | mean 50.5s, median 9.0s, 90th percentile 136.5s |
+| Failures | 11 `tests_failed`, 3 `no_changes` |
+
+| Difficulty | Cases | First attempt | After retries |
+| --- | --- | --- | --- |
+| easy | 20 | 10 (50.0%) | 19 (95.0%) |
+| medium | 21 | 7 (33.3%) | 13 (61.9%) |
+| hard | 19 | 2 (10.5%) | 14 (73.7%) |
+
+The run used Gemini Flash models on the free tier, whose small per-model daily quotas forced a mix: `gemini-3.5-flash-lite` (39), `gemini-3.5-flash` (5), `gemini-3.8-flash` (5), `gemini-3.7-flash` (5), `gemini-2.5-flash` (4), `gemini-3-flash-preview` (2).
+The rates are therefore a blend across models, not one model's score, and the worker's default Gemini model (`gemini-3.1-pro-preview`) was not tested because the free tier does not include it.
+See [`benchmarks/results/report.md`](benchmarks/results/report.md) for the methodology, per-model, per-category and per-package results, and limitations, and [`benchmarks/README.md`](benchmarks/README.md) to reproduce it.
 
 ## Current limitations and roadmap
 
@@ -522,5 +577,5 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 
-After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs: it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
+After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, is built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
 See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).

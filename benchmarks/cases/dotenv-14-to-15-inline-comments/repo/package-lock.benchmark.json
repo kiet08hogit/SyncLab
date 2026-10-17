@@ -1,0 +1,22 @@
+{
+  "name": "dotenv-14-to-15-inline-comments",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "dotenv-14-to-15-inline-comments",
+      "dependencies": {
+        "dotenv": "14.3.2"
+      }
+    },
+    "node_modules/dotenv": {
+      "version": "14.3.2",
+      "resolved": "https://registry.npmjs.org/dotenv/-/dotenv-14.3.2.tgz",
+      "integrity": "sha512-vwEppIphpFdvaMCaHfCEv9IgwcxMljMw2TnAQBB4VWPvzXQLTb82jwmdOKzlEVUL3gNFT4l4TPKO+Bn+sqcrVQ==",
+      "license": "BSD-2-Clause",
+      "engines": {
+        "node": ">=12"
+      }
+    }
+  }
+}

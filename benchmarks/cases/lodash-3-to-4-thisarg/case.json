@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-thisarg",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "signature-change",
+  "difficulty": "medium",
+  "breakingChange": "lodash 4 removed the thisArg argument from iteratee-accepting methods such as _.map, _.groupBy and _.reduce; bind the callback or use a closure instead.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

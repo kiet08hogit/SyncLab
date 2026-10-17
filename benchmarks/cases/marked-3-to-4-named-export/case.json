@@ -1,0 +1,10 @@
+{
+  "id": "marked-3-to-4-named-export",
+  "package": "marked",
+  "fromVersion": "3.0.8",
+  "toVersion": "4.3.0",
+  "category": "default-export-change",
+  "difficulty": "easy",
+  "breakingChange": "marked 4 no longer exports the marked function as module.exports; it is available as the named export marked (const { marked } = require('marked')).",
+  "reference": "https://github.com/markedjs/marked/releases/tag/v4.0.0"
+}

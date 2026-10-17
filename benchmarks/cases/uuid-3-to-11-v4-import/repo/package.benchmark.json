@@ -1,0 +1,11 @@
+{
+  "name": "uuid-3-to-11-v4-import",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "uuid": "3.4.0"
+  }
+}

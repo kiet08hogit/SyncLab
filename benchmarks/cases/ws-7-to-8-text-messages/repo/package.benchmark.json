@@ -1,0 +1,11 @@
+{
+  "name": "ws-7-to-8-text-messages",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "7.5.10"
+  }
+}

@@ -1,42 +1,21 @@
-import { promises as fs } from 'node:fs';
 import { Octokit } from '@octokit/rest';
-import { run, redact, runOrThrow } from '../exec.js';
-import { configureGitCredentials } from '../git.js';
 import { loadConfig, requireToken } from '../config.js';
 import { fetchReleaseNotes } from '../changelog.js';
 import { writeBreakingChanges } from '../state.js';
 import type { PhaseResult, StepLog } from '../result.js';
-
-async function isEmptyDir(dir: string): Promise<boolean> {
-  try {
-    const entries = await fs.readdir(dir);
-    return entries.length === 0;
-  } catch {
-    return true;
-  }
-}
+import { cloneRepository } from './clone.js';
 
 export async function prepare(): Promise<PhaseResult> {
   const config = loadConfig();
   const token = requireToken();
   const steps: StepLog[] = [];
 
-  await configureGitCredentials(token, config.repoUrl);
-
-  if (!(await isEmptyDir(config.repoDir))) {
-    await fs.rm(config.repoDir, { recursive: true, force: true });
-  }
-
   // Deliberately not a shallow clone: GitHub rejects pushes from some shallow
   // checkouts with "shallow update not allowed".
-  const clone = await run('git', ['clone', config.repoUrl, config.repoDir]);
-  steps.push({
-    step: 'CLONE',
-    output: redact(clone.output, [token]),
-    exitCode: clone.code,
-  });
+  const cloned = await cloneRepository(config.repoUrl, config.repoDir, token, { shallow: false });
+  steps.push(cloned.step);
 
-  if (clone.code !== 0) {
+  if (!cloned.headSha) {
     return { phase: 'prepare', ok: false, error: 'git clone failed', steps };
   }
 
@@ -64,12 +43,10 @@ export async function prepare(): Promise<PhaseResult> {
       : `No release notes found for ${config.dependencyName} ${config.targetVersion}; continuing without them.`,
   });
 
-  const head = await runOrThrow('git', ['rev-parse', 'HEAD'], { cwd: config.repoDir });
-
   return {
     phase: 'prepare',
     ok: true,
     steps,
-    data: { headSha: head.output.trim() },
+    data: { headSha: cloned.headSha },
   };
 }

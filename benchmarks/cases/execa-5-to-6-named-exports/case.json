@@ -1,0 +1,10 @@
+{
+  "id": "execa-5-to-6-named-exports",
+  "package": "execa",
+  "fromVersion": "5.1.1",
+  "toVersion": "6.1.0",
+  "category": "esm-only",
+  "difficulty": "hard",
+  "breakingChange": "execa 6 is a pure ES module with no default export: execa, execa.sync, execa.command and execa.node became the named exports execa, execaSync, execaCommand and execaNode.",
+  "reference": "https://github.com/sindresorhus/execa/releases/tag/v6.0.0"
+}

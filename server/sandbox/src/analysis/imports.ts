@@ -1,4 +1,4 @@
-import { parse } from '@babel/parser';
+import { parse, type ParserOptions } from '@babel/parser';
 import traverse, { type Scope } from '@babel/traverse';
 import * as t from '@babel/types';
 
@@ -6,6 +6,17 @@ export interface DependencyUsage {
   importedNames: string[];
   usageLines: number[];
 }
+
+/**
+ * Shared by every analysis of repository code. Decorators are on because
+ * NestJS and Angular code cannot be parsed without them; the legacy form is
+ * the one TypeScript's experimentalDecorators compiles, parameters included.
+ */
+export const PARSER_OPTIONS: ParserOptions = {
+  sourceType: 'unambiguous',
+  plugins: ['typescript', 'jsx', 'decorators-legacy'],
+  errorRecovery: true,
+};
 
 /** Matches both "react" and deep entry points such as "react/jsx-runtime". */
 function matchesDependency(source: string, dependencyName: string): boolean {
@@ -62,11 +73,7 @@ export function analyzeDependencyUsage(
   let ast;
 
   try {
-    ast = parse(code, {
-      sourceType: 'unambiguous',
-      plugins: ['typescript', 'jsx'],
-      errorRecovery: true,
-    });
+    ast = parse(code, PARSER_OPTIONS);
   } catch {
     return code.includes(dependencyName) ? { importedNames: [], usageLines: [] } : undefined;
   }

@@ -23,13 +23,13 @@ describe('collectSourceFiles', () => {
   });
 
   it('returns JavaScript and TypeScript sources sorted by path', async () => {
-    for (const file of ['src/z.ts', 'src/a.tsx', 'index.js', 'lib/b.jsx', 'lib/c.mjs', 'lib/d.cjs']) {
+    for (const file of ['src/z.ts', 'src/a.tsx', 'src/m.mts', 'src/n.cts', 'index.js', 'lib/b.jsx', 'lib/c.mjs', 'lib/d.cjs']) {
       await touch(file);
     }
 
     assert.deepEqual(
       await collectSourceFiles(repoDir),
-      ['index.js', 'lib/b.jsx', 'lib/c.mjs', 'lib/d.cjs', 'src/a.tsx', 'src/z.ts'].map((file) =>
+      ['index.js', 'lib/b.jsx', 'lib/c.mjs', 'lib/d.cjs', 'src/a.tsx', 'src/m.mts', 'src/n.cts', 'src/z.ts'].map((file) =>
         path.join(repoDir, file),
       ),
     );

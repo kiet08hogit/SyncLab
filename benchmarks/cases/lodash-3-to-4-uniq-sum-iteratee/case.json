@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-uniq-sum-iteratee",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "signature-change",
+  "difficulty": "medium",
+  "breakingChange": "lodash 4 dropped the iteratee argument from _.uniq and _.sum (they silently ignore it); use _.uniqBy and _.sumBy.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

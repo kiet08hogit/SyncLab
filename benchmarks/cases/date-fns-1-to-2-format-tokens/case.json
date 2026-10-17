@@ -1,0 +1,10 @@
+{
+  "id": "date-fns-1-to-2-format-tokens",
+  "package": "date-fns",
+  "fromVersion": "1.30.1",
+  "toVersion": "2.30.0",
+  "category": "behavior-change",
+  "difficulty": "medium",
+  "breakingChange": "date-fns 2 switched format() to Unicode tokens: YYYY/YY become yyyy/yy, DD/D become dd/d, Do becomes do, dddd becomes EEEE and A becomes a; the old year and day tokens now throw and dddd silently renders the wrong value. src/ranges.js uses date math only and needs no change.",
+  "reference": "https://github.com/date-fns/date-fns/blob/main/CHANGELOG.md#200---2019-08-20"
+}

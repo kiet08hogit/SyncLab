@@ -1,0 +1,10 @@
+{
+  "id": "js-yaml-3-to-4-config-pipeline",
+  "package": "js-yaml",
+  "fromVersion": "3.15.2",
+  "toVersion": "4.3.2",
+  "category": "removed-api",
+  "difficulty": "hard",
+  "breakingChange": "js-yaml 4 removed safeLoad, safeLoadAll and safeDump (they throw); load, loadAll and dump are safe by default and must be used instead. src/strict.js already calls load with JSON_SCHEMA, and src/format.js only mentions YAML in strings.",
+  "reference": "https://github.com/nodeca/js-yaml/blob/master/migrate_v3_to_v4.md"
+}

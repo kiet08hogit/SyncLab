@@ -55,13 +55,20 @@ export function resolveLlmProvider(value: string | undefined): LlmProvider {
   return value as LlmProvider;
 }
 
-export function loadConfig(): SandboxConfig {
+/** Where the shared volume holds the clone and the state passed between phases. */
+export function loadWorkspace(): Pick<SandboxConfig, 'workspace' | 'repoDir' | 'stateDir'> {
   const workspace = process.env.SANDBOX_WORKSPACE ?? '/workspace';
 
   return {
     workspace,
     repoDir: path.join(workspace, 'repo'),
     stateDir: path.join(workspace, 'state'),
+  };
+}
+
+export function loadConfig(): SandboxConfig {
+  return {
+    ...loadWorkspace(),
     repoUrl: required('REPO_URL'),
     repoFullName: required('REPO_FULL_NAME'),
     dependencyName: required('DEPENDENCY_NAME'),
@@ -81,8 +88,13 @@ export function loadConfig(): SandboxConfig {
   };
 }
 
+/** The clone phase only needs to know what to clone, not the rest of the job. */
+export function requireRepoUrl(): string {
+  return required('REPO_URL');
+}
+
 /**
- * Only the prepare and publish phases receive a token. The test phase runs
+ * Only the prepare, clone and publish phases receive a token. The test phase runs
  * untrusted repository code, so its container is started without one, and the
  * refactor phase has no reason to reach GitHub.
  */

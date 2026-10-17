@@ -1,0 +1,11 @@
+{
+  "name": "date-fns-1-to-2-string-dates",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "date-fns": "1.30.1"
+  }
+}

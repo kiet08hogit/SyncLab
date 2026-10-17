@@ -1,0 +1,10 @@
+{
+  "id": "ramda-0-27-to-0-30-contains",
+  "package": "ramda",
+  "fromVersion": "0.27.2",
+  "toVersion": "0.30.1",
+  "category": "removed-api",
+  "difficulty": "easy",
+  "breakingChange": "ramda 0.28.0 removed R.contains; R.includes takes the same (value, list) arguments.",
+  "reference": "https://github.com/ramda/ramda/releases/tag/v0.28.0"
+}

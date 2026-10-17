@@ -1,0 +1,10 @@
+{
+  "id": "glob-7-to-10-promise",
+  "package": "glob",
+  "fromVersion": "7.2.3",
+  "toVersion": "10.5.0",
+  "category": "async-api",
+  "difficulty": "hard",
+  "breakingChange": "glob 9+ removed the callback API and the default export: glob() is the named export returning a Promise, glob.sync becomes globSync, and results are no longer sorted. src/patterns.js uses hasMagic, which is still exported, and src/report.js only consumes the other modules.",
+  "reference": "https://github.com/isaacs/node-glob/blob/main/changelog.md#90"
+}

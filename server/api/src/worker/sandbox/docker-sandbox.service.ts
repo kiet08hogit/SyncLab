@@ -4,13 +4,21 @@ import { PassThrough } from 'node:stream';
 import Docker from 'dockerode';
 import type { Configuration } from '../../config/configuration';
 import { LogStep } from '../../common/constants';
-import { buildContainerOptions, buildPhaseEnv, type SandboxLimits } from './container-options';
+import {
+  buildContainerOptions,
+  buildPhaseEnv,
+  buildScanPhaseEnv,
+  type SandboxLimits,
+} from './container-options';
 import {
   parsePhaseResult,
+  parseScannedUsages,
   type PhaseResult,
   type SandboxJobParams,
   type SandboxPhase,
   type SandboxRunOutcome,
+  type SandboxScanOutcome,
+  type SandboxScanParams,
   type StepLog,
 } from './sandbox.types';
 
@@ -28,6 +36,8 @@ const FALLBACK_STEP: Record<SandboxPhase, LogStep> = {
   refactor: LogStep.REFACTOR,
   test: LogStep.TEST,
   publish: LogStep.PR,
+  clone: LogStep.CLONE,
+  scan: LogStep.SCAN,
 };
 
 @Injectable()
@@ -83,7 +93,11 @@ export class DockerSandboxService {
     await this.docker.createVolume({ Name: volumeName, Labels: { 'com.synclab.job': jobId } });
 
     try {
-      const prepared = await this.runPhase('prepare', volumeName, params, 1);
+      const prepared = await this.runPhase(
+        'prepare',
+        volumeName,
+        buildPhaseEnv('prepare', params, 1),
+      );
       await onSteps(prepared.steps);
       if (!prepared.ok) {
         return { ok: false, error: prepared.error ?? 'sandbox phase "prepare" failed' };
@@ -96,7 +110,11 @@ export class DockerSandboxService {
         return { ok: false, error: 'sandbox phase "prepare" did not report the cloned commit' };
       }
 
-      const installed = await this.runPhase('install', volumeName, params, 1);
+      const installed = await this.runPhase(
+        'install',
+        volumeName,
+        buildPhaseEnv('install', params, 1),
+      );
       await onSteps(installed.steps);
       if (!installed.ok) {
         return { ok: false, error: installed.error ?? 'sandbox phase "install" failed' };
@@ -104,7 +122,8 @@ export class DockerSandboxService {
 
       // Without this, a suite that was already failing reads as a migration
       // the model got wrong, and every refactor attempt is spent on it.
-      const baseline = await this.runPhase('test', volumeName, params, 1, {
+      const baseline = await this.runPhase('test', volumeName, {
+        ...buildPhaseEnv('test', params, 1),
         TEST_BASELINE: 'true',
       });
       await onSteps(baseline.steps);
@@ -115,7 +134,11 @@ export class DockerSandboxService {
         };
       }
 
-      const upgraded = await this.runPhase('upgrade', volumeName, params, 1);
+      const upgraded = await this.runPhase(
+        'upgrade',
+        volumeName,
+        buildPhaseEnv('upgrade', params, 1),
+      );
       await onSteps(upgraded.steps);
       if (!upgraded.ok) {
         return { ok: false, error: upgraded.error ?? 'sandbox phase "upgrade" failed' };
@@ -126,7 +149,11 @@ export class DockerSandboxService {
       let lastTestError: string | undefined;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const refactored = await this.runPhase('refactor', volumeName, params, attempt);
+        const refactored = await this.runPhase(
+          'refactor',
+          volumeName,
+          buildPhaseEnv('refactor', params, attempt),
+        );
         await onSteps(refactored.steps);
         if (!refactored.ok) {
           return {
@@ -136,7 +163,11 @@ export class DockerSandboxService {
           };
         }
 
-        const tested = await this.runPhase('test', volumeName, params, attempt);
+        const tested = await this.runPhase(
+          'test',
+          volumeName,
+          buildPhaseEnv('test', params, attempt),
+        );
         await onSteps(tested.steps);
 
         if (tested.ok) {
@@ -154,7 +185,8 @@ export class DockerSandboxService {
         };
       }
 
-      const published = await this.runPhase('publish', volumeName, params, maxAttempts, {
+      const published = await this.runPhase('publish', volumeName, {
+        ...buildPhaseEnv('publish', params, maxAttempts),
         BASE_SHA: baseSha,
       });
       await onSteps(published.steps);
@@ -180,19 +212,68 @@ export class DockerSandboxService {
     }
   }
 
+  /**
+   * Clones the default branch, then scans it in a second container with no
+   * network and no token. The usages travel back in the scan phase's result.
+   */
+  async scan(scanId: string, params: SandboxScanParams): Promise<SandboxScanOutcome> {
+    const volumeName = `synclab-scan-${scanId}`;
+    await this.docker.createVolume({ Name: volumeName, Labels: { 'com.synclab.scan': scanId } });
+    const steps: StepLog[] = [];
+    const output = () => steps.map((step) => `[${step.step}]\n${step.output}`).join('\n\n');
+
+    try {
+      const cloned = await this.runPhase('clone', volumeName, buildScanPhaseEnv('clone', params));
+      steps.push(...cloned.steps);
+      const commitSha = cloned.data?.headSha;
+      if (!cloned.ok || typeof commitSha !== 'string') {
+        return {
+          ok: false,
+          error: cloned.error ?? 'sandbox phase "clone" did not report the cloned commit',
+          usages: [],
+          output: output(),
+        };
+      }
+
+      const scanned = await this.runPhase('scan', volumeName, buildScanPhaseEnv('scan', params));
+      steps.push(...scanned.steps);
+      if (!scanned.ok) {
+        return {
+          ok: false,
+          error: scanned.error ?? 'sandbox phase "scan" failed',
+          commitSha,
+          usages: [],
+          output: output(),
+        };
+      }
+
+      return {
+        ok: true,
+        commitSha,
+        usages: parseScannedUsages(scanned.data?.usages),
+        output: output(),
+      };
+    } finally {
+      await this.docker
+        .getVolume(volumeName)
+        .remove({ force: true })
+        .catch((error: unknown) =>
+          this.logger.warn(`Failed to remove volume ${volumeName}: ${String(error)}`),
+        );
+    }
+  }
+
   private async runPhase(
     phase: SandboxPhase,
     volumeName: string,
-    params: SandboxJobParams,
-    attempt: number,
-    extraEnv: Record<string, string> = {},
+    env: Record<string, string>,
   ): Promise<PhaseResult> {
     const container = await this.docker.createContainer(
       buildContainerOptions({
         phase,
         image: this.image,
         volumeName,
-        env: { ...buildPhaseEnv(phase, params, attempt), ...extraEnv },
+        env,
         limits: this.limits,
       }),
     );
@@ -230,7 +311,7 @@ export class DockerSandboxService {
       // The sandbox always emits a result line, so its absence means the
       // process died before it could - the raw log is the only diagnostic left.
       // It is logged under the step the dashboard tracks for this phase.
-      const step = extraEnv.TEST_BASELINE === 'true' ? LogStep.BASELINE : FALLBACK_STEP[phase];
+      const step = env.TEST_BASELINE === 'true' ? LogStep.BASELINE : FALLBACK_STEP[phase];
       return {
         phase,
         ok: false,

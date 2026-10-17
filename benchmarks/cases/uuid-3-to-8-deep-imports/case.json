@@ -1,0 +1,10 @@
+{
+  "id": "uuid-3-to-8-deep-imports",
+  "package": "uuid",
+  "fromVersion": "3.4.0",
+  "toVersion": "8.3.2",
+  "category": "removed-api",
+  "difficulty": "easy",
+  "breakingChange": "uuid 8 removed the deep requires such as require('uuid/v4') and require('uuid/v5') (blocked by the package exports map); the generators must be taken from the package root, e.g. const { v4, v5 } = require('uuid').",
+  "reference": "https://github.com/uuidjs/uuid/blob/main/CHANGELOG.md#800-2020-04-29"
+}

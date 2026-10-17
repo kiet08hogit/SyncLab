@@ -1,0 +1,10 @@
+{
+  "id": "dotenv-14-to-15-inline-comments",
+  "package": "dotenv",
+  "fromVersion": "14.3.2",
+  "toVersion": "15.0.1",
+  "category": "behavior-change",
+  "difficulty": "medium",
+  "breakingChange": "dotenv 15 parses inline comments: an unquoted value is cut at the first #, so values containing # must now be wrapped in quotes.",
+  "reference": "https://github.com/motdotla/dotenv/blob/master/CHANGELOG.md#1500-2022-01-31"
+}

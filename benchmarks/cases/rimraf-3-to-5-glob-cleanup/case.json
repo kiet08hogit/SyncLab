@@ -1,0 +1,10 @@
+{
+  "id": "rimraf-3-to-5-glob-cleanup",
+  "package": "rimraf",
+  "fromVersion": "3.0.2",
+  "toVersion": "5.0.10",
+  "category": "async-api",
+  "difficulty": "hard",
+  "breakingChange": "rimraf 4+ removed the callback API and the default export: rimraf is the named export returning a Promise, rimraf.sync becomes rimrafSync, and glob patterns are no longer expanded unless { glob: true } is passed.",
+  "reference": "https://github.com/isaacs/rimraf/blob/main/CHANGELOG.md#40"
+}

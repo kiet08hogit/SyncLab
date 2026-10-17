@@ -1,0 +1,10 @@
+{
+  "id": "decamelize-4-to-5-separator-option",
+  "package": "decamelize",
+  "fromVersion": "4.0.0",
+  "toVersion": "5.0.1",
+  "category": "signature-change",
+  "difficulty": "easy",
+  "breakingChange": "decamelize 5 replaced the positional separator argument with an options object (decamelize(text, { separator })); a string second argument is now ignored and the default underscore separator is used.",
+  "reference": "https://github.com/sindresorhus/decamelize/releases/tag/v5.0.0"
+}

@@ -1,0 +1,10 @@
+{
+  "id": "minimatch-3-to-9-named-export",
+  "package": "minimatch",
+  "fromVersion": "3.1.5",
+  "toVersion": "9.0.9",
+  "category": "default-export-change",
+  "difficulty": "easy",
+  "breakingChange": "minimatch 9 no longer exports the matcher function as module.exports; require('minimatch') returns an object and the function is the named export minimatch. src/ignore.js already uses the Minimatch class, which is still exported.",
+  "reference": "https://github.com/isaacs/minimatch/blob/main/changelog.md"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "decamelize-4-to-5-separator-option",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "decamelize": "4.0.0"
+  }
+}

@@ -41,8 +41,10 @@ const webEnv = resolve(apiDir, '../../web/.env.local');
 const state = randomBytes(16).toString('hex');
 
 // Permissions the worker needs to clone, push a branch and open a pull request,
-// and the one event the gateway acts on. Reading package.json for the trigger
-// and the dashboard form is covered by contents: write.
+// and the events the gateway acts on: pull requests start migrations, and
+// pushes keep the API usage registry current. Installation events are sent to
+// every App without subscribing. Reading package.json for the trigger and the
+// dashboard form is covered by contents: write.
 const manifest = {
   name: args.name,
   url: dashboardUrl,
@@ -52,7 +54,7 @@ const manifest = {
   callback_urls: [`${dashboardUrl}/auth/github/callback`],
   public: false,
   default_permissions: { contents: 'write', pull_requests: 'write', metadata: 'read' },
-  default_events: ['pull_request'],
+  default_events: ['pull_request', 'push'],
 };
 
 const createUrl = `https://github.com/settings/apps/new?state=${state}`;

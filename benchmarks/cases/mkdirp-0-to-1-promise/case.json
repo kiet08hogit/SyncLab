@@ -1,0 +1,10 @@
+{
+  "id": "mkdirp-0-to-1-promise",
+  "package": "mkdirp",
+  "fromVersion": "0.5.6",
+  "toVersion": "1.0.4",
+  "category": "async-api",
+  "difficulty": "medium",
+  "breakingChange": "mkdirp 1 dropped the callback API: mkdirp(dir, opts) returns a Promise, a callback passed as the second argument throws 'invalid options argument', and a callback passed as the third argument is never called. mkdirp.sync is unchanged.",
+  "reference": "https://github.com/isaacs/node-mkdirp/blob/main/CHANGELOG.md#10"
+}

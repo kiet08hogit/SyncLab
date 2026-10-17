@@ -1,0 +1,11 @@
+{
+  "name": "redux-4-to-5-string-action-types",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "redux": "4.2.1"
+  }
+}

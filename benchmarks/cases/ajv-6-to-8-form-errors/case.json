@@ -1,0 +1,10 @@
+{
+  "id": "ajv-6-to-8-form-errors",
+  "package": "ajv",
+  "fromVersion": "6.12.6",
+  "toVersion": "8.17.1",
+  "category": "renamed-api",
+  "difficulty": "hard",
+  "breakingChange": "Ajv 8 replaced error.dataPath with error.instancePath (always a JSON pointer) and removed the jsonPointers option. Three validators read dataPath, one through a nested helper, and the shared instance sets jsonPointers; src/required.js reads params.missingProperty, which is unchanged, and src/help.js only mentions ajv in a string.",
+  "reference": "https://ajv.js.org/v6-to-v8-migration.html"
+}

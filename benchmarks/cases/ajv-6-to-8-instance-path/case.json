@@ -1,0 +1,10 @@
+{
+  "id": "ajv-6-to-8-instance-path",
+  "package": "ajv",
+  "fromVersion": "6.12.6",
+  "toVersion": "8.17.1",
+  "category": "renamed-api",
+  "difficulty": "easy",
+  "breakingChange": "Ajv 8 replaced error.dataPath with error.instancePath (always a JSON pointer) and removed the jsonPointers option.",
+  "reference": "https://ajv.js.org/v6-to-v8-migration.html"
+}

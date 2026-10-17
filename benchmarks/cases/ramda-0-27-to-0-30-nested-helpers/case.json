@@ -1,0 +1,10 @@
+{
+  "id": "ramda-0-27-to-0-30-nested-helpers",
+  "package": "ramda",
+  "fromVersion": "0.27.2",
+  "toVersion": "0.30.1",
+  "category": "removed-api",
+  "difficulty": "hard",
+  "breakingChange": "ramda 0.28.0 removed contains (use includes) and merge (use mergeRight, keeping left-to-right precedence). The removed functions are used through R.*, destructured bindings and nested closures across four files; src/feature-flags.js already uses includes and mergeRight and src/glossary.js only mentions ramda in a string.",
+  "reference": "https://github.com/ramda/ramda/releases/tag/v0.28.0"
+}

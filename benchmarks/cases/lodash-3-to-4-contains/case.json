@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-contains",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "renamed-api",
+  "difficulty": "easy",
+  "breakingChange": "lodash 4 removed the _.contains alias; use _.includes.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

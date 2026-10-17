@@ -1,0 +1,10 @@
+{
+  "id": "path-to-regexp-1-to-6-named-export",
+  "package": "path-to-regexp",
+  "fromVersion": "1.9.0",
+  "toVersion": "6.3.0",
+  "category": "default-export-change",
+  "difficulty": "medium",
+  "breakingChange": "path-to-regexp 6 exports pathToRegexp as a named export instead of the module itself, and compile() no longer URI-encodes parameter values by default (it validates them against the parameter pattern and throws instead); pass { encode: encodeURIComponent } to keep the old output.",
+  "reference": "https://github.com/pillarjs/path-to-regexp/releases/tag/v6.0.0"
+}

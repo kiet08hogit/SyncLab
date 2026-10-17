@@ -1,0 +1,11 @@
+{
+  "name": "dotenv-14-to-15-inline-comments",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dotenv": "14.3.2"
+  }
+}

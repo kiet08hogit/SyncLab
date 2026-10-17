@@ -26,6 +26,26 @@ describe('analyzeDependencyUsage', () => {
     assert.deepEqual(usage?.usageLines, [1, 4]);
   });
 
+  it('reads decorated classes, as in NestJS code, instead of falling back to text', () => {
+    const code = [
+      'import { Injectable, Inject } from "@nestjs/common";',
+      'import { chunk } from "lodash";',
+      '',
+      '@Injectable()',
+      'export class Batcher {',
+      '  constructor(@Inject("SIZE") private readonly size: number) {}',
+      '  split(items: string[]) {',
+      '    return chunk(items, this.size);',
+      '  }',
+      '}',
+    ].join('\n');
+
+    const usage = analyzeDependencyUsage(code, 'lodash');
+
+    assert.deepEqual(usage?.importedNames, ['chunk']);
+    assert.deepEqual(usage?.usageLines, [2, 8]);
+  });
+
   it('treats a deep entry point as the same dependency', () => {
     const code = 'import { jsx } from "react/jsx-runtime";';
 

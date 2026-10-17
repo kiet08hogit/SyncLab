@@ -1,2 +1,2 @@
-results/workspaces/
-cases/*/node_modules/
+cases/*/repo/node_modules/
+cases/*/solution/node_modules/

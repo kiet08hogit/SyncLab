@@ -1,0 +1,10 @@
+{
+  "id": "lodash-3-to-4-catalog-helpers",
+  "package": "lodash",
+  "fromVersion": "3.10.1",
+  "toVersion": "4.17.21",
+  "category": "removed-api",
+  "difficulty": "hard",
+  "breakingChange": "lodash 4.0.0 removed _.pluck, _.where and _.findWhere (use _.map, _.filter and _.find with property or matches shorthands) and renamed _.pairs to _.toPairs. src/titles.js already uses _.map and src/changelog.js only mentions lodash in a string.",
+  "reference": "https://github.com/lodash/lodash/wiki/Changelog#v400"
+}

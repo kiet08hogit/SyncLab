@@ -1,0 +1,11 @@
+{
+  "name": "minimatch-3-to-9-named-export",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "minimatch": "3.1.5"
+  }
+}

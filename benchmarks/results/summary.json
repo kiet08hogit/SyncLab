@@ -1,0 +1,14 @@
+{
+  "cases": 60,
+  "packages": 33,
+  "firstAttemptPassRate": 0.31666666666666665,
+  "successRate": 0.7666666666666667,
+  "meanMigrationMs": 50485.28333333333,
+  "medianMigrationMs": 9045,
+  "p90MigrationMs": 136522.9,
+  "meanMigrationMsOnSuccess": 44816.739130434784,
+  "failures": {
+    "tests_failed": 11,
+    "no_changes": 3
+  }
+}

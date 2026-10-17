@@ -1,0 +1,11 @@
+{
+  "name": "prettier-2-to-3-async-format",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "prettier": "2.8.8"
+  }
+}

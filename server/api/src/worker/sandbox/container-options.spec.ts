@@ -2,6 +2,7 @@ import {
   WORKSPACE_MOUNT,
   buildContainerOptions,
   buildPhaseEnv,
+  buildScanPhaseEnv,
   type SandboxLimits,
 } from './container-options';
 import { SANDBOX_PHASES, type SandboxJobParams, type SandboxPhase } from './sandbox.types';
@@ -124,14 +125,32 @@ describe('buildPhaseEnv', () => {
   });
 });
 
+describe('buildScanPhaseEnv', () => {
+  const scanParams = { repoUrl: 'https://github.com/acme/widgets.git', token: TOKEN };
+
+  it('gives clone what to clone and the token, and nothing about a migration or a model', () => {
+    expect(buildScanPhaseEnv('clone', scanParams)).toEqual({
+      SANDBOX_WORKSPACE: WORKSPACE_MOUNT,
+      REPO_URL: 'https://github.com/acme/widgets.git',
+      GITHUB_TOKEN: TOKEN,
+    });
+  });
+
+  it('gives scan only the workspace: no token, no repository URL', () => {
+    expect(buildScanPhaseEnv('scan', scanParams)).toEqual({ SANDBOX_WORKSPACE: WORKSPACE_MOUNT });
+  });
+});
+
 describe('buildContainerOptions', () => {
-  it('disables networking only for the phase that runs the repository test suite', () => {
+  it('disables networking for the test suite and for the scan, which only parses files', () => {
     expect(optionsFor('prepare').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('refactor').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('install').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('upgrade').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('test').HostConfig?.NetworkMode).toBe('none');
     expect(optionsFor('publish').HostConfig?.NetworkMode).toBe('bridge');
+    expect(optionsFor('clone').HostConfig?.NetworkMode).toBe('bridge');
+    expect(optionsFor('scan').HostConfig?.NetworkMode).toBe('none');
   });
 
   it('keeps every credential out of the test container environment', () => {

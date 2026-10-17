@@ -1,0 +1,11 @@
+{
+  "name": "mkdirp-0-to-1-promise",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "mkdirp": "0.5.6"
+  }
+}
