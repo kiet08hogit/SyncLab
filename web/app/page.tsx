@@ -91,8 +91,7 @@ export default function LandingPage() {
       <div className="mx-auto max-w-[1440px] border-x border-white/10">
         <header className="sticky top-0 z-50 flex h-20 items-center justify-between border-b border-white/10 bg-[#07090c]/75 px-5 backdrop-blur-md sm:px-10">
           <Link href="/" className="flex items-center gap-3">
-            {/* No tile here: the hero already draws the pup, so the mark stays quiet beside it. */}
-            <Mascot tile={false} className="size-11" />
+            <Mascot className="size-10" />
             <span className="font-serif text-[1.75rem] leading-none">SyncLab</span>
           </Link>
           <nav aria-label="Main" className="flex items-center gap-1 md:gap-7">
