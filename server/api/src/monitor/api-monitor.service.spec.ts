@@ -46,6 +46,7 @@ function setup() {
   const changes: ChangeRow[] = [];
 
   const prisma = {
+    $executeRaw: jest.fn(() => Promise.resolve(1)),
     apiSource: {
       findMany: jest.fn(() => Promise.resolve([source])),
       update: jest.fn((args: { data: Partial<typeof source> }) => {
@@ -153,6 +154,24 @@ describe('ApiMonitorService', () => {
     expect(JSON.stringify(changes)).toBe(rowsBefore);
     expect(source.lastCheckedAt).toEqual(day('2026-10-02'));
     expect(prisma.breakingChange.create).toHaveBeenCalledTimes(20);
+  });
+
+  it('stores nothing when another poll recorded the same page while this one waited', async () => {
+    const { service, source, snapshots, changes, prisma } = setup();
+    service.useFetcher(() => Promise.resolve(AFTER));
+    await service.pollSource(source, day('2026-10-01'));
+    const rowsBefore = JSON.stringify(changes);
+    // This poll read the latest hash before the other poll committed its snapshot.
+    prisma.apiSourceSnapshot.findFirst.mockResolvedValueOnce(null as never);
+
+    const second = await service.pollSource(source, day('2026-10-01'));
+
+    expect(second).toMatchObject({ changed: false, created: 0, updated: 0 });
+    expect(second.error).toBeUndefined();
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(snapshots).toHaveLength(1);
+    expect(JSON.stringify(changes)).toBe(rowsBefore);
+    expect(source.lastError).toBeNull();
   });
 
   it('treats a change in page chrome alone as no change', async () => {

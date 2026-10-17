@@ -131,15 +131,25 @@ export class ApiMonitorService {
     }
 
     const counts = await this.prisma.$transaction(async (tx) => {
-      const snapshot = await tx.apiSourceSnapshot.create({
-        data: { sourceId: source.id, contentHash, content, fetchedAt: now },
+      // Polls of one source may run on different workers; only one records a snapshot.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${source.id}))`;
+      const current = await tx.apiSourceSnapshot.findFirst({
+        where: { sourceId: source.id },
+        orderBy: { fetchedAt: 'desc' },
+        select: { contentHash: true },
       });
       await tx.apiSource.update({
         where: { id: source.id },
         data: { lastCheckedAt: now, lastError: null },
       });
+      if (current?.contentHash === contentHash) return null;
+
+      const snapshot = await tx.apiSourceSnapshot.create({
+        data: { sourceId: source.id, contentHash, content, fetchedAt: now },
+      });
       return this.applyChanges(tx, source.providerId, snapshot.id, changes);
     });
+    if (!counts) return { ...base, changed: false, created: 0, updated: 0 };
 
     this.logger.log(
       `${source.url}: new snapshot, ${counts.created} new and ${counts.updated} updated changes`,
