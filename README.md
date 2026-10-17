@@ -449,7 +449,7 @@ SyncLab/
 │   └── sandbox/               code that runs inside the sandbox containers
 │       ├── Dockerfile
 │       └── src/
-│           ├── phases/        prepare, install, upgrade, refactor, test, publish, scan
+│           ├── phases/        prepare, clone, install, upgrade, refactor, test, publish, scan
 │           ├── analysis/      Babel import and usage analysis
 │           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
 │           ├── package-manager.ts  npm, pnpm and yarn detection and commands
