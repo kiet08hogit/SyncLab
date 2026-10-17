@@ -44,12 +44,12 @@ The design is in [[05 - Self-Maintaining API]], and the workflow is sketched in 
 - **Goal:** Know which connected repositories call the Anthropic or OpenAI API, from which files, and with which parameters and models.
 - **Steps:**
   1. Add the registry tables to PostgreSQL: `ApiProvider`, `RepositoryScan`, and `ApiUsage`.
-  2. Extend the Babel analysis to follow `@anthropic-ai/sdk` and `openai` clients to their method calls, and map each call to an API operation (for example `client.messages.create` to `POST /v1/messages`).
+  2. Extend the Babel analysis to follow `@anthropic-ai/sdk` and `openai` clients to their method calls, across modules and through local factory functions that return a constructed client, and map each call to an API operation, including beta namespaces and streaming variants (for example `client.messages.create` and `client.beta.messages.stream` to `POST /v1/messages`).
   3. Record the keys of literal request objects and literal model IDs, and mark values read from configuration as dynamic.
   4. Detect raw `fetch` and `axios` calls to `api.anthropic.com` and `api.openai.com`.
   5. Add a `scan` sandbox phase after `prepare`, with no token and no network, since it only parses files.
   6. Trigger a scan on installation, on a push to the default branch, and from `POST /repositories/:id/scan`.
-- **Done when:** scanning the SyncLab repository records its Anthropic usage in `server/sandbox/src/llm/` as `POST /v1/messages` with its request parameters, and ignores the provider names that only appear in strings and docs.
+- **Done when:** scanning the SyncLab repository records the `client.beta.messages.stream` call in `server/sandbox/src/llm/refactor-chain.ts`, whose client comes from `createAnthropicClient()` in `model.ts`, as `POST /v1/messages` with its request parameters, and ignores the provider names that only appear in strings and docs.
 
 ### Phase 6: API Change Monitoring & Breaking Change Detection
 - **Goal:** Turn provider announcements and spec changes into structured breaking-change records.

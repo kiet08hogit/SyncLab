@@ -10,7 +10,8 @@ The rollout is Phases 5 to 10 in [[04 - Phased Rollout]].
 ## Scope
 
 - Two providers: Anthropic and OpenAI.
-  Both are what SyncLab itself calls, so SyncLab can maintain its own repository (see Phase 10).
+  SyncLab itself calls Anthropic, so SyncLab can maintain its own repository (see Phase 10).
+  OpenAI is the other major provider, and it publishes an OpenAPI spec, which exercises the spec-diff path that Anthropic cannot.
 - JavaScript and TypeScript repositories, because the scanner reuses the Babel analysis SyncLab already has.
 - Three usage styles: the official SDKs (`@anthropic-ai/sdk`, `openai`), raw HTTP calls (`fetch` or `axios` to `api.anthropic.com` or `api.openai.com`), and model IDs.
 - Wrappers such as `@langchain/openai` or the Vercel AI SDK are out of scope at first.
@@ -61,8 +62,11 @@ It only parses files, so like `refactor` it never executes repository code, and 
 The scanner extends `server/sandbox/src/analysis/imports.ts`:
 
 1. Finds imports and requires of the supported SDKs, and follows the client to its method calls.
+   It follows the client across modules, including through local factory functions that return a constructed SDK client.
+   For example SyncLab's `createAnthropicClient()` in `server/sandbox/src/llm/model.ts` returns the client that `refactor-chain.ts` calls, and `refactor-chain.ts` never imports `@anthropic-ai/sdk` itself.
 2. Maps a method chain to an API operation with a small table per SDK.
-   For example `client.messages.create` is `POST /v1/messages`, and `client.chat.completions.create` is `POST /v1/chat/completions`.
+   The table covers beta namespaces and streaming variants as well as the plain method.
+   For example `client.messages.create`, `client.messages.stream`, and `client.beta.messages.stream` are all `POST /v1/messages`, and `client.chat.completions.create` is `POST /v1/chat/completions`.
 3. Records the keys of a literal request object and any literal model ID.
    A value it cannot resolve statically, such as a model read from configuration, is recorded as dynamic.
 4. Finds raw HTTP calls whose URL is a literal or template string on a provider host.
