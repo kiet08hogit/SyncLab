@@ -88,8 +88,13 @@ export function loadConfig(): SandboxConfig {
   };
 }
 
+/** The clone phase only needs to know what to clone, not the rest of the job. */
+export function requireRepoUrl(): string {
+  return required('REPO_URL');
+}
+
 /**
- * Only the prepare and publish phases receive a token. The test phase runs
+ * Only the prepare, clone and publish phases receive a token. The test phase runs
  * untrusted repository code, so its container is started without one, and the
  * refactor phase has no reason to reach GitHub.
  */

@@ -4,6 +4,7 @@ import { upgrade } from './phases/upgrade.js';
 import { refactor } from './phases/refactor.js';
 import { test } from './phases/test.js';
 import { publish } from './phases/publish.js';
+import { clone } from './phases/clone.js';
 import { scan } from './phases/scan.js';
 import { emitResult, type PhaseName, type PhaseResult } from './result.js';
 
@@ -14,6 +15,7 @@ const PHASES: Record<PhaseName, () => Promise<PhaseResult>> = {
   refactor,
   test,
   publish,
+  clone,
   scan,
 };
 

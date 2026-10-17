@@ -339,6 +339,9 @@ Schema: `server/api/prisma/schema.prisma`.
 erDiagram
     REPOSITORIES ||--o{ MIGRATION_JOBS : "has many"
     MIGRATION_JOBS ||--o{ EXECUTION_LOGS : "has many"
+    REPOSITORIES ||--o{ REPOSITORY_SCANS : "has many"
+    REPOSITORY_SCANS ||--o{ API_USAGES : "finds"
+    API_PROVIDERS ||--o{ API_USAGES : "is called by"
 
     REPOSITORIES {
         uuid id PK
@@ -367,10 +370,43 @@ erDiagram
         text output
         timestamptz created_at
     }
+
+    API_PROVIDERS {
+        uuid id PK
+        varchar slug UK "anthropic, openai"
+    }
+
+    REPOSITORY_SCANS {
+        uuid id PK
+        uuid repository_id FK
+        varchar trigger "installation, push, manual"
+        varchar status "QUEUED, IN_PROGRESS, COMPLETED, FAILED"
+        uuid queued_for UK "set while waiting"
+        varchar commit_sha
+        text error_message
+        text output
+    }
+
+    API_USAGES {
+        uuid id PK
+        uuid scan_id FK
+        uuid provider_id FK
+        varchar file
+        int line
+        varchar style "sdk, http"
+        varchar method "beta.messages.stream"
+        varchar operation "POST /v1/messages"
+        text_array params
+        text_array model_ids
+        boolean dynamic
+    }
 ```
 
 `migration_jobs` has a unique constraint on `(repository_id, dependency_name, target_version)`, which is what makes triggers idempotent.
 `execution_logs` is append-only and cascades on job deletion.
+`repository_scans.queued_for` holds the repository id only while a scan waits to start, so its unique index allows one waiting scan per repository.
+`api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
+Only the newest completed scan of a repository keeps its `api_usages`; completing a scan deletes those of older completed scans, while the `repository_scans` rows stay as history.
 
 ## Failure handling and retries
 
@@ -413,7 +449,7 @@ SyncLab/
 │   └── sandbox/               code that runs inside the sandbox containers
 │       ├── Dockerfile
 │       └── src/
-│           ├── phases/        prepare, install, upgrade, refactor, test, publish, scan
+│           ├── phases/        prepare, clone, install, upgrade, refactor, test, publish, scan
 │           ├── analysis/      Babel import and usage analysis
 │           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
 │           ├── package-manager.ts  npm, pnpm and yarn detection and commands
@@ -541,5 +577,5 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 
-After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs: it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
+After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, is built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
 See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).

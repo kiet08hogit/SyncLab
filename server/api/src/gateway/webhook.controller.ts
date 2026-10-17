@@ -12,13 +12,16 @@ import { GithubTokenService } from '../github/github-token.service';
 import { parseDependencyUpdate } from './dependency-update';
 import { GithubSignatureGuard } from './github-signature.guard';
 import { MigrationJobsService } from './migration-jobs.service';
-import type { GithubPullRequestPayload } from './webhook.types';
+import { parseScanTrigger, SCAN_EVENTS } from './scan-trigger';
+import { ScansService, type EnqueueScanResult } from './scans.service';
+import type { GithubWebhookPayload } from './webhook.types';
 
 /**
  * Dependabot and Renovate already watch npm for every installed repository and
  * open a pull request per new version. SyncLab reacts to those pull requests,
  * so a migration starts exactly when a dependency the repository uses has a
- * new release.
+ * new release. Installations and pushes to the default branch keep the API
+ * usage registry current instead.
  */
 @Controller('webhook')
 @UseGuards(GithubSignatureGuard)
@@ -26,16 +29,21 @@ export class WebhookController {
   constructor(
     private readonly migrationJobs: MigrationJobsService,
     private readonly githubTokens: GithubTokenService,
+    private readonly scans: ScansService,
   ) {}
 
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   async handleWebhook(
-    @Body() payload: GithubPullRequestPayload,
+    @Body() payload: GithubWebhookPayload,
     @Headers('x-github-event') event?: string,
   ) {
     if (event === 'ping') {
       return { ok: true };
+    }
+
+    if (SCAN_EVENTS.includes(event as (typeof SCAN_EVENTS)[number])) {
+      return this.handleScanTrigger(event, payload);
     }
 
     const update = parseDependencyUpdate(event, payload);
@@ -75,5 +83,24 @@ export class WebhookController {
       dependencyName: update.dependencyName,
       targetVersion: update.targetVersion,
     });
+  }
+
+  private async handleScanTrigger(event: string | undefined, payload: GithubWebhookPayload) {
+    const trigger = parseScanTrigger(event, payload);
+    if (trigger.kind === 'ignored') {
+      return { ignored: true, reason: trigger.reason };
+    }
+
+    const scans: EnqueueScanResult[] = [];
+    for (const repository of trigger.repositories) {
+      scans.push(
+        await this.scans.enqueue({
+          ...repository,
+          installationId: trigger.installationId,
+          trigger: trigger.trigger,
+        }),
+      );
+    }
+    return { scans };
   }
 }
