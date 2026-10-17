@@ -394,6 +394,7 @@ erDiagram
         varchar file
         int line
         varchar style "sdk, http"
+        varchar method "beta.messages.stream"
         varchar operation "POST /v1/messages"
         text_array params
         text_array model_ids
@@ -405,6 +406,7 @@ erDiagram
 `execution_logs` is append-only and cascades on job deletion.
 `repository_scans.queued_for` holds the repository id only while a scan waits to start, so its unique index allows one waiting scan per repository.
 `api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
+Only the newest completed scan of a repository keeps its `api_usages`; completing a scan deletes those of older completed scans, while the `repository_scans` rows stay as history.
 
 ## Failure handling and retries
 

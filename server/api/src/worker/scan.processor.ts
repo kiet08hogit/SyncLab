@@ -60,6 +60,16 @@ export class ScanProcessor extends WorkerHost {
       const providerIds = new Map(providers.map((provider) => [provider.slug, provider.id]));
 
       await this.prisma.$transaction([
+        this.prisma.apiUsage.deleteMany({
+          where: {
+            scan: {
+              repositoryId: scan.repositoryId,
+              status: JobStatus.COMPLETED,
+              id: { not: scanId },
+              createdAt: { lt: scan.createdAt },
+            },
+          },
+        }),
         this.prisma.apiUsage.createMany({
           data: outcome.usages.flatMap((usage) => {
             const providerId = providerIds.get(usage.provider);

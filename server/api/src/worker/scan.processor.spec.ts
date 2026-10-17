@@ -19,6 +19,8 @@ function setup(claimed = 1) {
       updateMany: jest.fn().mockResolvedValue({ count: claimed }),
       findUniqueOrThrow: jest.fn().mockResolvedValue({
         id: 'scan-1',
+        repositoryId: 'repo-1',
+        createdAt: new Date('2026-10-16T12:00:00Z'),
         repository: { installationId: 42n, fullName: 'acme/api' },
       }),
       update: jest.fn((args: unknown) => ({ op: 'update', args })),
@@ -29,7 +31,10 @@ function setup(claimed = 1) {
         { id: 'p-openai', slug: 'openai' },
       ]),
     },
-    apiUsage: { createMany: jest.fn((args: unknown) => ({ op: 'createMany', args })) },
+    apiUsage: {
+      deleteMany: jest.fn((args: unknown) => ({ op: 'deleteMany', args })),
+      createMany: jest.fn((args: unknown) => ({ op: 'createMany', args })),
+    },
     $transaction: jest.fn().mockResolvedValue(undefined),
   };
   const sandbox = {
@@ -48,7 +53,7 @@ function setup(claimed = 1) {
 }
 
 describe('ScanProcessor', () => {
-  it('starts the scan, frees the waiting slot, and stores the usages with the commit in one transaction', async () => {
+  it('starts the scan, frees the waiting slot, and replaces older usages with its own and the commit in one transaction', async () => {
     const { processor, prisma, sandbox, githubToken, job } = setup();
 
     await processor.process(job as never);
@@ -63,6 +68,19 @@ describe('ScanProcessor', () => {
       token: 'ghs_token',
     });
     expect(prisma.$transaction).toHaveBeenCalledWith([
+      {
+        op: 'deleteMany',
+        args: {
+          where: {
+            scan: {
+              repositoryId: 'repo-1',
+              status: JobStatus.COMPLETED,
+              id: { not: 'scan-1' },
+              createdAt: { lt: new Date('2026-10-16T12:00:00Z') },
+            },
+          },
+        },
+      },
       {
         op: 'createMany',
         args: {

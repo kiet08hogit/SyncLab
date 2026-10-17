@@ -185,6 +185,7 @@ Scans start on their own when the App is installed or a repository is added to a
 Apps registered before the push event was added need it switched on under the App's **Permissions & events** settings.
 A repository has at most one scan waiting to start, so a burst of pushes is scanned once.
 A failed scan is not retried; the next push, or a manual trigger, scans again.
+Only the newest completed scan of a repository keeps its usages; older scans stay listed as history without them.
 
 ```bash
 curl -X POST http://localhost:3000/repositories/<githubRepoId>/scan \
