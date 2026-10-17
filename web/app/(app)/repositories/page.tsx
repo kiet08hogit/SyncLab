@@ -72,7 +72,7 @@ async function RepositoryTable() {
               <TableRow key={repository.githubRepoId} className="relative">
                 <TableCell className="py-3.5 pl-4">
                   <Link
-                    href={`/?repo=${encodeURIComponent(repository.fullName)}`}
+                    href={`/dashboard?repo=${encodeURIComponent(repository.fullName)}`}
                     className="flex flex-col gap-0.5 after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
                   >
                     <span className="flex items-center gap-1.5 font-medium">

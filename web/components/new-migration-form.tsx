@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { CircleAlert, GitBranch, Loader2, Lock, Play } from "lucide-react";
 
-import { startMigration, type StartMigrationState } from "@/app/migrations/new/actions";
+import { startMigration, type StartMigrationState } from "@/app/(app)/migrations/new/actions";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

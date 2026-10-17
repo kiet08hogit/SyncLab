@@ -17,7 +17,7 @@ export default function NewMigrationPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
       <Link
-        href="/"
+        href="/dashboard"
         className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft aria-hidden className="size-4" />

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, JetBrains_Mono, Lora } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 
-import { AppSidebar } from "@/components/app-sidebar";
 import "./globals.css";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
@@ -24,7 +23,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geist.variable} ${lora.variable} ${jetbrains.variable} h-full antialiased`}
     >
-      <body className="flex min-h-dvh flex-col md:h-dvh md:flex-row">
+      <body className="min-h-dvh">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <a
             href="#main"
@@ -32,10 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           >
             Skip to content
           </a>
-          <AppSidebar />
-          <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none md:overflow-y-auto">
-            {children}
-          </main>
+          {children}
         </ThemeProvider>
       </body>
     </html>
