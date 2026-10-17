@@ -324,6 +324,7 @@ If no result line appears (for example, the container was killed), the raw log b
 | `/` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
 | `/jobs/[id]` | One job's pipeline track (clone, changelog, install, baseline, upgrade, refactor, test, pull request), failure reason, a retry button for failed jobs, and execution log |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
+| `/api-changes` | The API change monitor's watched Anthropic and OpenAI sources and the breaking changes it found, with a button to check every source now |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
 
@@ -342,6 +343,9 @@ erDiagram
     REPOSITORIES ||--o{ REPOSITORY_SCANS : "has many"
     REPOSITORY_SCANS ||--o{ API_USAGES : "finds"
     API_PROVIDERS ||--o{ API_USAGES : "is called by"
+    API_PROVIDERS ||--o{ API_SOURCES : "is watched through"
+    API_SOURCES ||--o{ API_SOURCE_SNAPSHOTS : "changed as"
+    API_SOURCE_SNAPSHOTS ||--o{ BREAKING_CHANGES : "evidences"
 
     REPOSITORIES {
         uuid id PK
@@ -400,6 +404,38 @@ erDiagram
         text_array model_ids
         boolean dynamic
     }
+
+    API_SOURCES {
+        uuid id PK
+        uuid provider_id FK
+        varchar kind "deprecations"
+        varchar url
+        timestamptz last_checked_at
+        text last_error
+    }
+
+    API_SOURCE_SNAPSHOTS {
+        uuid id PK
+        uuid source_id FK
+        varchar content_hash
+        text content
+        timestamptz fetched_at
+    }
+
+    BREAKING_CHANGES {
+        uuid id PK
+        uuid provider_id FK
+        uuid snapshot_id FK
+        varchar kind "model_retired, endpoint_removed, ..."
+        varchar operation
+        varchar field
+        varchar replacement
+        date effective_at
+        varchar section
+        text evidence
+        varchar status "detected, confirmed, dismissed"
+        varchar subject_key
+    }
 ```
 
 `migration_jobs` has a unique constraint on `(repository_id, dependency_name, target_version)`, which is what makes triggers idempotent.
@@ -407,6 +443,7 @@ erDiagram
 `repository_scans.queued_for` holds the repository id only while a scan waits to start, so its unique index allows one waiting scan per repository.
 `api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
 Only the newest completed scan of a repository keeps its `api_usages`; completing a scan deletes those of older completed scans, while the `repository_scans` rows stay as history.
+`api_source_snapshots` gets a row only when a source's extracted text changes, and `breaking_changes` is unique on `(provider_id, kind, subject_key)`, so reading the same retirement again updates it instead of adding one.
 
 ## Failure handling and retries
 

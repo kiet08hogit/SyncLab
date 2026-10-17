@@ -1,6 +1,9 @@
 import "server-only";
 
 import type {
+  ApiChange,
+  ApiChangeFilter,
+  ApiProviderSummary,
   ExecutionLog,
   JobDetail,
   JobStatus,
@@ -77,4 +80,30 @@ export async function createMigration(
   const response = await request(token, "/migrations", { method: "POST", body: JSON.stringify(input) });
   if (!response.ok) return { error: await errorMessage(response) };
   return { id: ((await response.json()) as { id: string }).id };
+}
+
+/** The API answers 404 for every monitor route until it runs the change monitor. */
+export class MonitorUnavailableError extends Error {}
+
+async function monitor<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+  const response = await request(token, path, init);
+  if (response.status === 404) throw new MonitorUnavailableError(await errorMessage(response));
+  return json(response);
+}
+
+export async function listApiProviders(token: string): Promise<ApiProviderSummary[]> {
+  return monitor(token, "/api-providers");
+}
+
+export async function listApiChanges(token: string, filter: ApiChangeFilter): Promise<ApiChange[]> {
+  const search = new URLSearchParams();
+  if (filter.provider) search.set("provider", filter.provider);
+  if (filter.status) search.set("status", filter.status);
+  if (filter.kind) search.set("kind", filter.kind);
+  return monitor(token, `/api-changes?${search}`);
+}
+
+/** Fetches every watched source now instead of waiting for the schedule. */
+export async function pollApiProviders(token: string): Promise<{ queued: boolean }> {
+  return monitor(token, "/api-providers/poll", { method: "POST" });
 }

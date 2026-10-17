@@ -56,6 +56,8 @@ model ApiProvider {
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
 
   usages          ApiUsage[]
+  sources         ApiSource[]
+  changes         BreakingChange[]
 
   @@map("api_providers")
 }
@@ -108,4 +110,77 @@ model ApiUsage {
   @@index([scanId])
   @@index([providerId, operation])
   @@map("api_usages")
+}
+
+/// A page or file the monitor polls for a provider, such as its model
+/// deprecations page.
+model ApiSource {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerId    String    @map("provider_id") @db.Uuid
+  /// deprecations, spec, release_notes or sdk_changelog.
+  kind          String    @db.VarChar(50)
+  url           String    @db.VarChar(1024)
+  /// The last fetch, whether or not it succeeded or changed anything.
+  lastCheckedAt DateTime? @map("last_checked_at") @db.Timestamptz()
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  provider  ApiProvider         @relation(fields: [providerId], references: [id])
+  snapshots ApiSourceSnapshot[]
+
+  @@unique([providerId, kind, url])
+  @@map("api_sources")
+}
+
+/// A fetched source whose content differed from the previous snapshot. The
+/// content is the extracted text the parsers read, not the raw page, so page
+/// chrome that changes on every request does not create new snapshots.
+model ApiSourceSnapshot {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceId    String   @map("source_id") @db.Uuid
+  /// sha256 of content.
+  contentHash String   @map("content_hash") @db.VarChar(64)
+  content     String
+  fetchedAt   DateTime @default(now()) @map("fetched_at") @db.Timestamptz()
+
+  source  ApiSource        @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  changes BreakingChange[]
+
+  @@index([sourceId, fetchedAt])
+  @@map("api_source_snapshots")
+}
+
+/// A breaking change a provider announced, read from a snapshot.
+model BreakingChange {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  providerId  String    @map("provider_id") @db.Uuid
+  /// The latest snapshot the change was read from.
+  snapshotId  String    @map("snapshot_id") @db.Uuid
+  /// model_retired, param_removed, param_renamed, param_now_required,
+  /// enum_value_removed, endpoint_removed or behavior_changed.
+  kind        String    @db.VarChar(50)
+  /// Such as POST /v1/messages. Null when the change is not about one operation.
+  operation   String?   @db.VarChar(255)
+  /// The parameter or model ID the change is about.
+  field       String?   @db.VarChar(255)
+  replacement String?   @db.VarChar(1024)
+  effectiveAt DateTime? @map("effective_at") @db.Date
+  /// The heading the evidence sits under, such as an announcement title.
+  section     String?   @db.VarChar(1024)
+  /// The verbatim line of the snapshot the change was read from.
+  evidence    String
+  /// detected, confirmed or dismissed.
+  status      String    @db.VarChar(20)
+  /// operation and field joined, so the same change read again updates the
+  /// existing row instead of adding one.
+  subjectKey  String    @map("subject_key") @db.VarChar(512)
+  detectedAt  DateTime  @default(now()) @map("detected_at") @db.Timestamptz()
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  provider ApiProvider       @relation(fields: [providerId], references: [id])
+  snapshot ApiSourceSnapshot @relation(fields: [snapshotId], references: [id])
+
+  @@unique([providerId, kind, subjectKey])
+  @@index([status, detectedAt])
+  @@map("breaking_changes")
 }

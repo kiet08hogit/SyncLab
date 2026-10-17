@@ -9,14 +9,6 @@ const nextConfig: NextConfig = {
     // No `search` key, because GitHub appends ?v=4 to every avatar URL.
     remotePatterns: [{ protocol: "https", hostname: "avatars.githubusercontent.com", pathname: "/**" }],
   },
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
 };
 
 export default nextConfig;

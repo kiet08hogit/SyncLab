@@ -38,6 +38,7 @@
     "bullmq": "^5.81.3",
     "dockerode": "^5.0.1",
     "dotenv": "^17.4.2",
+    "htmlparser2": "^9.1.0",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
