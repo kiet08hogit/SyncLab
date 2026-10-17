@@ -223,6 +223,104 @@ describe('scanApiUsage', () => {
     );
   });
 
+  it('reads HTTP options bound to a const, and never guesses a method it cannot read', () => {
+    const { usages } = scanApiUsage(
+      files({
+        'src/http.ts': [
+          "import axios from 'axios';",
+          "const URL = 'https://api.openai.com/v1/chat/completions';",
+          "const init = { method: 'POST', body: JSON.stringify({ model: 'gpt-4o', messages: [] }) };",
+          'fetch(URL, init);',
+          'export function send(verb: string, opts: RequestInit) {',
+          "  fetch(URL, { method: verb, body: JSON.stringify({ model: 'gpt-4o' }) });",
+          '  fetch(URL, opts);',
+          '  fetch(URL, { ...opts });',
+          "  axios(URL, { method: 'post', data: { model: 'gpt-4o' } });",
+          '  axios.request(opts);',
+          '  fetch(URL);',
+          '}',
+        ].join('\n'),
+      }),
+    );
+
+    assert.deepEqual(
+      usages.map(({ line, operation, params, modelIds, dynamic }) => ({ line, operation, params, modelIds, dynamic })),
+      [
+        { line: 4, operation: 'POST /v1/chat/completions', params: ['messages', 'model'], modelIds: ['gpt-4o'], dynamic: false },
+        { line: 6, operation: null, params: ['model'], modelIds: ['gpt-4o'], dynamic: true },
+        { line: 7, operation: null, params: [], modelIds: [], dynamic: true },
+        { line: 8, operation: null, params: [], modelIds: [], dynamic: true },
+        { line: 9, operation: 'POST /v1/chat/completions', params: ['model'], modelIds: ['gpt-4o'], dynamic: false },
+        { line: 11, operation: 'GET /v1/chat/completions', params: [], modelIds: [], dynamic: false },
+      ],
+    );
+  });
+
+  it('follows optional chaining to the client and its methods', () => {
+    assert.deepEqual(
+      calls({
+        'src/optional.ts': [
+          "import Anthropic from '@anthropic-ai/sdk';",
+          "import axios from 'axios';",
+          'const client = new Anthropic();',
+          'class Service {',
+          '  private client?: Anthropic = new Anthropic();',
+          '  run() {',
+          "    return this.client?.messages.create({ model: 'claude-opus-5-5', max_tokens: 1, messages: [] });",
+          '  }',
+          '}',
+          "client.messages?.create({ model: 'claude-opus-5-5', max_tokens: 1, messages: [] });",
+          'client?.withOptions({ maxRetries: 1 })?.messages.countTokens({ model: "claude-opus-5-5", messages: [] });',
+          "axios?.get('https://api.anthropic.com/v1/models');",
+        ].join('\n'),
+      }),
+      [
+        { file: 'src/optional.ts', line: 7, method: 'messages.create', operation: 'POST /v1/messages' },
+        { file: 'src/optional.ts', line: 10, method: 'messages.create', operation: 'POST /v1/messages' },
+        { file: 'src/optional.ts', line: 11, method: 'messages.countTokens', operation: 'POST /v1/messages/count_tokens' },
+        { file: 'src/optional.ts', line: 12, method: undefined, operation: 'GET /v1/models' },
+      ],
+    );
+  });
+
+  it('follows a client from an .mts module imported as .mjs', () => {
+    assert.deepEqual(
+      calls({
+        'src/model.mts': [
+          "import Anthropic from '@anthropic-ai/sdk';",
+          'export const client = new Anthropic();',
+          "client.models.list();",
+        ].join('\n'),
+        'src/chain.mts': [
+          "import { client } from './model.mjs';",
+          "client.messages.create({ model: 'claude-opus-5-5', max_tokens: 1, messages: [] });",
+        ].join('\n'),
+      }),
+      [
+        { file: 'src/chain.mts', line: 2, method: 'messages.create', operation: 'POST /v1/messages' },
+        { file: 'src/model.mts', line: 3, method: 'models.list', operation: 'GET /v1/models' },
+      ],
+    );
+  });
+
+  it('follows an anonymous default-exported factory', () => {
+    assert.deepEqual(
+      calls({
+        'src/client.ts': [
+          "import OpenAI from 'openai';",
+          'export default function () {',
+          '  return new OpenAI();',
+          '}',
+        ].join('\n'),
+        'src/use.ts': [
+          "import create from './client.js';",
+          "create().responses.create({ model: 'gpt-5', input: 'hi' });",
+        ].join('\n'),
+      }),
+      [{ file: 'src/use.ts', line: 2, method: 'responses.create', operation: 'POST /v1/responses' }],
+    );
+  });
+
   it('ignores the API named in text, look-alike objects, and a local fetch', () => {
     const { usages } = scanApiUsage(
       files({

@@ -132,6 +132,14 @@ function unwrap(nodePath: NodePath): NodePath {
   return current;
 }
 
+function isMember(node: t.Node | null | undefined): node is t.MemberExpression | t.OptionalMemberExpression {
+  return t.isMemberExpression(node) || t.isOptionalMemberExpression(node);
+}
+
+function isCall(node: t.Node | null | undefined): node is t.CallExpression | t.OptionalCallExpression {
+  return t.isCallExpression(node) || t.isOptionalCallExpression(node);
+}
+
 function propertyName(member: t.MemberExpression | t.OptionalMemberExpression): string | undefined {
   if (!member.computed && t.isIdentifier(member.property)) {
     return member.property.name;
@@ -515,7 +523,7 @@ class ApiUsageScanner {
       return id ? facts.clients.get(id) : undefined;
     }
 
-    if (t.isMemberExpression(node)) {
+    if (isMember(node)) {
       const name = propertyName(node);
       if (!name) {
         return undefined;
@@ -527,10 +535,10 @@ class ApiUsageScanner {
       return target ? this.resolveExport(target, name, depth + 1)?.client : undefined;
     }
 
-    if (t.isCallExpression(node)) {
+    if (isCall(node)) {
       const callee = nodePath.get('callee') as NodePath;
       // client.withOptions({ ... }) returns a client with the same surface.
-      if (callee.isMemberExpression() && propertyName(callee.node) === 'withOptions') {
+      if (isMember(callee.node) && propertyName(callee.node) === 'withOptions') {
         return this.clientOf(facts, callee.get('object') as NodePath, depth + 1);
       }
       return this.factoryOf(facts, callee, depth + 1);
@@ -548,7 +556,7 @@ class ApiUsageScanner {
     const nodePath = unwrap(expression);
     const { node } = nodePath;
 
-    if (nodePath.isArrowFunctionExpression() || nodePath.isFunctionExpression()) {
+    if (nodePath.isArrowFunctionExpression() || nodePath.isFunctionExpression() || nodePath.isFunctionDeclaration()) {
       return this.returnedClient(facts, nodePath, depth + 1);
     }
 
@@ -557,7 +565,7 @@ class ApiUsageScanner {
       return id ? facts.factories.get(id) : undefined;
     }
 
-    if (t.isMemberExpression(node)) {
+    if (isMember(node)) {
       const name = propertyName(node);
       const target = this.namespaceOf(facts, nodePath.get('object') as NodePath);
       return name && target ? this.resolveExport(target, name, depth + 1)?.factory : undefined;
@@ -609,7 +617,7 @@ class ApiUsageScanner {
 
     for (const facts of this.facts.values()) {
       traverse(facts.ast, {
-        CallExpression(nodePath) {
+        'CallExpression|OptionalCallExpression'(nodePath: NodePath<t.CallExpression | t.OptionalCallExpression>) {
           const usage = scanner.sdkCall(facts, nodePath) ?? scanner.httpCall(facts, nodePath);
           if (usage) {
             usages.push(usage);
@@ -621,7 +629,7 @@ class ApiUsageScanner {
     return usages.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
   }
 
-  private sdkCall(facts: FileFacts, call: NodePath<t.CallExpression>): ApiUsage | undefined {
+  private sdkCall(facts: FileFacts, call: NodePath<t.CallExpression | t.OptionalCallExpression>): ApiUsage | undefined {
     const names: string[] = [];
     let current = call.get('callee') as NodePath;
     let provider: ApiProvider | undefined;
@@ -629,7 +637,7 @@ class ApiUsageScanner {
     // Walk down the chain until the object is a client: `this.client` or
     // `module.client` are clients themselves, and so is a call such as
     // client.withOptions({ ... }) in client.withOptions({ ... }).messages.create().
-    while (!provider && current.isMemberExpression()) {
+    while (!provider && isMember(current.node)) {
       const name = propertyName(current.node);
       if (!name) {
         return undefined;
@@ -651,48 +659,43 @@ class ApiUsageScanner {
       style: 'sdk',
       method,
       operation: lookupOperation(provider, method),
-      ...requestShape(call.get('arguments')[0]),
+      ...requestShape((call.get('arguments') as NodePath[])[0]),
     };
   }
 
-  private httpCall(facts: FileFacts, call: NodePath<t.CallExpression>): ApiUsage | undefined {
-    const callee = call.get('callee');
-    const args = call.get('arguments');
+  private httpCall(facts: FileFacts, call: NodePath<t.CallExpression | t.OptionalCallExpression>): ApiUsage | undefined {
+    const callee = call.get('callee') as NodePath;
+    const args = call.get('arguments') as NodePath[];
     let urlPath: NodePath | undefined;
-    let method: string | undefined;
-    let body: NodePath | undefined;
+    let options: HttpOptions;
 
     if (callee.isIdentifier({ name: 'fetch' }) && !call.scope.getBinding('fetch')) {
       urlPath = args[0];
-      const options = args[1];
-      if (options?.isObjectExpression()) {
-        method = staticString(objectProperty(options, 'method'))?.toUpperCase();
-        body = jsonStringifyArgument(objectProperty(options, 'body'));
-      }
-      method ??= 'GET';
+      options = httpOptions(args[1], 'body');
     } else if (this.isAxios(facts, callee)) {
-      const config = args[0];
-      if (config?.isObjectExpression()) {
-        urlPath = objectProperty(config, 'url');
-        method = staticString(objectProperty(config, 'method'))?.toUpperCase() ?? 'GET';
-        body = objectProperty(config, 'data');
+      // axios(config) or axios(url, config)
+      if (args[0] && constObject(args[0])) {
+        options = httpOptions(args[0], 'data');
+        urlPath = options.url;
+      } else {
+        urlPath = args[0];
+        options = httpOptions(args[1], 'data');
       }
-    } else if (callee.isMemberExpression() && this.isAxios(facts, callee.get('object') as NodePath)) {
+    } else if (isMember(callee.node) && this.isAxios(facts, callee.get('object') as NodePath)) {
       const name = propertyName(callee.node);
       if (!name || !AXIOS_METHODS.has(name)) {
         return undefined;
       }
       if (name === 'request') {
-        const config = args[0];
-        if (config?.isObjectExpression()) {
-          urlPath = objectProperty(config, 'url');
-          method = staticString(objectProperty(config, 'method'))?.toUpperCase() ?? 'GET';
-          body = objectProperty(config, 'data');
-        }
+        options = httpOptions(args[0], 'data');
+        urlPath = options.url;
       } else {
         urlPath = args[0];
-        method = name.toUpperCase();
-        body = ['post', 'put', 'patch'].includes(name) ? args[1] : undefined;
+        options = {
+          method: name.toUpperCase(),
+          body: ['post', 'put', 'patch'].includes(name) ? args[1] : undefined,
+          dynamic: false,
+        };
       }
     } else {
       return undefined;
@@ -709,14 +712,16 @@ class ApiUsageScanner {
       return undefined;
     }
 
+    const { method, body } = options;
     const shape = body ? requestShape(body) : { params: [], modelIds: [], dynamic: false };
     return {
       provider,
       file: facts.file.path,
       line: call.node.loc?.start.line ?? 0,
       style: 'http',
-      operation: `${method} ${match?.[2] ?? '/'}`,
+      operation: method ? `${method} ${match?.[2] ?? '/'}` : null,
       ...shape,
+      dynamic: shape.dynamic || options.dynamic || !method,
     };
   }
 
@@ -744,14 +749,58 @@ function objectProperty(object: NodePath<t.ObjectExpression>, key: string): Node
 
 function jsonStringifyArgument(value: NodePath | undefined): NodePath | undefined {
   if (
-    value?.isCallExpression() &&
-    t.isMemberExpression(value.node.callee) &&
+    value &&
+    isCall(value.node) &&
+    isMember(value.node.callee) &&
     t.isIdentifier(value.node.callee.object, { name: 'JSON' }) &&
     propertyName(value.node.callee) === 'stringify'
   ) {
-    return value.get('arguments')[0];
+    return (value.get('arguments') as NodePath[])[0];
   }
   return value;
+}
+
+/** An object literal an expression is, written inline or bound once as a `const`. */
+function constObject(value: NodePath): NodePath<t.ObjectExpression> | undefined {
+  let object = unwrap(value);
+  if (object.isIdentifier()) {
+    const binding = object.scope.getBinding(object.node.name);
+    if (binding?.constant && binding.path.isVariableDeclarator() && binding.path.node.init) {
+      object = unwrap(binding.path.get('init') as NodePath);
+    }
+  }
+  return object.isObjectExpression() ? object : undefined;
+}
+
+interface HttpOptions {
+  url?: NodePath;
+  /** Undefined when only runtime knows it. */
+  method?: string;
+  body?: NodePath;
+  dynamic: boolean;
+}
+
+/** What fetch options or an axios config tell us; both default to GET when they leave the method out. */
+function httpOptions(options: NodePath | undefined, bodyKey: 'body' | 'data'): HttpOptions {
+  if (!options) {
+    return { method: 'GET', dynamic: false };
+  }
+
+  const object = constObject(options);
+  if (!object) {
+    return { dynamic: true };
+  }
+
+  // A spread can carry any key, the method included.
+  const spread = object.get('properties').some((property) => property.isSpreadElement());
+  const method = objectProperty(object, 'method');
+  const body = objectProperty(object, bodyKey);
+  return {
+    url: objectProperty(object, 'url'),
+    method: method ? staticString(method)?.toUpperCase() : spread ? undefined : 'GET',
+    body: bodyKey === 'body' ? jsonStringifyArgument(body) : body,
+    dynamic: spread,
+  };
 }
 
 /**
@@ -814,17 +863,9 @@ function requestShape(argument: NodePath | undefined): Pick<ApiUsage, 'params' |
     return { params: [], modelIds: [], dynamic: false };
   }
 
-  let object = unwrap(argument);
-
   // A request built once as a constant and passed by name.
-  if (object.isIdentifier()) {
-    const binding = object.scope.getBinding(object.node.name);
-    if (binding?.constant && binding.path.isVariableDeclarator() && binding.path.node.init) {
-      object = unwrap(binding.path.get('init') as NodePath);
-    }
-  }
-
-  if (!object.isObjectExpression()) {
+  const object = constObject(argument);
+  if (!object) {
     return { params: [], modelIds: [], dynamic: true };
   }
 
