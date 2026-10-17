@@ -114,22 +114,3 @@ jobs:
       - uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
-          # The benchmark fixtures under benchmarks/cases/*/repo pin old majors
-          # on purpose: each is the pre-migration version the benchmark was
-          # recorded against, and they only run in the throwaway benchmark
-          # sandbox. These are every high/critical advisory those lockfiles
-          # match (npm audit): path-to-regexp 0.1.12 (express 4), hoek 6 (joi
-          # 14), lodash 3, marked 3, nanoid 2 and ws 7.
-          allow-ghsas: >-
-            GHSA-37ch-88jc-xwx2,
-            GHSA-c429-5p7v-vgjp,
-            GHSA-jf85-cpcp-j695,
-            GHSA-35jh-r3h4-6jhm,
-            GHSA-4xc9-xhrj-v574,
-            GHSA-p6mc-m468-83gw,
-            GHSA-5v2h-r2cx-5xgj,
-            GHSA-rrrm-qjm4-v8hf,
-            GHSA-28wg-ghj8-5hjv,
-            GHSA-2v37-7h3g-55p8,
-            GHSA-xwg4-73v4-xw9w,
-            GHSA-96hv-2xvq-fx4p

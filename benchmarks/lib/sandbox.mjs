@@ -90,6 +90,10 @@ export async function seedVolume(volumeName, repoDir, notes) {
     '-v', `${notesFile}:/notes.md:ro`,
     SEED_IMAGE, 'sh', '-c',
     'mkdir -p /workspace/repo /workspace/state && cp -a /src/. /workspace/repo/ && ' +
+      // Cases store their lockfile as package-lock.benchmark.json so GitHub's dependency
+      // graph skips the deliberately old versions; the sandbox sees a normal package-lock.json.
+      'if [ -f /workspace/repo/package-lock.benchmark.json ]; then ' +
+      'mv /workspace/repo/package-lock.benchmark.json /workspace/repo/package-lock.json; fi && ' +
       'cp /notes.md /workspace/state/breaking-changes.md && chown -R node:node /workspace',
   ]);
   await fs.rm(path.dirname(notesFile), { recursive: true, force: true });

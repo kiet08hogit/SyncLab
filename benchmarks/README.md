@@ -9,12 +9,20 @@ The latest results are in [`results/report.md`](results/report.md).
 ```
 cases/<id>/
   case.json   package, fromVersion, toVersion, category, difficulty, a description of the break and a link to its changelog
-  repo/       the only files the sandbox sees: package.json, package-lock.json, src/, test/
+  repo/       the only files the sandbox sees: package.json, package-lock.benchmark.json (seeded as package-lock.json), src/, test/
   solution/   a reference fix (changed non-test files only), used by validation and never by the benchmark run
 ```
 
 `repo/` is pinned to the old version with a lockfile.
 Its `node:test` suite imports only the project's own code, never the dependency, so the refactor step cannot rewrite it.
+
+The lockfile is committed as `package-lock.benchmark.json` so GitHub's dependency graph and dependency review skip these deliberately old (and sometimes vulnerable) versions.
+When a case is seeded into its Docker volume, the file is renamed back to `package-lock.json`, so the sandbox sees an ordinary npm project.
+To create or refresh a case's lockfile:
+
+```bash
+(cd benchmarks/cases/<id>/repo && npm install --package-lock-only --ignore-scripts && mv package-lock.json package-lock.benchmark.json)
+```
 
 ## Running it
 
