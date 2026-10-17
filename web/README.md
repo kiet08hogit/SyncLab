@@ -14,7 +14,7 @@ npm run dev
 Then open http://localhost:3001.
 The dashboard uses port 3001 because the API in `server/api` listens on 3000.
 
-`npm test` runs the Vitest unit tests (`lib/*.test.ts`) for the pipeline, formatting, and sign-in redirect helpers.
+`npm test` runs the Vitest unit tests (`lib/*.test.ts`) for the pipeline, formatting, sign-in redirect, and landing ASCII helpers.
 
 `npm run test:e2e` runs the Playwright suite in `e2e/` in Chromium.
 It needs Docker and the API's dependencies (`npm install && npm run db:generate` in `server/api`); install the browser once with `npx playwright install chromium`.
