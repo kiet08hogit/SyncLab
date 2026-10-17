@@ -55,13 +55,20 @@ export function resolveLlmProvider(value: string | undefined): LlmProvider {
   return value as LlmProvider;
 }
 
-export function loadConfig(): SandboxConfig {
+/** Where the shared volume holds the clone and the state passed between phases. */
+export function loadWorkspace(): Pick<SandboxConfig, 'workspace' | 'repoDir' | 'stateDir'> {
   const workspace = process.env.SANDBOX_WORKSPACE ?? '/workspace';
 
   return {
     workspace,
     repoDir: path.join(workspace, 'repo'),
     stateDir: path.join(workspace, 'state'),
+  };
+}
+
+export function loadConfig(): SandboxConfig {
+  return {
+    ...loadWorkspace(),
     repoUrl: required('REPO_URL'),
     repoFullName: required('REPO_FULL_NAME'),
     dependencyName: required('DEPENDENCY_NAME'),

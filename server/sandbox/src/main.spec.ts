@@ -107,13 +107,24 @@ describe('main', () => {
       assert.equal(code, 2, label);
       assert.equal(
         stderr,
-        `Expected one of prepare, install, upgrade, refactor, test, publish but received "${args[0] ?? ''}"\n`,
+        `Expected one of prepare, install, upgrade, refactor, test, publish, scan but received "${args[0] ?? ''}"\n`,
         label,
       );
       assert.equal(stdout, '', label);
       assert.equal(parseResult(stdout), undefined, label);
       assert.doesNotMatch(stderr, /UnhandledPromiseRejection|at parsePhase/, label);
     }
+  });
+
+  it('runs scan with no job settings, since it only reads the clone', async () => {
+    const noJob = Object.fromEntries(Object.keys(JOB_ENV).map((name) => [name, '']));
+    const { code, stdout, stderr } = await runMain(['scan'], { ...noJob, SANDBOX_WORKSPACE: workspace });
+    const result = parseResult(stdout);
+
+    assert.equal(code, 0, stderr);
+    assert.equal(result?.phase, 'scan');
+    assert.equal(result?.ok, true);
+    assert.deepEqual(result?.data?.usages, []);
   });
 
   it('accepts install and upgrade as phases', async () => {
