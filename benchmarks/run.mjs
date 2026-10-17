@@ -259,6 +259,7 @@ async function save() {
   );
 }
 
+meta.commits = [...new Set([...(meta.commits ?? [meta.commit]), git('rev-parse', 'HEAD')])];
 meta.models = [...new Set([...(meta.models ?? [`${meta.model.provider}/${meta.model.model}`]), `${config.llm.provider}/${config.llm.model}`])];
 
 for (const [index, spec] of cases.entries()) {

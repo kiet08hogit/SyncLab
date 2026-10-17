@@ -120,7 +120,7 @@ Generated from \`${path.basename(inFile)}\` by \`benchmarks/report.mjs\`. Every 
 | | |
 | --- | --- |
 | Run | ${meta.startedAt} to ${meta.finishedAt} |
-| Base commit | \`${meta.commit.slice(0, 12)}\`${meta.dirty ? ' (server/ had uncommitted changes)' : ''} |
+| Base commit | ${(meta.commits ?? [meta.commit]).map((commit) => `\`${commit.slice(0, 12)}\``).join(', then ')}${(meta.commits ?? []).length > 1 ? ' (the run was resumed; the later commit only changed the benchmark harness)' : ''}${meta.dirty ? ' (server/ had uncommitted changes)' : ''} |
 | Model | ${(meta.models ?? []).length > 1 ? `${meta.models.length} models, one per case (see By model); first: ` : ''}${meta.model.provider} \`${meta.model.model}\`${meta.model.parameterSize ? `, ${meta.model.parameterSize} parameters, ${meta.model.quantization}` : ''}${meta.model.digest ? `, digest \`${meta.model.digest.slice(0, 12)}\`` : ''}${meta.model.source === 'LLM_MODEL override' ? ' (chosen with `LLM_MODEL`, not the worker\'s default for this provider)' : ''} |
 | Context window | ${meta.model.numCtx ?? 'provider default'} tokens |
 | Attempts per case | up to ${meta.maxAttempts} (the worker's default \`LLM_MAX_ATTEMPTS\`) |
@@ -141,7 +141,7 @@ Generated from \`${path.basename(inFile)}\` by \`benchmarks/report.mjs\`. Every 
 
 Successful cases by the attempt that passed: ${[...attemptsOnSuccess.entries()].sort((a, b) => a[0] - b[0]).map(([attempt, count]) => `attempt ${attempt}: ${count}`).join(', ') || 'none'}.
 
-Release notes were found for ${notesFound} of ${all.total} cases. Success with notes: ${withNotes.success}/${withNotes.total} (${pct(withNotes.success, withNotes.total)}); without: ${withoutNotes.success}/${withoutNotes.total} (${pct(withoutNotes.success, withoutNotes.total)}).
+Release notes were found for ${notesFound} of ${all.total} cases. Success with notes: ${withNotes.success}/${withNotes.total} (${pct(withNotes.success, withNotes.total)}); without: ${withoutNotes.success}/${withoutNotes.total} (${pct(withoutNotes.success, withoutNotes.total)}). This is not a controlled comparison: the two groups contain different packages, difficulties and models.
 
 ### Failure reasons
 

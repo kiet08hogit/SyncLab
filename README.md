@@ -418,7 +418,7 @@ SyncLab/
 │           ├── llm/           Ollama, Gemini and Claude models, refactor chain, retryable error classification
 │           ├── package-manager.ts  npm, pnpm and yarn detection and commands
 │           └── upgrade.ts     dependency upgrade used by the upgrade phase
-└── benchmarks/                synthetic migration cases and runner for the refactor and test loop
+└── benchmarks/                validated migration cases, the sandbox benchmark runner and its results
 ```
 
 ## Getting started
@@ -500,11 +500,30 @@ cd web && npm run test:e2e                       # dashboard in Chromium against
 
 `.github/workflows/verify.yml` runs these checks, plus the sandbox image build and a dependency review, on every pull request and on pushes to `main` and `develop`.
 
-`benchmarks/` holds synthetic migration cases (lodash, ramda, ajv, node-fetch, query-string, uuid) at easy, medium and hard difficulty.
-The runner drives the real sandbox `refactor` and `test` code for up to 3 attempts and checks AST targeting, removed APIs, `npm run build` and `npm test`.
-Cases marked `"upgrade": true` start on the old version and also exercise the dependency upgrade step.
-It calls a live model (local Ollama by default, or a hosted one with `LLM_PROVIDER=gemini` or `anthropic`), so it is not part of CI.
-See [`benchmarks/README.md`](benchmarks/README.md).
+`benchmarks/` measures how often the real migration pipeline repairs a project after a breaking release.
+It runs 60 validated cases across 33 npm packages through the worker's own sandbox driver and the production sandbox image: install, a baseline test, upgrade, then refactor and test up to 3 attempts.
+Every case is proven valid first: its suite passes on the old version, fails after the upgrade alone, and passes with a reference fix.
+The model sees only what production gives it, each case runs in a fresh Docker volume, and editing a test counts as a failure.
+It calls a live model, so it is not part of CI.
+
+Latest run (2026-10-16 to 2026-10-17), success meaning the project's own test suite passes after the migration:
+
+| Metric | Result |
+| --- | --- |
+| First-attempt test pass rate | 19/60 (31.7%) |
+| Success rate after retries | 46/60 (76.7%) |
+| Migration time (upgrade to last test) | mean 50.5s, median 9.0s, 90th percentile 136.5s |
+| Failures | 11 `tests_failed`, 3 `no_changes` |
+
+| Difficulty | Cases | First attempt | After retries |
+| --- | --- | --- | --- |
+| easy | 20 | 10 (50.0%) | 19 (95.0%) |
+| medium | 21 | 7 (33.3%) | 13 (61.9%) |
+| hard | 19 | 2 (10.5%) | 14 (73.7%) |
+
+The run used Gemini Flash models on the free tier, whose small per-model daily quotas forced a mix: `gemini-3.5-flash-lite` (39), `gemini-3.5-flash` (5), `gemini-3.8-flash` (5), `gemini-3.7-flash` (5), `gemini-2.5-flash` (4), `gemini-3-flash-preview` (2).
+The rates are therefore a blend across models, not one model's score, and the worker's default Gemini model (`gemini-3.1-pro-preview`) was not tested because the free tier does not include it.
+See [`benchmarks/results/report.md`](benchmarks/results/report.md) for the methodology, per-model, per-category and per-package results, and limitations, and [`benchmarks/README.md`](benchmarks/README.md) to reproduce it.
 
 ## Current limitations and roadmap
 
