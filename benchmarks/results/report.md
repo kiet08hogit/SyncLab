@@ -9,7 +9,7 @@ Generated from `results.json` by `benchmarks/report.mjs`. Every number below is 
 | Run | 2026-10-16T21:28:36.635Z to 2026-10-17T00:16:29.082Z |
 | Base commit | `756ead67496d`, then `0a41d334e539` (the run was resumed; the later commit only changed the benchmark harness) |
 | Model | 6 models, one per case (see By model); first: gemini `gemini-3.5-flash` (chosen with `LLM_MODEL`, not the worker's default for this provider) |
-| Context window | provider default tokens |
+| Context window | provider default |
 | Attempts per case | up to 3 (the worker's default `LLM_MAX_ATTEMPTS`) |
 | Sandbox | image `synclab-sandbox:bench` (`e7c6e2f672d9`), 2 GB memory, 1 CPU, 512 PIDs, 10 min per phase |
 | Host | darwin/arm64, 15 CPUs; harness on Node v24.18.0, phases on the image's Node 22 |
@@ -147,7 +147,7 @@ Release notes were found for 32 of 60 cases. Success with notes: 22/32 (68.8%); 
 - **This run mixed 6 models** (`gemini/gemini-3.5-flash`, `gemini/gemini-3.8-flash`, `gemini/gemini-3.7-flash`, `gemini/gemini-3-flash-preview`, `gemini/gemini-2.5-flash`, `gemini/gemini-3.5-flash-lite`), because the provider's free tier allows only a few requests per model per day. Each case ran on exactly one model (see "By model" and the `model` column in `results.csv`), cases were assigned to models in alphabetical order rather than at random, and the overall rates are a blend, not the score of any single model.
 - The cases are small synthetic projects (one dependency, a few files). Real repositories are larger, have more dependencies and slower suites, so these times and rates do not transfer directly.
 - Package selection was made by the benchmark authors and leans on well-known Node libraries with documented breaks; it is not a random sample of real-world upgrades.
-- Results are for one local model (`gemini-3.5-flash`) at the worker's default settings on one machine. Model output can differ between runs even at temperature 0, and timings depend on the host's hardware and load.
+- Results are for 6 hosted models (chosen with `LLM_MODEL`, not the worker's default model), run on one machine. Model output can differ between runs even at temperature 0, and timings depend on the host's hardware and load.
 - Dependency installs resolve against the live npm registry, so transitive versions of packages introduced by the upgrade can change over time.
 - Release notes are a snapshot taken once; production fetches them per job, and they can change upstream.
 - The suite is the only success criterion, as in production. A migration can pass a weak suite without being fully correct; the case suites were written to exercise the changed APIs, but they are not exhaustive.

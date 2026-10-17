@@ -2,7 +2,9 @@
 // Every number in the report is computed here from the recorded results.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { resultsDir } from './lib/sandbox.mjs';
+import { fileURLToPath } from 'node:url';
+
+const resultsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'results');
 
 const inArg = process.argv.find((arg) => arg.startsWith('--in='));
 const inFile = inArg ? path.resolve(inArg.slice('--in='.length)) : path.join(resultsDir, 'results.json');
@@ -122,7 +124,7 @@ Generated from \`${path.basename(inFile)}\` by \`benchmarks/report.mjs\`. Every 
 | Run | ${meta.startedAt} to ${meta.finishedAt} |
 | Base commit | ${(meta.commits ?? [meta.commit]).map((commit) => `\`${commit.slice(0, 12)}\``).join(', then ')}${(meta.commits ?? []).length > 1 ? ' (the run was resumed; the later commit only changed the benchmark harness)' : ''}${meta.dirty ? ' (server/ had uncommitted changes)' : ''} |
 | Model | ${(meta.models ?? []).length > 1 ? `${meta.models.length} models, one per case (see By model); first: ` : ''}${meta.model.provider} \`${meta.model.model}\`${meta.model.parameterSize ? `, ${meta.model.parameterSize} parameters, ${meta.model.quantization}` : ''}${meta.model.digest ? `, digest \`${meta.model.digest.slice(0, 12)}\`` : ''}${meta.model.source === 'LLM_MODEL override' ? ' (chosen with `LLM_MODEL`, not the worker\'s default for this provider)' : ''} |
-| Context window | ${meta.model.numCtx ?? 'provider default'} tokens |
+| Context window | ${meta.model.numCtx ? `${meta.model.numCtx} tokens` : 'provider default'} |
 | Attempts per case | up to ${meta.maxAttempts} (the worker's default \`LLM_MAX_ATTEMPTS\`) |
 | Sandbox | image \`${meta.image}\` (\`${meta.imageId.slice(7, 19)}\`), ${meta.sandbox.memoryBytes / 1024 ** 3} GB memory, ${meta.sandbox.nanoCpus / 1e9} CPU, ${meta.sandbox.pidsLimit} PIDs, ${meta.sandbox.timeoutMs / 60000} min per phase |
 | Host | ${meta.host.platform}/${meta.host.arch}, ${meta.host.cpus} CPUs; harness on Node ${meta.host.node}, phases on the image's Node 22 |
@@ -184,7 +186,7 @@ ${(meta.models ?? []).length > 1 ? `
 - **This run mixed ${meta.models.length} models** (${meta.models.map((model) => `\`${model}\``).join(', ')}), because the provider's free tier allows only a few requests per model per day. Each case ran on exactly one model (see "By model" and the \`model\` column in \`results.csv\`), cases were assigned to models in alphabetical order rather than at random, and the overall rates are a blend, not the score of any single model.` : ''}
 - The cases are small synthetic projects (one dependency, a few files). Real repositories are larger, have more dependencies and slower suites, so these times and rates do not transfer directly.
 - Package selection was made by the benchmark authors and leans on well-known Node libraries with documented breaks; it is not a random sample of real-world upgrades.
-- Results are for one local model (\`${meta.model.model}\`) at the worker's default settings on one machine. Model output can differ between runs even at temperature 0, and timings depend on the host's hardware and load.
+- Results are for ${(meta.models ?? []).length > 1 ? `${meta.models.length} ${meta.model.provider === 'ollama' ? 'local' : 'hosted'} models` : `one ${meta.model.provider === 'ollama' ? 'local' : 'hosted'} model (\`${meta.model.model}\`)`}${meta.model.source === 'worker default' ? " at the worker's default settings" : ' (chosen with `LLM_MODEL`, not the worker\'s default model)'}, run on one machine. Model output can differ between runs even at temperature 0, and timings depend on the host's hardware and load.
 - Dependency installs resolve against the live npm registry, so transitive versions of packages introduced by the upgrade can change over time.
 - Release notes are a snapshot taken once; production fetches them per job, and they can change upstream.
 - The suite is the only success criterion, as in production. A migration can pass a weak suite without being fully correct; the case suites were written to exercise the changed APIs, but they are not exhaustive.
