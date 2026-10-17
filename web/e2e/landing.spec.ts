@@ -57,7 +57,7 @@ test("holds still for reduced motion", async ({ page }) => {
   await expect(card).toContainText('"zod": "^4.1.0"');
 });
 
-for (const width of [390, 768, 1024, 1440]) {
+for (const width of [360, 390, 768, 1024, 1440]) {
   test(`fits ${width}px without sideways scrolling, with the pup clear of the copy`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
@@ -72,6 +72,12 @@ for (const width of [390, 768, 1024, 1440]) {
       slot!.y < heading!.y + heading!.height &&
       heading!.y < slot!.y + slot!.height;
     expect(overlaps).toBe(false);
+    // The header's wordmark keeps a gap before the sign-in button, which stays fully on screen.
+    const header = page.locator("header").first();
+    const wordmark = await header.getByText("SyncLab", { exact: true }).boundingBox();
+    const action = await header.getByRole("link", { name: "Continue with GitHub" }).boundingBox();
+    expect(action!.x - (wordmark!.x + wordmark!.width)).toBeGreaterThanOrEqual(12);
+    expect(action!.x + action!.width).toBeLessThanOrEqual(width);
   });
 }
 
