@@ -6,6 +6,8 @@ import "server-only";
 
 // GitHub Enterprise, or a local stub in tests. Mirrors GITHUB_API_URL in server/api.
 const API = process.env.GITHUB_API_URL ?? "https://api.github.com";
+/** Where users sign in and install the App: the web host that goes with GITHUB_API_URL. */
+export const GITHUB_URL = process.env.GITHUB_URL ?? "https://github.com";
 const PAGE_SIZE = 100;
 
 export interface GithubAppConfig {
@@ -22,7 +24,7 @@ export function githubAppConfig(): GithubAppConfig | null {
 /** Where a user installs the App on more accounts or repositories. */
 export function installUrl(): string | null {
   const slug = process.env.GITHUB_APP_SLUG;
-  return slug ? `https://github.com/apps/${encodeURIComponent(slug)}/installations/new` : null;
+  return slug ? `${GITHUB_URL}/apps/${encodeURIComponent(slug)}/installations/new` : null;
 }
 
 export class GithubError extends Error {
@@ -52,7 +54,7 @@ export async function exchangeCode(
   code: string,
   redirectUri: string,
 ): Promise<{ accessToken: string; expiresIn: number | null }> {
-  const response = await fetch("https://github.com/login/oauth/access_token", {
+  const response = await fetch(`${GITHUB_URL}/login/oauth/access_token`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({

@@ -495,6 +495,7 @@ cd server/api && npm run typecheck && npm test   # unit tests
 cd server/api && npm run test:e2e                # signed webhook, no PostgreSQL or Redis needed
 cd server/sandbox && npm test                    # phase and helper tests, no network or Docker
 cd web && npm run lint && npm test && npm run build  # dashboard lint, unit tests, typecheck and production build
+cd web && npm run test:e2e                       # dashboard in Chromium against the real API; needs Docker
 ```
 
 `.github/workflows/verify.yml` runs these checks, plus the sandbox image build and a dependency review, on every pull request and on pushes to `main` and `develop`.
@@ -520,3 +521,6 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Metrics for queue depth, sandbox start time and LLM token usage.
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
+
+After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs: it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
+See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).

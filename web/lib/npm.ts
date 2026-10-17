@@ -1,5 +1,7 @@
 import "server-only";
 
+// A mirror or private registry, or a local stub in tests.
+const REGISTRY = process.env.NPM_REGISTRY_URL ?? "https://registry.npmjs.org";
 const MAX_VERSIONS = 40;
 const STABLE = /^(\d+)\.(\d+)\.(\d+)$/;
 // npm package names: optional @scope/, then lowercase URL-safe characters.
@@ -18,7 +20,7 @@ function compareDesc(a: string, b: string): number {
 /** Stable releases of a package, newest first, or null when npm does not know it. */
 export async function getVersions(name: string): Promise<{ latest: string | null; versions: string[] } | null> {
   const encoded = name.startsWith("@") ? `@${encodeURIComponent(name.slice(1))}` : encodeURIComponent(name);
-  const response = await fetch(`https://registry.npmjs.org/${encoded}`, {
+  const response = await fetch(`${REGISTRY}/${encoded}`, {
     // The abbreviated document carries versions and dist-tags without the full metadata.
     headers: { Accept: "application/vnd.npm.install-v1+json" },
     cache: "no-store",
