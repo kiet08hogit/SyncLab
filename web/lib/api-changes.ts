@@ -45,7 +45,7 @@ function tableRow(date: string, ...cells: string[]): string {
 }
 
 const ANTHROPIC_DEPRECATIONS = "https://platform.claude.com/docs/en/about-claude/model-deprecations";
-const OPENAI_DEPRECATIONS = "https://platform.openai.com/docs/deprecations";
+const OPENAI_DEPRECATIONS = "https://developers.openai.com/api/docs/deprecations";
 
 const SNAPSHOTS = {
   anthropic: { id: "6f1c2a90-4b7e-4d3a-9e15-8c2f0a7b3d41", contentHash: "9b2e41c7d05a", fetchedAt: ago(16 * DAY) },
@@ -182,7 +182,7 @@ function sampleProviders(): ApiProviderSummary[] {
         url: OPENAI_DEPRECATIONS,
         lastCheckedAt: ago(42 * MINUTE),
         // A source whose last fetch failed keeps its last good snapshot.
-        lastError: "GET https://platform.openai.com/docs/deprecations answered 503 Service Unavailable",
+        lastError: "GET https://developers.openai.com/api/docs/deprecations answered 503 Service Unavailable",
         latestSnapshot: SNAPSHOTS.openai,
       },
     ],
