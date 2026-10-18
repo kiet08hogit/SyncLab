@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   ApiChange,
+  ApiChangeDecision,
   ApiChangeFilter,
   ApiProviderSummary,
   ExecutionLog,
@@ -106,4 +107,18 @@ export async function listApiChanges(token: string, filter: ApiChangeFilter): Pr
 /** Fetches every watched source now instead of waiting for the schedule. */
 export async function pollApiProviders(token: string): Promise<{ queued: boolean }> {
   return monitor(token, "/api-providers/poll", { method: "POST" });
+}
+
+/**
+ * Confirms or dismisses a change. Not through monitor(), since a 404 here
+ * means the change is gone rather than that the API has no monitor.
+ */
+export async function reviewApiChange(
+  token: string,
+  id: string,
+  decision: ApiChangeDecision,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const response = await request(token, `/api-changes/${encodeURIComponent(id)}/${decision}`, { method: "POST" });
+  if (!response.ok) return { ok: false, status: response.status, error: await errorMessage(response) };
+  return { ok: true };
 }

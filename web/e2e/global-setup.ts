@@ -2,7 +2,7 @@ import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_pr
 import path from "node:path";
 
 import { API_PORT, STUB_PORT, WEB_PORT } from "./ports";
-import { CLIENT_ID, CLIENT_SECRET, startStub } from "./stub";
+import { CLIENT_ID, CLIENT_SECRET, LOGIN, startStub } from "./stub";
 
 // Brings up the whole stack the dashboard talks to: throwaway PostgreSQL and
 // Redis containers, the real API (gateway only, so queued jobs stay QUEUED),
@@ -132,6 +132,7 @@ export default async function globalSetup() {
         APP_ROLE: "gateway",
         GITHUB_API_URL: githubUrl,
         GITHUB_TOKEN: "e2e-installation-token",
+        MONITOR_ADMIN_LOGINS: LOGIN,
       }, `http://127.0.0.1:${API_PORT}/`),
     );
     children.push(await serve("web", NEXT, ["start", "-p", `${WEB_PORT}`], WEB_DIR, webEnv, `http://127.0.0.1:${WEB_PORT}/`));
