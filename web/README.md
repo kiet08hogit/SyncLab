@@ -62,9 +62,9 @@ Signed out, they serve the built-in sample data instead, shaped exactly like the
 The samples' job pages stay public; a real job is only readable by a signed-in user whose installations reach its repository, and anyone else gets a 404.
 When the API is down or no longer accepts the session, `app/(app)/error.tsx` offers a retry and a way back to Settings.
 
-`/api-changes` reads the change monitor through `lib/api-changes.ts`: `GET /api-providers`, `GET /api-changes`, `POST /api-providers/poll`, and `POST /api-changes/:id/confirm` and `/dismiss`, with the shapes in the "Monitoring endpoints" section of `infra/Architecture/05 - Self-Maintaining API.md`.
-Confirm and dismiss show only on changes whose `canReview` is true, which the API sets for users listed in its `MONITOR_ADMIN_LOGINS`; a refusal says so and refreshes the page.
+`/api-changes` reads the change monitor through `lib/api-changes.ts`: `GET /api-providers`, `GET /api-changes` and `POST /api-providers/poll`, with the shapes in the "Monitoring endpoints" section of `infra/Architecture/05 - Self-Maintaining API.md`.
 Signed in to an API that does not run the monitor yet, those routes answer 404, so the page serves its samples too and says the API has no monitor, rather than showing an error.
+Confirm and dismiss (`POST /api-changes/:id/confirm` and `/dismiss`, through `lib/api.ts`) show only on changes whose `canReview` is true, which the API sets for users listed in its `MONITOR_ADMIN_LOGINS`; a refusal says so and refreshes the page.
 
 The pipeline track in `lib/pipeline.ts` reads a job's `execution_logs` the way the worker writes them: a phase's rows are flushed when the phase finishes, and each retry starts a new attempt.
 
