@@ -36,6 +36,7 @@ export async function pollSources(): Promise<PollState> {
 
 export interface ReviewState {
   error: string | null;
+  removed?: boolean;
 }
 
 const REVIEW_SESSION_EXPIRED = "Your GitHub session expired. Sign in again to review this change.";
@@ -59,7 +60,7 @@ export async function reviewChange(id: string, decision: ApiChangeDecision): Pro
       }
       if (result.status === 404) {
         refresh();
-        return { error: "This change no longer exists." };
+        return { error: "This change no longer exists.", removed: true };
       }
       return { error: result.error };
     }

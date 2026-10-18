@@ -13,11 +13,17 @@ const DECISIONS: { decision: ApiChangeDecision; label: string; busyLabel: string
   { decision: "dismiss", label: "Dismiss", busyLabel: "Dismissing…", icon: CircleSlash, from: ["detected", "confirmed"] },
 ];
 
-function DecisionButton({ decision, label, busyLabel, icon: Icon }: (typeof DECISIONS)[number]) {
+function DecisionButton({
+  decision,
+  label,
+  busyLabel,
+  icon: Icon,
+  isPending,
+}: (typeof DECISIONS)[number] & { isPending: boolean }) {
   const { pending, data } = useFormStatus();
   const busy = pending && data?.get("decision") === decision;
   return (
-    <Button type="submit" name="decision" value={decision} variant="outline" size="sm" disabled={pending}>
+    <Button type="submit" name="decision" value={decision} variant="outline" size="sm" disabled={pending || isPending}>
       {busy ? <Loader2 aria-hidden className="animate-spin" /> : <Icon aria-hidden />}
       {busy ? busyLabel : label}
     </Button>
@@ -31,7 +37,11 @@ interface ReviewResult extends ReviewState {
 
 const EMPTY_REVIEW: ReviewResult = { error: null, changeId: null };
 
-const ReviewContext = createContext<{ state: ReviewResult; action: (form: FormData) => void } | null>(null);
+const ReviewContext = createContext<{
+  state: ReviewResult;
+  action: (form: FormData) => void;
+  pending: boolean;
+} | null>(null);
 
 function submittedId(form: FormData) {
   const value = form.get("changeId");
@@ -43,7 +53,7 @@ function submittedId(form: FormData) {
  * row away, and this is what still shows "this change no longer exists."
  */
 export function ReviewProvider({ changeIds, children }: { changeIds: string[]; children: ReactNode }) {
-  const [state, action] = useActionState<ReviewResult, FormData>(
+  const [state, action, pending] = useActionState<ReviewResult, FormData>(
     (_previous, form) =>
       reviewChange(submittedId(form), form.get("decision") as ApiChangeDecision).then((result) => ({
         ...result,
@@ -51,10 +61,10 @@ export function ReviewProvider({ changeIds, children }: { changeIds: string[]; c
       })),
     EMPTY_REVIEW,
   );
-  const orphaned = Boolean(state.error && state.changeId && !changeIds.includes(state.changeId));
+  const orphaned = Boolean(state.removed && state.error && state.changeId && !changeIds.includes(state.changeId));
 
   return (
-    <ReviewContext.Provider value={{ state, action }}>
+    <ReviewContext.Provider value={{ state, action, pending }}>
       <div className="flex flex-col gap-3">
         {orphaned && (
           <p role="alert" className="text-xs text-status-failed">
@@ -94,7 +104,7 @@ export function ReviewButtons({
       {canReview && (
         <div role="group" aria-label={`Review ${subject}`} className="flex flex-wrap gap-1.5">
           {DECISIONS.filter(({ from }) => from.includes(status)).map((props) => (
-            <DecisionButton key={props.decision} {...props} />
+            <DecisionButton key={props.decision} {...props} isPending={review.pending} />
           ))}
         </div>
       )}
