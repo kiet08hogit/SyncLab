@@ -194,14 +194,6 @@ export function createClassifyChain(llm: LlmConfig): ClassifyChain {
       return createGeminiChain(llm);
     case 'anthropic':
       return createAnthropicChain(llm);
-    case 'ollama':
-      // A local model is no longer supported for classifying release notes.
-      return () =>
-        Promise.reject(
-          new PermanentModelError(
-            'Classifying release notes needs LLM_PROVIDER gemini or anthropic; ollama is not supported.',
-          ),
-        );
   }
 }
 

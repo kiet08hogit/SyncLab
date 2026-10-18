@@ -39,8 +39,6 @@ export interface PhaseResult {
 export interface SandboxLlmParams {
   provider: LlmProvider;
   apiKey: string;
-  baseUrl: string;
-  numCtx: number;
   model: string;
   maxAttempts: number;
   maxFiles: number;

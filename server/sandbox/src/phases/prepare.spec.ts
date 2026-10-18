@@ -83,7 +83,7 @@ describe('prepare phase', () => {
       DEPENDENCY_NAME: DEPENDENCY,
       TARGET_VERSION: '2.0.0',
       BRANCH_NAME: `synclab/${DEPENDENCY}-2.0.0`,
-      LLM_MODEL: 'qwen2.5-coder:14b',
+      LLM_MODEL: 'gemini-3.1-pro-preview',
       GITHUB_API_URL: GITHUB_API,
       GITHUB_TOKEN: TOKEN,
       ...overrides,

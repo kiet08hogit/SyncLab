@@ -103,7 +103,7 @@ describe('publish phase', () => {
       DEPENDENCY_NAME: 'lodash',
       TARGET_VERSION: '4.17.21',
       BRANCH_NAME: BRANCH,
-      LLM_MODEL: 'qwen2.5-coder:14b',
+      LLM_MODEL: 'gemini-3.1-pro-preview',
       GITHUB_API_URL: GITHUB_API,
       GITHUB_TOKEN: TOKEN,
       BASE_SHA: baseSha,

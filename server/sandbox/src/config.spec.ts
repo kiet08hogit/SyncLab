@@ -18,7 +18,7 @@ const REQUIRED = {
   DEPENDENCY_NAME: 'lodash',
   TARGET_VERSION: '4.17.21',
   BRANCH_NAME: 'synclab/lodash-4.17.21',
-  LLM_MODEL: 'qwen2.5-coder:14b',
+  LLM_MODEL: 'gemini-3.1-pro-preview',
 };
 
 describe('config', () => {
@@ -118,21 +118,24 @@ describe('config', () => {
 });
 
 describe('resolveLlmProvider', () => {
-  it('defaults to ollama when the provider is not set', () => {
-    assert.equal(resolveLlmProvider(undefined), 'ollama');
-    assert.equal(resolveLlmProvider(''), 'ollama');
+  it('defaults to gemini when the provider is not set', () => {
+    assert.equal(resolveLlmProvider(undefined), 'gemini');
+    assert.equal(resolveLlmProvider(''), 'gemini');
   });
 
   it('accepts each supported provider', () => {
-    assert.equal(resolveLlmProvider('ollama'), 'ollama');
     assert.equal(resolveLlmProvider('gemini'), 'gemini');
     assert.equal(resolveLlmProvider('anthropic'), 'anthropic');
   });
 
-  it('refuses a provider it does not know rather than falling back to ollama', () => {
+  it('refuses a provider it does not know rather than falling back to gemini', () => {
     assert.throws(() => resolveLlmProvider('Gemini'), {
-      message: 'LLM_PROVIDER must be one of ollama, gemini, anthropic, got "Gemini".',
+      message: 'LLM_PROVIDER must be one of gemini, anthropic, got "Gemini".',
     });
-    assert.throws(() => resolveLlmProvider('gemeni'), /must be one of ollama, gemini, anthropic/);
+    assert.throws(() => resolveLlmProvider('gemeni'), /must be one of gemini, anthropic/);
+  });
+
+  it('refuses ollama, which is no longer supported', () => {
+    assert.throws(() => resolveLlmProvider('ollama'), /must be one of gemini, anthropic, got "ollama"/);
   });
 });

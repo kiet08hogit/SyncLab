@@ -51,13 +51,8 @@ export function phaseNeedsModel(phase: SandboxPhase): boolean {
   return phase === 'refactor' || phase === 'classify';
 }
 
-/** The key of a hosted provider, or the endpoint of a local Ollama, which needs none. */
 function modelEnv(llm: SandboxLlmParams): Record<string, string> {
-  const keyEnv = LLM_API_KEY_ENV[llm.provider];
-
-  return keyEnv
-    ? { [keyEnv]: llm.apiKey }
-    : { LLM_BASE_URL: llm.baseUrl, LLM_NUM_CTX: String(llm.numCtx) };
+  return { [LLM_API_KEY_ENV[llm.provider]]: llm.apiKey };
 }
 
 export function buildPhaseEnv(
@@ -144,21 +139,20 @@ export function capClassifyText(text: string): { text: string; truncated: boolea
 
 /**
  * Classify reads nothing from the volume and reaches nothing but the model, so
- * it gets only its input and the hosted model's key: never the GitHub token.
+ * it gets only its input and the model's key: never the GitHub token.
  */
 export function buildClassifyPhaseEnv(
   input: SandboxClassifyInput,
   llm: SandboxLlmParams,
 ): Record<string, string> {
   const capped: SandboxClassifyInput = { ...input, text: capClassifyText(input.text).text };
-  const keyEnv = LLM_API_KEY_ENV[llm.provider];
 
   return {
     SANDBOX_WORKSPACE: WORKSPACE_MOUNT,
     CLASSIFY_INPUT: Buffer.from(JSON.stringify(capped), 'utf8').toString('base64'),
     LLM_PROVIDER: llm.provider,
     LLM_MODEL: llm.model,
-    ...(keyEnv ? { [keyEnv]: llm.apiKey } : {}),
+    ...modelEnv(llm),
   };
 }
 

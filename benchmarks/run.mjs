@@ -200,24 +200,10 @@ function git(...args) {
   return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 }
 
-async function modelInfo() {
+function modelInfo() {
   // Whether the model is the worker's default for the provider, or overridden.
   const source = process.env.LLM_MODEL ? 'LLM_MODEL override' : 'worker default';
-  if (config.llm.provider !== 'ollama') {
-    return { provider: config.llm.provider, model: config.llm.model, source };
-  }
-  // The host reaches Ollama on localhost; the sandbox reaches it via host.docker.internal.
-  const tags = await fetch('http://localhost:11434/api/tags').then((response) => response.json());
-  const entry = tags.models.find((model) => model.name === config.llm.model);
-  return {
-    provider: 'ollama',
-    model: config.llm.model,
-    digest: entry?.digest ?? null,
-    parameterSize: entry?.details?.parameter_size ?? null,
-    quantization: entry?.details?.quantization_level ?? null,
-    numCtx: config.llm.numCtx,
-    source,
-  };
+  return { provider: config.llm.provider, model: config.llm.model, source };
 }
 
 const validation = JSON.parse(await fs.readFile(path.join(resultsDir, 'validation.json'), 'utf8'));
@@ -236,7 +222,7 @@ const meta = previous?.meta ?? {
   imageId: execFileSync('docker', ['image', 'inspect', '--format', '{{.Id}}', config.sandbox.image], {
     encoding: 'utf8',
   }).trim(),
-  model: await modelInfo(),
+  model: modelInfo(),
   maxAttempts: MAX_ATTEMPTS,
   sandbox: {
     memoryBytes: config.sandbox.memoryBytes,

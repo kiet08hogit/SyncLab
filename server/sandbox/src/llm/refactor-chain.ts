@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { SandboxConfig } from '../config.js';
 import type { DependencyUsage } from '../analysis/imports.js';
 import { PermanentModelError } from './errors.js';
-import { createAnthropicClient, createGeminiModel, createOllamaModel } from './model.js';
+import { createAnthropicClient, createGeminiModel } from './model.js';
 
 /**
  * A whole-file rewrite rather than a diff. Models produce diffs that fail to
@@ -36,12 +36,10 @@ const STRUCTURED_SYSTEM_PROMPT = [
 ].join('\n');
 
 /**
- * Small local models cannot be trusted to end a whole file inside a JSON
- * string: under constrained decoding they keep appending to it until the
- * output limit. A fenced block is the shape coding models are trained to
- * close, so local models answer in plain text instead. Claude uses it too:
- * the file comes back without JSON escaping, and a cut-off reply is reported
- * by the stop reason rather than by a parse failure that hides it.
+ * Claude answers in plain text with the file in a fenced block, the shape
+ * coding models are trained to close: the file comes back without JSON
+ * escaping, and a cut-off reply is reported by the stop reason rather than by
+ * a parse failure that hides it.
  */
 const FENCED_SYSTEM_PROMPT = [
   ...RULES,
@@ -49,19 +47,6 @@ const FENCED_SYSTEM_PROMPT = [
   '- If the file needs changes, follow that sentence with the complete file in a single ``` fenced block and write nothing after the block.',
   '- If the file needs no changes, write only the sentence.',
 ].join('\n');
-
-// Code averages three to four characters per token, so this leaves the model
-// about twice the room the file needs, plus space for the reason.
-const OUTPUT_TOKENS_PER_CHARACTER = 0.5;
-const OUTPUT_TOKEN_HEADROOM = 512;
-
-// The low end for code, so the estimate errs towards a prompt being larger
-// than it is.
-const CHARACTERS_PER_TOKEN = 3;
-
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARACTERS_PER_TOKEN);
-}
 
 export interface RefactorRequest {
   relativePath: string;
@@ -118,8 +103,6 @@ export function createRefactorChain(config: SandboxConfig): RefactorChain {
       return createStructuredChain(config);
     case 'anthropic':
       return createAnthropicChain(config);
-    case 'ollama':
-      return createFencedChain(config);
   }
 }
 
@@ -137,43 +120,6 @@ function createStructuredChain(config: SandboxConfig): RefactorChain {
       contents: result.contents,
       reason: result.reason,
     };
-  };
-}
-
-function createFencedChain(config: SandboxConfig): RefactorChain {
-  return async (request) => {
-    const userPrompt = buildUserPrompt(config, request);
-    // Ollama drops the start of the prompt or stops the reply without an error
-    // once the context is full, so a file whose prompt and rewrite cannot both
-    // fit is refused up front.
-    const roomLeft =
-      config.llm.numCtx - estimateTokens(FENCED_SYSTEM_PROMPT) - estimateTokens(userPrompt);
-
-    if (roomLeft < estimateTokens(request.contents) + OUTPUT_TOKEN_HEADROOM) {
-      throw new PermanentModelError(
-        `The file is too large to rewrite within the ${config.llm.numCtx} token context window. Raise LLM_NUM_CTX or lower LLM_MAX_FILE_BYTES.`,
-      );
-    }
-
-    const maxOutputTokens = Math.min(
-      Math.ceil(request.contents.length * OUTPUT_TOKENS_PER_CHARACTER) + OUTPUT_TOKEN_HEADROOM,
-      roomLeft,
-    );
-    const model = createOllamaModel(config.llm, maxOutputTokens);
-    const reply = await model.invoke([
-      { role: 'system', content: FENCED_SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
-    ]);
-
-    // A fence inside the file can pass for the closing one, so only Ollama
-    // knows for sure that the reply ran out of room.
-    if (reply.response_metadata?.done_reason === 'length') {
-      throw new PermanentModelError(
-        'The model reply reached its output limit, so the file was cut off.',
-      );
-    }
-
-    return parseFencedReply(reply.text, request.contents);
   };
 }
 

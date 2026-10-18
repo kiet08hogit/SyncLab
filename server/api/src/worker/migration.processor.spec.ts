@@ -83,7 +83,7 @@ describe('MigrationProcessor', () => {
         run: jest.fn().mockResolvedValue({ ok: false, error, retryable: true }),
       };
       const githubToken = { getInstallationToken: jest.fn().mockResolvedValue('token') };
-      const config = { get: jest.fn().mockReturnValue({ maxAttempts: 1 }) };
+      const config = { get: jest.fn().mockReturnValue({ apiKey: 'key', maxAttempts: 1 }) };
       const processor = new MigrationProcessor(
         prisma as never,
         sandbox as never,

@@ -23,22 +23,27 @@ describe('resolveAppRole', () => {
 });
 
 describe('resolveLlmProvider', () => {
-  it('defaults to ollama when the provider is not set', () => {
-    expect(resolveLlmProvider(undefined)).toBe('ollama');
-    expect(resolveLlmProvider('')).toBe('ollama');
+  it('defaults to gemini when the provider is not set', () => {
+    expect(resolveLlmProvider(undefined)).toBe('gemini');
+    expect(resolveLlmProvider('')).toBe('gemini');
   });
 
   it('accepts each supported provider', () => {
-    expect(resolveLlmProvider('ollama')).toBe('ollama');
     expect(resolveLlmProvider('gemini')).toBe('gemini');
     expect(resolveLlmProvider('anthropic')).toBe('anthropic');
   });
 
-  it('refuses a provider it does not know rather than falling back to ollama', () => {
+  it('refuses a provider it does not know rather than falling back to gemini', () => {
     expect(() => resolveLlmProvider('Gemini')).toThrow(
-      'LLM_PROVIDER must be one of ollama, gemini, anthropic, got "Gemini".',
+      'LLM_PROVIDER must be one of gemini, anthropic, got "Gemini".',
     );
-    expect(() => resolveLlmProvider('gemeni')).toThrow(/must be one of ollama, gemini, anthropic/);
+    expect(() => resolveLlmProvider('gemeni')).toThrow(/must be one of gemini, anthropic/);
+  });
+
+  it('refuses ollama, which is no longer supported', () => {
+    expect(() => resolveLlmProvider('ollama')).toThrow(
+      /must be one of gemini, anthropic, got "ollama"/,
+    );
   });
 });
 
@@ -62,11 +67,17 @@ describe('configuration llm', () => {
     });
   });
 
-  it('gives a local Ollama no key even when hosted keys are set', () => {
-    process.env.LLM_PROVIDER = 'ollama';
+  it('uses gemini with its own key and default model when no provider is set', () => {
+    delete process.env.LLM_PROVIDER;
+    delete process.env.LLM_MODEL;
     process.env.ANTHROPIC_API_KEY = 'sk-ant-test';
+    process.env.GEMINI_API_KEY = 'AIza-test';
 
-    expect(configuration().llm.apiKey).toBe('');
+    expect(configuration().llm).toMatchObject({
+      provider: 'gemini',
+      apiKey: 'AIza-test',
+      model: 'gemini-3.1-pro-preview',
+    });
   });
 });
 

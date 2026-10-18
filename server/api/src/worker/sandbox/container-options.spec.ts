@@ -32,8 +32,6 @@ const PARAMS: SandboxJobParams = {
   llm: {
     provider: 'gemini',
     apiKey: API_KEY,
-    baseUrl: 'http://host.docker.internal:11434',
-    numCtx: 32_768,
     model: 'gemini-3.1-pro-preview',
     maxAttempts: 3,
     maxFiles: 20,
@@ -99,27 +97,9 @@ describe('buildPhaseEnv', () => {
     expect(env.LLM_PROVIDER).toBe('anthropic');
     expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-test');
     expect(env.GEMINI_API_KEY).toBeUndefined();
-    expect(env.LLM_BASE_URL).toBeUndefined();
 
     for (const phase of ['prepare', 'test', 'publish'] as const) {
       expect(buildPhaseEnv(phase, anthropic, 1).ANTHROPIC_API_KEY).toBeUndefined();
-    }
-  });
-
-  it('gives the Ollama endpoint only to the refactor phase, and no key at all', () => {
-    const ollama: SandboxJobParams = {
-      ...PARAMS,
-      llm: { ...PARAMS.llm, provider: 'ollama', model: 'qwen2.5-coder:14b' },
-    };
-    const env = buildPhaseEnv('refactor', ollama, 1);
-
-    expect(env.LLM_PROVIDER).toBe('ollama');
-    expect(env.LLM_BASE_URL).toBe('http://host.docker.internal:11434');
-    expect(env.LLM_NUM_CTX).toBe('32768');
-    expect(env.GEMINI_API_KEY).toBeUndefined();
-
-    for (const phase of ['prepare', 'test', 'publish'] as const) {
-      expect(buildPhaseEnv(phase, ollama, 1).LLM_BASE_URL).toBeUndefined();
     }
   });
 

@@ -16,7 +16,7 @@ const JOB_ENV = {
   DEPENDENCY_NAME: 'lodash',
   TARGET_VERSION: '4.17.21',
   BRANCH_NAME: 'synclab/lodash-4.17.21',
-  LLM_MODEL: 'qwen2.5-coder:14b',
+  LLM_MODEL: 'gemini-3.1-pro-preview',
 };
 
 /** Keeps stdout and stderr apart, which exec.run deliberately interleaves. */
