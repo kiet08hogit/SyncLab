@@ -104,6 +104,18 @@ test.describe("API changes, signed in", () => {
     await expect(row.getByRole("alert")).toHaveCount(0);
   });
 
+  test("confirming a change that was just deleted says it no longer exists", async ({ page }) => {
+    seedChange({ ...CHANGE, status: "detected" });
+    await signIn(page, "/api-changes");
+    sql(`DELETE FROM breaking_changes WHERE id = '${CHANGE.id}'`);
+
+    await page.getByRole("row").filter({ hasText: CHANGE.field }).getByRole("button", { name: "Confirm" }).click();
+
+    await expect(page.getByRole("alert").filter({ hasText: "This change no longer exists." })).toBeVisible();
+    await expect(page.getByText("No breaking changes found yet")).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: CHANGE.field })).toHaveCount(0);
+  });
+
   test("a user who is not a monitor admin sees the change without review actions", async ({ page }) => {
     seedChange({ ...CHANGE, status: "detected" });
     await signIn(page, "/settings", "viewer");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { createContext, useActionState, useContext, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { CircleCheck, CircleSlash, Loader2, type LucideIcon } from "lucide-react";
 
@@ -24,6 +24,49 @@ function DecisionButton({ decision, label, busyLabel, icon: Icon }: (typeof DECI
   );
 }
 
+interface ReviewResult extends ReviewState {
+  /** The change the last submission was about, so a missing row can still say why. */
+  changeId: string | null;
+}
+
+const EMPTY_REVIEW: ReviewResult = { error: null, changeId: null };
+
+const ReviewContext = createContext<{ state: ReviewResult; action: (form: FormData) => void } | null>(null);
+
+function submittedId(form: FormData) {
+  const value = form.get("changeId");
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * Holds the last review result above the list. A deleted change refreshes its
+ * row away, and this is what still shows "this change no longer exists."
+ */
+export function ReviewProvider({ changeIds, children }: { changeIds: string[]; children: ReactNode }) {
+  const [state, action] = useActionState<ReviewResult, FormData>(
+    (_previous, form) =>
+      reviewChange(submittedId(form), form.get("decision") as ApiChangeDecision).then((result) => ({
+        ...result,
+        changeId: submittedId(form),
+      })),
+    EMPTY_REVIEW,
+  );
+  const orphaned = Boolean(state.error && state.changeId && !changeIds.includes(state.changeId));
+
+  return (
+    <ReviewContext.Provider value={{ state, action }}>
+      <div className="flex flex-col gap-3">
+        {orphaned && (
+          <p role="alert" className="text-xs text-status-failed">
+            {state.error}
+          </p>
+        )}
+        {children}
+      </div>
+    </ReviewContext.Provider>
+  );
+}
+
 /**
  * The decisions that move a change out of its current status. Stays mounted
  * when the user may not review, so a refusal that refreshes the row away from
@@ -41,15 +84,13 @@ export function ReviewButtons({
   status: ApiChangeStatus;
   canReview: boolean;
 }) {
-  const [state, action] = useActionState<ReviewState, FormData>(
-    (_previous, form) => reviewChange(changeId, form.get("decision") as ApiChangeDecision),
-    { error: null },
-  );
-
-  if (!canReview && !state.error) return null;
+  const review = useContext(ReviewContext);
+  const error = review?.state.changeId === changeId ? review.state.error : null;
+  if (!review || (!canReview && !error)) return null;
 
   return (
-    <form action={action} className="flex flex-col gap-1.5">
+    <form action={review.action} className="flex flex-col gap-1.5">
+      <input type="hidden" name="changeId" value={changeId} />
       {canReview && (
         <div role="group" aria-label={`Review ${subject}`} className="flex flex-wrap gap-1.5">
           {DECISIONS.filter(({ from }) => from.includes(status)).map((props) => (
@@ -57,9 +98,9 @@ export function ReviewButtons({
           ))}
         </div>
       )}
-      {state.error && (
+      {error && (
         <p role="alert" className="text-xs text-status-failed">
-          {state.error}
+          {error}
         </p>
       )}
     </form>
