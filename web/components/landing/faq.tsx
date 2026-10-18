@@ -29,7 +29,7 @@ const QUESTIONS = [
   {
     question: "Which languages, package managers, and models does it support?",
     answer:
-      "JavaScript and TypeScript, with npm, pnpm, or yarn, and your lockfile is honoured exactly. Rewrites come from a local model by default, or from a hosted one.",
+      "JavaScript and TypeScript, with npm, pnpm, or yarn, and your lockfile is honoured exactly. Rewrites come from the hosted model you pick.",
   },
   {
     question: "How do I get started?",
