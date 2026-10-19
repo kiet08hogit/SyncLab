@@ -249,9 +249,9 @@ export default function LandingPage() {
             </div>
             <figure className="overflow-hidden border border-white/10 bg-background shadow-[0_40px_120px_-40px_rgba(44,99,255,0.45)]">
               <div aria-hidden className="flex items-center gap-1.5 border-b border-white/10 px-4 py-3">
-                <span className="size-2.5 rounded-full bg-white/15" />
-                <span className="size-2.5 rounded-full bg-white/15" />
-                <span className="size-2.5 rounded-full bg-white/15" />
+                <span className="size-2.5 rounded-full bg-[#ff5f57]" />
+                <span className="size-2.5 rounded-full bg-[#febc2e]" />
+                <span className="size-2.5 rounded-full bg-[#28c840]" />
                 <span className="ml-3 font-mono text-[11px] text-white/40">synclab / migrations</span>
               </div>
               <div className="p-4 sm:p-6">
