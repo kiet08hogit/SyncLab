@@ -3,8 +3,9 @@ import { Fragment, Suspense, type CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { GithubSignIn } from "@/components/github-sign-in";
-import { SignedIn, type Viewer } from "@/components/signed-in";
+import type { Viewer } from "@/components/signed-in";
 import { Faq } from "@/components/landing/faq";
 import { Band, Eyebrow } from "@/components/landing/frame";
 import { HeroField } from "@/components/landing/hero-field";
@@ -33,6 +34,7 @@ const TRIGGERS = [
   {
     label: "An API breaks",
     body: "A provider retires a model or changes a parameter, often with no SDK release at all. SyncLab watches the provider, and its scanner already knows which of your calls the change reaches.",
+    example: "lib/chat.ts still names chat-large-2024-06.",
   },
 ];
 
@@ -103,12 +105,7 @@ function HeaderLogin() {
 async function HeaderAccount() {
   const session = await getSession();
   if (!session) return <HeaderLogin />;
-  return (
-    <SignedIn
-      viewer={viewerOf(session)}
-      className="h-9 max-w-44 px-1 text-sm text-white max-sm:[&>span]:sr-only"
-    />
-  );
+  return <AccountMenu viewer={viewerOf(session)} />;
 }
 
 async function HeroAction() {
@@ -130,8 +127,16 @@ async function Footer() {
 }
 
 async function ProductPreview() {
-  const running = await getJobs({ status: "IN_PROGRESS" });
-  return <RunningJobs jobs={running.slice(0, 2)} />;
+  try {
+    const session = await getSession();
+    const running = (await getJobs({ status: "IN_PROGRESS" })).slice(0, 2);
+    if (session && running.length === 0) {
+      return <p className="text-sm text-white/55">No migration is running on your repositories.</p>;
+    }
+    return <RunningJobs jobs={running} />;
+  } catch {
+    return <p className="text-sm text-white/55">The running migrations could not be loaded.</p>;
+  }
 }
 
 const HEADLINE = "Breaking changes, fixed for you.";
@@ -205,13 +210,13 @@ export default function LandingPage() {
               <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">
                 Two ways things break. One way they get fixed.
               </h2>
-              <p className="text-pretty text-white/60">One call still names the retired model chat-large-2024-06.</p>
             </div>
             <ul className="mt-12 grid border-t border-l border-white/10 sm:grid-cols-2">
               {TRIGGERS.map((trigger) => (
                 <li key={trigger.label} className="flex flex-col gap-3 border-r border-b border-white/10 p-6 sm:p-8">
                   <h3 className="text-lg font-medium">{trigger.label}</h3>
                   <p className="text-sm leading-relaxed text-pretty text-white/55">{trigger.body}</p>
+                  {"example" in trigger && <p className="font-mono text-xs text-white/70">{trigger.example}</p>}
                 </li>
               ))}
             </ul>
@@ -260,7 +265,7 @@ export default function LandingPage() {
                   <ProductPreview />
                 </Suspense>
               </div>
-              <figcaption className="sr-only">The dashboard&apos;s Running now cards, with sample jobs.</figcaption>
+              <figcaption className="sr-only">Migrations that are running.</figcaption>
             </figure>
           </Band>
 

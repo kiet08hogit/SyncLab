@@ -15,7 +15,7 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("region", { name: "How it works" }).locator("ol > li")).toHaveCount(8);
   await expect(page.getByRole("region", { name: "How it works" })).toContainText(
-    "One call still names the retired model chat-large-2024-06.",
+    "lib/chat.ts still names chat-large-2024-06.",
   );
   await expect(page.getByRole("region", { name: "How it works" })).toContainText('model: "chat-large-2026-04"');
 
@@ -28,12 +28,22 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
 test("lets a signed-in user open the home page and return there from the dashboard", async ({ page }) => {
   await signIn(page, "/dashboard");
   await expect(page.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/");
-  await expect(page.getByRole("link", { name: "Octo E2E" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "octo-e2e" })).toBeVisible();
   await page.getByRole("link", { name: "Previous" }).click();
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes, fixed for you.");
-  await expect(page.getByRole("banner").getByRole("link", { name: "Octo E2E" })).toBeVisible();
+  const account = page.getByRole("banner").getByRole("button", { name: "octo-e2e" });
+  await expect(account).toBeVisible();
   await expect(page.getByRole("banner").getByRole("link", { name: /Log in/ })).toHaveCount(0);
+  await account.click();
+  await expect(page.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
+});
+
+test("shows a signed-out visitor an API migration on the dashboard", async ({ page }) => {
+  await page.goto("/dashboard");
+  await expect(page.getByText("Sample data.")).toBeVisible();
+  await expect(page.getByRole("table")).toContainText("chat-large-2024-06");
+  await expect(page.getByRole("table")).toContainText("chat-large-2026-04");
 });
 
 test("forwards old dashboard links that used to live at /", async ({ page }) => {

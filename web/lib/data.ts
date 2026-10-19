@@ -76,6 +76,20 @@ const seeds: JobSeed[] = [
     ],
   },
   {
+    id: "c8e1a4d2-6f3b-4a91-8c07-2b5d9e1f4a20",
+    repo: 1,
+    dependencyName: "chat-large-2024-06",
+    targetVersion: "chat-large-2026-04",
+    status: "IN_PROGRESS",
+    createdAgo: 8 * MINUTE,
+    logs: [
+      ["STARTED", "Starting migration for northwind/storefront"],
+      ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 4,812 objects, done."],
+      ["CHANGELOG", "chat-large-2024-06 is retired. The replacement is chat-large-2026-04."],
+      ["REFACTOR", "Updated the model id in lib/chat.ts."],
+    ],
+  },
+  {
     id: "4e6b8d0f-2a4c-4e8a-b1d3-5f7a9c1e3b10",
     repo: 3,
     dependencyName: "@nestjs/core",
