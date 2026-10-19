@@ -98,8 +98,8 @@ function matchParam(
 
   if (mode === 'absent') {
     if (listed) return null;
+    if (gate === 'open') return null;
     if (gate === 'match' && !usage.dynamic) return ImpactConfidence.CONFIRMED;
-    if (gate === 'open' && !usage.dynamic) return null;
     return ImpactConfidence.POSSIBLE;
   }
 

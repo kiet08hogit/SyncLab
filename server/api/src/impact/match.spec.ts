@@ -91,6 +91,12 @@ describe('matchUsage', () => {
     expect(matchUsage(required, usage({ params: ['model', 'messages', 'max_tokens'] }))).toBeNull();
     expect(matchUsage(required, usage({ dynamic: true }))).toBe('possible');
     expect(matchUsage({ ...required, operation: null }, usage())).toBeNull();
+    expect(
+      matchUsage(
+        { ...required, operation: null },
+        usage({ params: ['messages', 'model'], modelIds: [], dynamic: true }),
+      ),
+    ).toBeNull();
     expect(matchUsage(required, usage({ operation: 'POST /v1/responses' }))).toBeNull();
   });
 

@@ -242,7 +242,8 @@ The spec diff only reads top-level request parameters; a change inside a nested 
 Impact is a deterministic join, not a model call.
 A breaking change matches a usage on provider, operation, and the changed parameter or model ID.
 A usage with a dynamic value that could hold the changed value is recorded as `possible` rather than `confirmed`, and only `confirmed` impacts start a migration on their own.
-A parameter change that names no operation stays `possible`, because the call cannot be tied to that operation.
+A removed or renamed parameter that names no operation stays `possible` when the call sends the name.
+A newly required parameter that names no operation matches nothing.
 A newly required parameter matches calls of that operation which do not already send it.
 An enum value is not stored on a usage, so removing one is `possible` when the parameter is present.
 An endpoint retirement named as a bare path, such as `/v1/edits`, matches a usage whose operation ends with that path.
