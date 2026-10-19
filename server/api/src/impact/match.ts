@@ -92,7 +92,8 @@ function matchParam(
 ): ImpactConfidence | null {
   const name = mode === 'enum' ? enumParam(field) : field;
   if (!name || gate === 'miss') return null;
-  const listed = usage.params.includes(name);
+  const folded = name.toLowerCase();
+  const listed = usage.params.some((param) => param.toLowerCase() === folded);
 
   if (mode === 'absent') {
     if (listed) return null;

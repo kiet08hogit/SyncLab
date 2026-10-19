@@ -86,6 +86,41 @@ describe('matchUsage', () => {
     expect(matchUsage(required, usage({ operation: 'POST /v1/responses' }))).toBeNull();
   });
 
+  it('matches a parameter name without regard to case', () => {
+    const operation = 'POST /v1/chat/completions';
+    const sent = usage({ operation, params: ['OpenAI-Beta', 'Max_Tokens'] });
+    expect(
+      matchUsage(change({ kind: 'param_now_required', operation, field: 'openai-beta' }), sent),
+    ).toBeNull();
+    expect(
+      matchUsage(change({ kind: 'param_now_required', operation, field: 'max_tokens' }), sent),
+    ).toBeNull();
+    expect(
+      matchUsage(
+        change({ kind: 'param_now_required', operation, field: 'Idempotency-Key' }),
+        usage({ operation, params: ['model'] }),
+      ),
+    ).toBe('confirmed');
+    expect(
+      matchUsage(
+        change({ kind: 'param_removed', operation, field: 'Idempotency-Key' }),
+        usage({ operation, params: ['idempotency-key'] }),
+      ),
+    ).toBe('confirmed');
+    expect(
+      matchUsage(
+        change({ kind: 'param_renamed', operation, field: 'openai-beta' }),
+        usage({ operation, params: ['model'] }),
+      ),
+    ).toBeNull();
+    expect(
+      matchUsage(
+        change({ kind: 'enum_value_removed', operation, field: 'openai-beta=assistants=v2' }),
+        sent,
+      ),
+    ).toBe('possible');
+  });
+
   it('records a removed enum value as possible, because the usage stores the parameter and not the value', () => {
     const removed = change({
       kind: 'enum_value_removed',
