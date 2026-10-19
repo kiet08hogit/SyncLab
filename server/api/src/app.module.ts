@@ -10,6 +10,7 @@ import {
 import { PrismaModule } from './prisma/prisma.module';
 import { GithubModule } from './github/github.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { ImpactModule } from './impact/impact.module';
 import { WorkerModule } from './worker/worker.module';
 
 const role = configuration().appRole;
@@ -21,6 +22,7 @@ const role = configuration().appRole;
       load: [configuration],
     }),
     PrismaModule,
+    ImpactModule,
     GithubModule,
     BullModule.forRootAsync({
       inject: [ConfigService],

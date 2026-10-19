@@ -167,7 +167,8 @@ Every read is limited to the caller's repositories (see [Credentials](#credentia
 | `GET /repositories/:githubRepoId/api-usage` | The repository's Anthropic and OpenAI API calls from its newest completed scan (`usageScan`), with the newest scan of any status next to it (`latestScan`). Each usage has its `provider`, `file`, `line`, `style` (`sdk` or `http`), SDK `method`, `operation` (such as `POST /v1/messages`, or `null` when unknown), request `params`, literal `modelIds`, and `dynamic` when part of the request is only known at runtime. `404` for an inaccessible or never-scanned repository. |
 | `GET /api-providers` | Every watched provider with its sources (`kind`, `url`, `lastCheckedAt`, `lastError`, `latestSnapshot`) and its change counts per status. Not limited by repository. |
 | `GET /api-changes` | Breaking changes the monitor read from the providers, newest first. Filters: `provider` (`anthropic`, `openai`), `status` (`detected`, `confirmed`, `dismissed`) and `kind`. Each change has its `field` or `operation`, `replacement`, `effectiveAt` date, the `section` and verbatim `evidence` it was read from, and its `source`. |
-| `POST /api-changes/:id/confirm`, `POST /api-changes/:id/dismiss` | Set a change's status to `confirmed` or `dismissed` and return it in the `GET /api-changes` shape. |
+| `POST /api-changes/:id/confirm`, `POST /api-changes/:id/dismiss` | Set a change's status to `confirmed` or `dismissed` and return it in the `GET /api-changes` shape. Confirming recomputes which repositories the change affects; dismissing clears that. |
+| `GET /api-changes/:id/impact` | Repositories and files a change affects, from each repository's newest completed scan. Each impact has `confidence` (`confirmed` when a usage literally names the retired model or changed parameter, `possible` when that value is only known at runtime) and `files`. A user receives only repositories their installations reach; the service token receives every recorded repository. `404` for an unknown change. |
 
 ## Scanning repositories for API usage
 
@@ -220,6 +221,8 @@ Confirming and dismissing are idempotent, and a dismissed change can be confirme
 A change is global, not tied to a repository, so only an admin may confirm or dismiss it: the `MIGRATIONS_API_TOKEN` service caller, or a user whose GitHub login is listed in `MONITOR_ADMIN_LOGINS` (comma-separated, matched case-insensitively).
 Any other user gets `403`, and with `MONITOR_ADMIN_LOGINS` empty or unset no user is an admin.
 Every change in `GET /api-changes` carries `canReview`, true when the caller may confirm or dismiss it, so the dashboard can hide the buttons.
+Confirming a change records its impact, and dismissing one removes it.
+A worker also recomputes every confirmed change when it starts, and again when a repository scan completes.
 The response shapes are documented in `infra/Architecture/05 - Self-Maintaining API.md` under "Monitoring endpoints".
 
 ## Scripts

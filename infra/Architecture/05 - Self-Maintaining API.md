@@ -242,8 +242,37 @@ The spec diff only reads top-level request parameters; a change inside a nested 
 Impact is a deterministic join, not a model call.
 A breaking change matches a usage on provider, operation, and the changed parameter or model ID.
 A usage with a dynamic value that could hold the changed value is recorded as `possible` rather than `confirmed`, and only `confirmed` impacts start a migration on their own.
+A parameter change that names no operation stays `possible`, because the call cannot be tied to that operation.
+A newly required parameter matches calls of that operation which do not already send it.
+An enum value is not stored on a usage, so removing one is `possible` when the parameter is present.
+An endpoint retirement named as a bare path, such as `/v1/edits`, matches a usage whose operation ends with that path.
+A behavior change matches every usage of its operation and is reported here without a migration.
 Impact is recomputed when either side changes: a new scan of a repository, or a newly confirmed change.
+Dismissing a change removes its impacts.
+A worker recomputes every confirmed change when it starts, so impacts exist before the next scan or confirmation.
 Changes with an effective date are migrated in date order, so a retirement is fixed before it lands.
+That ordering is part of running the migration, in Phase 8.
+
+`GET /api-changes/:id/impact` returns:
+
+```json
+{
+  "changeId": "0d4a...",
+  "impacts": [
+    {
+      "repositoryId": "1b2c...",
+      "githubRepoId": "42",
+      "fullName": "acme/api",
+      "confidence": "confirmed",
+      "files": ["src/chat.ts"]
+    }
+  ]
+}
+```
+
+A user receives only repositories their installations reach.
+The service caller receives every recorded repository.
+An unknown change is `404`.
 
 ## Migration and validation
 

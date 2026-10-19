@@ -15,6 +15,7 @@ model Repository {
   
   migrationJobs   MigrationJob[]
   scans           RepositoryScan[]
+  impacts         ApiImpact[]
 
   @@map("repositories")
 }
@@ -179,8 +180,26 @@ model BreakingChange {
 
   provider ApiProvider       @relation(fields: [providerId], references: [id])
   snapshot ApiSourceSnapshot @relation(fields: [snapshotId], references: [id])
+  impacts  ApiImpact[]
 
   @@unique([providerId, kind, subjectKey])
   @@index([status, detectedAt])
   @@map("breaking_changes")
+}
+
+/// Repositories a confirmed breaking change affects, recomputed from the
+/// newest completed scan. confidence is confirmed or possible.
+model ApiImpact {
+  id               String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  breakingChangeId String @map("breaking_change_id") @db.Uuid
+  repositoryId     String @map("repository_id") @db.Uuid
+  confidence       String @db.VarChar(20)
+  files            String[]
+
+  breakingChange BreakingChange @relation(fields: [breakingChangeId], references: [id], onDelete: Cascade)
+  repository     Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([breakingChangeId, repositoryId])
+  @@index([repositoryId])
+  @@map("api_impacts")
 }

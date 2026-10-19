@@ -91,7 +91,7 @@ export const test = base.extend<{ cleanSlate: void }>({
   cleanSlate: [
     async ({ page }, use) => {
       sql(
-        "TRUNCATE execution_logs, migration_jobs, api_usages, repository_scans, repositories, breaking_changes, api_source_snapshots",
+        "TRUNCATE execution_logs, migration_jobs, api_usages, api_impacts, repository_scans, repositories, breaking_changes, api_source_snapshots",
       );
       execFileSync("docker", ["exec", process.env.E2E_REDIS_CONTAINER!, "redis-cli", "FLUSHALL"], { stdio: "ignore" });
       // Avatars come from GitHub through Next's image optimizer; keep the suite offline.

@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { API_MONITOR_QUEUE, MIGRATION_QUEUE, SCAN_QUEUE } from '../common/constants';
+import { ImpactBootstrap } from '../impact/impact.bootstrap';
+import { ApiMonitorService } from '../monitor/api-monitor.service';
+import { ApiMonitorProcessor, ApiMonitorScheduler } from './api-monitor.processor';
 import { MigrationProcessor } from './migration.processor';
 import { ScanProcessor } from './scan.processor';
 import { DockerSandboxService } from './sandbox/docker-sandbox.service';
-import { ApiMonitorProcessor, ApiMonitorScheduler } from './api-monitor.processor';
-import { ApiMonitorService } from '../monitor/api-monitor.service';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ApiMonitorService } from '../monitor/api-monitor.service';
     ApiMonitorService,
     ApiMonitorProcessor,
     ApiMonitorScheduler,
+    ImpactBootstrap,
   ],
 })
 export class WorkerModule {}
