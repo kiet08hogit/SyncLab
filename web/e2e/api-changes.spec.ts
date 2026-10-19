@@ -119,7 +119,7 @@ test.describe("API changes, signed in", () => {
   test("a user who is not a monitor admin sees the change without review actions", async ({ page }) => {
     seedChange({ ...CHANGE, status: "detected" });
     await signIn(page, "/settings", "viewer");
-    await expect(page.getByText(VIEWER_LOGIN)).toBeVisible();
+    await expect(page.getByText(`@${VIEWER_LOGIN}`)).toBeVisible();
     await page.goto("/api-changes");
 
     const row = page.getByRole("row").filter({ hasText: CHANGE.field });
