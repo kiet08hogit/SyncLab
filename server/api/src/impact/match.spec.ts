@@ -19,8 +19,16 @@ const change = (overrides: Partial<MatchChange> = {}): MatchChange => ({
 describe('matchUsage', () => {
   it('confirms a literal model and treats a dynamic model as possible', () => {
     expect(matchUsage(change(), usage())).toBe('confirmed');
+    expect(matchUsage(change(), usage({ modelIds: ['gpt-4o'], dynamic: true }))).toBe('confirmed');
     expect(matchUsage(change(), usage({ modelIds: [], dynamic: true }))).toBe('possible');
     expect(matchUsage(change(), usage({ modelIds: ['gpt-4.1'] }))).toBeNull();
+    expect(matchUsage(change(), usage({ modelIds: ['gpt-4.1'], dynamic: true }))).toBeNull();
+    expect(
+      matchUsage(
+        change({ operation: 'POST /v1/chat/completions' }),
+        usage({ operation: null, modelIds: ['gpt-4.1'], dynamic: true }),
+      ),
+    ).toBeNull();
   });
 
   it('does not confirm a model when the usage is a different operation', () => {
@@ -188,7 +196,13 @@ describe('collectImpacts', () => {
               dynamic: true,
             },
             { ...usage(), providerId: 'anthropic', file: 'src/other.ts' },
-            { ...usage(), providerId: 'openai', file: 'README.md', modelIds: ['gpt-4.1'] },
+            {
+              ...usage(),
+              providerId: 'openai',
+              file: 'README.md',
+              modelIds: ['gpt-4.1'],
+              dynamic: true,
+            },
           ],
         },
       ],

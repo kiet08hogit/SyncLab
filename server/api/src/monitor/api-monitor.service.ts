@@ -44,6 +44,7 @@ export interface SourceRef {
   kind: string;
   url: string;
   provider?: { slug: string };
+  lastError?: string | null;
 }
 
 export interface PollResult {
@@ -149,8 +150,10 @@ export class ApiMonitorService {
       orderBy: { fetchedAt: 'desc' },
       select: { contentHash: true, content: true },
     });
+    const retryImpact = source.lastError != null;
 
     if (latest?.contentHash === contentHash) {
+      if (retryImpact) await this.impact.recomputeAll();
       await this.prisma.apiSource.update({
         where: { id: source.id },
         data: { lastCheckedAt: now, lastError: null },
@@ -185,9 +188,12 @@ export class ApiMonitorService {
       });
       return this.applyChanges(tx, source.providerId, snapshot.id, read);
     });
-    if (!counts) return unchanged;
+    if (!counts) {
+      if (retryImpact) await this.impact.recomputeAll();
+      return unchanged;
+    }
 
-    if (read.status === BreakingChangeStatus.CONFIRMED && counts.created > 0) {
+    if (retryImpact || (read.status === BreakingChangeStatus.CONFIRMED && counts.created > 0)) {
       await this.impact.recomputeAll();
     }
 

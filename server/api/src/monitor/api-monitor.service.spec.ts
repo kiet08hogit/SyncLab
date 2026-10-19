@@ -196,6 +196,62 @@ describe('ApiMonitorService', () => {
     expect(recomputeAll).not.toHaveBeenCalled();
   });
 
+  it('retries impact recompute on the next unchanged poll when the previous one failed', async () => {
+    const { service, source, snapshots, recomputeAll } = setup();
+    service.useFetcher(() => Promise.resolve(BEFORE));
+    recomputeAll.mockRejectedValueOnce(new Error('impact recompute failed'));
+
+    const failed = await service.pollSource(source, day('2026-09-26'));
+    expect(failed.error).toBe('impact recompute failed');
+    expect(source.lastError).toBe('impact recompute failed');
+    expect(snapshots).toHaveLength(1);
+
+    recomputeAll.mockRejectedValueOnce(new Error('impact recompute failed again'));
+    const still = await service.pollSource(source, day('2026-09-27'));
+    expect(still).toMatchObject({ changed: false });
+    expect(still.error).toBe('impact recompute failed again');
+    expect(source.lastError).toBe('impact recompute failed again');
+    expect(snapshots).toHaveLength(1);
+
+    const retried = await service.pollSource(source, day('2026-09-28'));
+    expect(retried).toMatchObject({ changed: false, created: 0, updated: 0 });
+    expect(retried.error).toBeUndefined();
+    expect(source.lastError).toBeNull();
+    expect(recomputeAll).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries a failed impact recompute when the next poll creates no confirmed change', async () => {
+    const { service, source, recomputeAll } = setup();
+    service.useFetcher(() => Promise.resolve(AFTER));
+    recomputeAll.mockRejectedValueOnce(new Error('impact recompute failed'));
+    await service.pollSource(source, day('2026-10-01'));
+
+    service.useFetcher(() =>
+      Promise.resolve(AFTER.replaceAll('November 30, 2026', 'December 15, 2026')),
+    );
+    const moved = await service.pollSource(source, day('2026-10-05'));
+
+    expect(moved).toMatchObject({ changed: true, created: 0, updated: 1 });
+    expect(moved.error).toBeUndefined();
+    expect(recomputeAll).toHaveBeenCalledTimes(2);
+    expect(source.lastError).toBeNull();
+  });
+
+  it('retries a failed impact recompute when a poll loses the snapshot race', async () => {
+    const { service, source, prisma, recomputeAll } = setup();
+    service.useFetcher(() => Promise.resolve(AFTER));
+    recomputeAll.mockRejectedValueOnce(new Error('impact recompute failed'));
+    await service.pollSource(source, day('2026-10-01'));
+
+    prisma.apiSourceSnapshot.findFirst.mockResolvedValueOnce(null as never);
+    const second = await service.pollSource(source, day('2026-10-01'));
+
+    expect(second).toMatchObject({ changed: false, created: 0, updated: 0 });
+    expect(second.error).toBeUndefined();
+    expect(recomputeAll).toHaveBeenCalledTimes(2);
+    expect(source.lastError).toBeNull();
+  });
+
   it('stores nothing and changes nothing when the page has not changed', async () => {
     const { service, source, snapshots, changes, prisma } = setup();
     service.useFetcher(() => Promise.resolve(AFTER));

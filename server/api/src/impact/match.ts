@@ -75,6 +75,7 @@ function matchModel(field: string | null, usage: MatchUsage, gate: Gate): Impact
   if (usage.modelIds.includes(field)) {
     return gate === 'unknown' ? ImpactConfidence.POSSIBLE : ImpactConfidence.CONFIRMED;
   }
+  if (usage.modelIds.length > 0) return null;
   return usage.dynamic ? ImpactConfidence.POSSIBLE : null;
 }
 
