@@ -694,11 +694,9 @@ class ApiUsageScanner {
         const config = httpOptions(sendsBody ? args[2] : args[1], 'data');
         urlPath = args[0];
         options = {
+          ...config,
           method: name.toUpperCase(),
           body: sendsBody ? args[1] : undefined,
-          dynamic: config.dynamic,
-          queryParams: config.queryParams,
-          queryDynamic: config.queryDynamic,
         };
       }
     } else {
@@ -725,9 +723,9 @@ class ApiUsageScanner {
       line: call.node.loc?.start.line ?? 0,
       style: 'http',
       operation: method ? `${method} ${match?.[2] ?? '/'}` : null,
-      params: [...new Set([...shape.params, ...options.queryParams, ...fromUrl.names])].sort(),
+      params: [...new Set([...shape.params, ...options.queryParams, ...options.headerParams, ...fromUrl.names])].sort(),
       modelIds: shape.modelIds,
-      dynamic: shape.dynamic || options.dynamic || options.queryDynamic || fromUrl.dynamic || !method,
+      dynamic: shape.dynamic || options.dynamic || options.queryDynamic || options.headerDynamic || fromUrl.dynamic || !method,
     };
   }
 
@@ -786,17 +784,19 @@ interface HttpOptions {
   dynamic: boolean;
   queryParams: string[];
   queryDynamic: boolean;
+  headerParams: string[];
+  headerDynamic: boolean;
 }
 
 /** What fetch options or an axios config tell us; both default to GET when they leave the method out. */
 function httpOptions(options: NodePath | undefined, bodyKey: 'body' | 'data'): HttpOptions {
   if (!options) {
-    return { method: 'GET', dynamic: false, queryParams: [], queryDynamic: false };
+    return { method: 'GET', dynamic: false, queryParams: [], queryDynamic: false, headerParams: [], headerDynamic: false };
   }
 
   const object = constObject(options);
   if (!object) {
-    return { dynamic: true, queryParams: [], queryDynamic: false };
+    return { dynamic: true, queryParams: [], queryDynamic: false, headerParams: [], headerDynamic: false };
   }
 
   // A spread can carry any key, the method included.
@@ -805,6 +805,7 @@ function httpOptions(options: NodePath | undefined, bodyKey: 'body' | 'data'): H
   const body = objectProperty(object, bodyKey);
   const query =
     bodyKey === 'data' ? objectKeys(objectProperty(object, 'params')) : { params: [], dynamic: false };
+  const headers = objectKeys(objectProperty(object, 'headers'));
   return {
     url: objectProperty(object, 'url'),
     method: method ? staticString(method)?.toUpperCase() : spread ? undefined : 'GET',
@@ -812,6 +813,8 @@ function httpOptions(options: NodePath | undefined, bodyKey: 'body' | 'data'): H
     dynamic: spread,
     queryParams: query.params,
     queryDynamic: query.dynamic,
+    headerParams: headers.params,
+    headerDynamic: headers.dynamic,
   };
 }
 

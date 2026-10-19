@@ -261,6 +261,89 @@ describe('scanApiUsage', () => {
     );
   });
 
+  it('records header names from a fetch init and from an axios config', () => {
+    const { usages } = scanApiUsage(
+      files({
+        'src/headers.ts': [
+          "import axios from 'axios';",
+          "const headers = { 'X-Trace': '1' };",
+          'export function calls(opts: object) {',
+          "  fetch('https://api.openai.com/v1/items/1', { method: 'POST', headers: { 'X-Trace': '1' }, body: JSON.stringify({ model: 'gpt-4o' }) });",
+          "  fetch('https://api.openai.com/v1/items/1', { method: 'POST', body: JSON.stringify({ model: 'gpt-4o' }) });",
+          "  fetch('https://api.openai.com/v1/files?limit=10', { headers: { 'X-Trace': '1', Authorization: 'Bearer x' } });",
+          "  fetch('https://api.openai.com/v1/files', { headers });",
+          "  fetch('https://api.openai.com/v1/files', { headers: { 'X-Trace': '1', ...opts } });",
+          "  fetch('https://api.openai.com/v1/files', { headers: opts });",
+          "  fetch('https://api.openai.com/v1/files');",
+          "  axios.post('https://api.openai.com/v1/items/1', { model: 'gpt-4o' }, { headers: { 'X-Trace': '1' } });",
+          "  axios.get('https://api.openai.com/v1/files', { headers: { 'X-Trace': '1' }, params: { limit: 10 } });",
+          "  axios.put('https://api.openai.com/v1/files', { purpose: 'assistants' }, { headers });",
+          "  axios.patch('https://api.openai.com/v1/files/1', { purpose: 'assistants' }, { headers: { 'X-Trace': '1' }, params: { limit: 10 } });",
+          "  axios.delete('https://api.openai.com/v1/files/1', { headers: { 'X-Trace': '1' } });",
+          "  axios({ url: 'https://api.openai.com/v1/files', method: 'get', headers: { 'X-Trace': '1' } });",
+          "  axios('https://api.openai.com/v1/files', { headers: { 'X-Trace': '1' } });",
+          "  axios.request({ url: 'https://api.openai.com/v1/files', headers: { 'X-Trace': '1' } });",
+          "  axios.post('https://api.openai.com/v1/files', { purpose: 'assistants' }, { headers: { 'X-Trace': '1', ...opts } });",
+          "  axios.get('https://api.openai.com/v1/files', opts);",
+          '}',
+        ].join('\n'),
+      }),
+    );
+
+    assert.deepEqual(
+      usages.map(({ line, operation, params, modelIds, dynamic }) => ({
+        line,
+        operation,
+        params,
+        modelIds,
+        dynamic,
+      })),
+      [
+        {
+          line: 4,
+          operation: 'POST /v1/items/1',
+          params: ['X-Trace', 'model'],
+          modelIds: ['gpt-4o'],
+          dynamic: false,
+        },
+        { line: 5, operation: 'POST /v1/items/1', params: ['model'], modelIds: ['gpt-4o'], dynamic: false },
+        {
+          line: 6,
+          operation: 'GET /v1/files',
+          params: ['Authorization', 'X-Trace', 'limit'],
+          modelIds: [],
+          dynamic: false,
+        },
+        { line: 7, operation: 'GET /v1/files', params: ['X-Trace'], modelIds: [], dynamic: false },
+        { line: 8, operation: 'GET /v1/files', params: ['X-Trace'], modelIds: [], dynamic: true },
+        { line: 9, operation: 'GET /v1/files', params: [], modelIds: [], dynamic: true },
+        { line: 10, operation: 'GET /v1/files', params: [], modelIds: [], dynamic: false },
+        {
+          line: 11,
+          operation: 'POST /v1/items/1',
+          params: ['X-Trace', 'model'],
+          modelIds: ['gpt-4o'],
+          dynamic: false,
+        },
+        { line: 12, operation: 'GET /v1/files', params: ['X-Trace', 'limit'], modelIds: [], dynamic: false },
+        { line: 13, operation: 'PUT /v1/files', params: ['X-Trace', 'purpose'], modelIds: [], dynamic: false },
+        {
+          line: 14,
+          operation: 'PATCH /v1/files/1',
+          params: ['X-Trace', 'limit', 'purpose'],
+          modelIds: [],
+          dynamic: false,
+        },
+        { line: 15, operation: 'DELETE /v1/files/1', params: ['X-Trace'], modelIds: [], dynamic: false },
+        { line: 16, operation: 'GET /v1/files', params: ['X-Trace'], modelIds: [], dynamic: false },
+        { line: 17, operation: 'GET /v1/files', params: ['X-Trace'], modelIds: [], dynamic: false },
+        { line: 18, operation: 'GET /v1/files', params: ['X-Trace'], modelIds: [], dynamic: false },
+        { line: 19, operation: 'POST /v1/files', params: ['X-Trace', 'purpose'], modelIds: [], dynamic: true },
+        { line: 20, operation: 'GET /v1/files', params: [], modelIds: [], dynamic: true },
+      ],
+    );
+  });
+
   it('marks a request it cannot read in full as dynamic', () => {
     const { usages } = scanApiUsage(
       files({
