@@ -325,7 +325,7 @@ If no result line appears (for example, the container was killed), the raw log b
 
 | Route | Shows |
 | --- | --- |
-| `/` | The landing page for visitors; a signed-in user goes straight to `/dashboard` |
+| `/` | The landing page, including for a signed-in visitor. Old dashboard filter links (`/?status`, `/?repo`, `/?q`) redirect to `/dashboard` |
 | `/dashboard` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
 | `/jobs/[id]` | One job's pipeline track (clone, changelog, install, baseline, upgrade, refactor, test, pull request), failure reason, a retry button for failed jobs, and execution log |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |

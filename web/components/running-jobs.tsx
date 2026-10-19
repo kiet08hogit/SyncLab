@@ -4,16 +4,20 @@ import { ArrowRight } from "lucide-react";
 import { PipelineTrack } from "@/components/pipeline-track";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { timeAgo } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { JobWithRepository } from "@/lib/types";
 
-/** Jobs a worker holds right now. The beam is the page's one moving moment. */
-export function RunningJobs({ jobs }: { jobs: JobWithRepository[] }) {
+/**
+ * Jobs a worker holds right now. The beam is the page's one moving moment.
+ * `stacked` is for the landing preview, whose column is too narrow for two.
+ */
+export function RunningJobs({ jobs, stacked = false }: { jobs: JobWithRepository[]; stacked?: boolean }) {
   return (
     <section aria-labelledby="running-heading" className="flex flex-col gap-3">
       <h2 id="running-heading" className="label-mono text-muted-foreground">
         Running now
       </h2>
-      <ul className="grid gap-3 lg:grid-cols-2">
+      <ul className={cn("grid gap-3", !stacked && "lg:grid-cols-2")}>
         {jobs.map((job) => (
           <li key={job.id} className="corner-mark border bg-card">
             <Link

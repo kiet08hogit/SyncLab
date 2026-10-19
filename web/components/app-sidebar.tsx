@@ -17,7 +17,7 @@ const NAV = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ account }: { account?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
 
@@ -31,7 +31,10 @@ export function AppSidebar() {
             <CurrentNavLinks onNavigate={close} />
           </Suspense>
         </div>
-        <ThemeToggle />
+        <div className="flex flex-col gap-3">
+          {account}
+          <ThemeToggle />
+        </div>
       </SidebarBody>
     </Sidebar>
   );

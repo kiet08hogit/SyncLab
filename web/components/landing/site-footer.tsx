@@ -80,10 +80,7 @@ export function SiteFooter({ action }: { action: { label: string; href: string }
           ))}
         </nav>
       </div>
-      <div className="label-mono flex flex-col gap-2 border-t border-white/10 px-5 py-6 text-white/35 sm:flex-row sm:justify-between sm:px-10">
-        <span>SyncLab</span>
-        <span>Dependency and API migrations, opened as pull requests</span>
-      </div>
+      <p className="label-mono px-5 pb-8 text-white/35 sm:px-10">All rights reserved by SyncLab</p>
     </footer>
   );
 }

@@ -21,10 +21,25 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   expect(errors).toEqual([]);
 });
 
-test("sends a signed-in user straight to the dashboard", async ({ page }) => {
-  await signIn(page, "/settings");
-  await page.goto("/");
-  await expect(page).toHaveURL("/dashboard");
+test("lets a signed-in user open the home page and return there from the dashboard", async ({ page }) => {
+  await signIn(page, "/dashboard");
+  await expect(page.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/");
+  await expect(page.getByRole("link", { name: "octo-e2e" })).toBeVisible();
+  await page.getByRole("link", { name: "Previous" }).click();
+  await expect(page).toHaveURL("/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes, fixed for you.");
+  const account = page.getByRole("banner").getByRole("button", { name: "octo-e2e" });
+  await expect(account).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: /Log in/ })).toHaveCount(0);
+  await account.click();
+  await expect(page.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
+});
+
+test("shows a signed-out visitor an API migration on the dashboard", async ({ page }) => {
+  await page.goto("/dashboard");
+  await expect(page.getByText("Sample data.")).toBeVisible();
+  await expect(page.getByRole("table")).toContainText("claude-sonnet-4-5-20250929");
+  await expect(page.getByRole("table")).toContainText("claude-sonnet-5-5");
 });
 
 test("forwards old dashboard links that used to live at /", async ({ page }) => {
@@ -75,7 +90,7 @@ for (const width of [320, 360, 390, 768, 1024, 1440]) {
     // The header's wordmark keeps a gap before the sign-in button, which stays fully on screen.
     const header = page.locator("header").first();
     const wordmark = await header.getByText("SyncLab", { exact: true }).boundingBox();
-    const action = await header.getByRole("link", { name: "Continue with GitHub" }).boundingBox();
+    const action = await header.getByRole("link", { name: /Log in/ }).boundingBox();
     expect(action!.x - (wordmark!.x + wordmark!.width)).toBeGreaterThanOrEqual(12);
     expect(action!.x + action!.width).toBeLessThanOrEqual(width);
   });
@@ -99,6 +114,9 @@ test("answers questions in the FAQ and links onward from the footer", async ({ p
   await expect(answer).toBeVisible();
   await faq.getByText("What kinds of breaking changes does it fix?").click();
   await expect(answer).toBeHidden();
+
+  await expect(page.getByRole("contentinfo")).toContainText("All rights reserved by SyncLab");
+  await expect(page.getByRole("contentinfo")).not.toContainText("opened as pull requests");
 
   const footer = page.getByRole("navigation", { name: "Footer" });
   await expect(footer.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");

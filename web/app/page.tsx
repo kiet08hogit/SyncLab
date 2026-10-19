@@ -3,7 +3,9 @@ import { Fragment, Suspense, type CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { GithubSignIn } from "@/components/github-sign-in";
+import type { Viewer } from "@/components/signed-in";
 import { Faq } from "@/components/landing/faq";
 import { Band, Eyebrow } from "@/components/landing/frame";
 import { HeroField } from "@/components/landing/hero-field";
@@ -17,6 +19,8 @@ import { RunningJobs } from "@/components/running-jobs";
 import { Button } from "@/components/ui/button";
 import { signInConfigured } from "@/lib/auth";
 import { getJobs } from "@/lib/data";
+import { getSession } from "@/lib/session";
+import type { JobWithRepository } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: { absolute: "SyncLab: breaking changes that open their own pull requests" },
@@ -78,9 +82,74 @@ function PrimaryAction({ className }: { className?: string }) {
   );
 }
 
+function viewerOf(session: { login: string; name: string | null; avatarUrl: string }): Viewer {
+  return { login: session.login, name: session.name, avatarUrl: session.avatarUrl };
+}
+
+function HeaderLogin() {
+  if (!signInConfigured()) {
+    const action = primaryAction();
+    return (
+      <Button asChild size="lg" className="h-9 px-3 sm:hidden">
+        <Link href={action.href}>{action.label}</Link>
+      </Button>
+    );
+  }
+
+  return (
+    <GithubSignIn
+      returnTo="/dashboard"
+      label={
+        <>
+          <span className="sm:hidden">Log in</span>
+          <span className="hidden sm:inline">Log in with your GitHub</span>
+        </>
+      }
+      className="h-9 border border-white/25 bg-transparent px-2.5 text-white hover:bg-white/10 min-[360px]:px-3 max-sm:[&_svg]:hidden"
+    />
+  );
+}
+
+/** Login, or the signed-in person. The cookie read stays inside Suspense. */
+async function HeaderAccount() {
+  const session = await getSession();
+  if (!session) return <HeaderLogin />;
+  return <AccountMenu viewer={viewerOf(session)} />;
+}
+
+async function HeroAction() {
+  const session = await getSession();
+  if (session) {
+    return (
+      <Button asChild size="lg">
+        <Link href="/dashboard">Open the dashboard</Link>
+      </Button>
+    );
+  }
+  return <PrimaryAction />;
+}
+
+async function Footer() {
+  const session = await getSession();
+  const action = session ? { label: "Open the dashboard", href: "/dashboard" } : primaryAction();
+  return <SiteFooter action={action} />;
+}
+
 async function ProductPreview() {
-  const running = await getJobs({ status: "IN_PROGRESS" });
-  return <RunningJobs jobs={running.slice(0, 2)} />;
+  const session = await getSession();
+  // Signed in, these are the user's own jobs, so an API that is down must not take the page with it.
+  let running: JobWithRepository[] | null;
+  try {
+    running = (await getJobs({ status: "IN_PROGRESS" })).slice(0, 2);
+  } catch {
+    running = null;
+  }
+
+  if (running === null) return <p className="text-sm text-white/55">The running migrations could not be loaded.</p>;
+  if (session && running.length === 0) {
+    return <p className="text-sm text-white/55">No migration is running on your repositories.</p>;
+  }
+  return <RunningJobs jobs={running} stacked />;
 }
 
 const HEADLINE = "Breaking changes, fixed for you.";
@@ -109,14 +178,12 @@ export default function LandingPage() {
             <SectionLink section="faq" className={NAV_LINK}>
               FAQ
             </SectionLink>
-            {/* Without sign-in, the button beside it already opens the dashboard. */}
-            {signInConfigured() && (
-              <Link href="/dashboard" className={NAV_LINK}>
-                Dashboard
-              </Link>
-            )}
-            {/* On phones the label alone fits beside the wordmark. */}
-            <PrimaryAction className="h-9 px-2.5 min-[360px]:px-3 max-sm:[&_svg]:hidden" />
+            <Suspense fallback={<HeaderLogin />}>
+              <HeaderAccount />
+            </Suspense>
+            <Button asChild size="lg" className="hidden h-9 px-3 sm:inline-flex">
+              <Link href="/dashboard">Open the dashboard</Link>
+            </Button>
           </nav>
         </header>
 
@@ -137,7 +204,9 @@ export default function LandingPage() {
                 ))}
               </h1>
               <div className="intro-fade flex flex-wrap items-center gap-3" style={after(750)}>
-                <PrimaryAction />
+                <Suspense fallback={<PrimaryAction />}>
+                  <HeroAction />
+                </Suspense>
                 <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">
                   <SectionLink section="how">
                     How it works
@@ -189,9 +258,9 @@ export default function LandingPage() {
             </div>
             <figure className="overflow-hidden border border-white/10 bg-background shadow-[0_40px_120px_-40px_rgba(44,99,255,0.45)]">
               <div aria-hidden className="flex items-center gap-1.5 border-b border-white/10 px-4 py-3">
-                <span className="size-2.5 rounded-full bg-white/15" />
-                <span className="size-2.5 rounded-full bg-white/15" />
-                <span className="size-2.5 rounded-full bg-white/15" />
+                <span className="size-2.5 rounded-full bg-[#ff5f57]" />
+                <span className="size-2.5 rounded-full bg-[#febc2e]" />
+                <span className="size-2.5 rounded-full bg-[#28c840]" />
                 <span className="ml-3 font-mono text-[11px] text-white/40">synclab / migrations</span>
               </div>
               <div className="p-4 sm:p-6">
@@ -199,7 +268,7 @@ export default function LandingPage() {
                   <ProductPreview />
                 </Suspense>
               </div>
-              <figcaption className="sr-only">The dashboard&apos;s Running now cards, with sample jobs.</figcaption>
+              <figcaption className="sr-only">Migrations that are running.</figcaption>
             </figure>
           </Band>
 
@@ -226,7 +295,9 @@ export default function LandingPage() {
           </Band>
         </main>
 
-        <SiteFooter action={primaryAction()} />
+        <Suspense fallback={<SiteFooter action={primaryAction()} />}>
+          <Footer />
+        </Suspense>
       </div>
     </LandingIntro>
   );

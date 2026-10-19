@@ -9,7 +9,7 @@ test("signs in through GitHub, lists the installation, and signs out", async ({ 
   await expect(page.getByText("Sample data.")).toHaveCount(0);
 
   await page.goto("/settings");
-  await expect(page.getByText(LOGIN)).toBeVisible();
+  await expect(page.getByText(`@${LOGIN}`)).toBeVisible();
   await expect(page.getByText("acme", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Sign out" }).click();
