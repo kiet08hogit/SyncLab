@@ -168,7 +168,7 @@ Every read is limited to the caller's repositories (see [Credentials](#credentia
 | `GET /api-providers` | Every watched provider with its sources (`kind`, `url`, `lastCheckedAt`, `lastError`, `latestSnapshot`) and its change counts per status. Not limited by repository. |
 | `GET /api-changes` | Breaking changes the monitor read from the providers, newest first. Filters: `provider` (`anthropic`, `openai`), `status` (`detected`, `confirmed`, `dismissed`) and `kind`. Each change has its `field` or `operation`, `replacement`, `effectiveAt` date, the `section` and verbatim `evidence` it was read from, and its `source`. |
 | `POST /api-changes/:id/confirm`, `POST /api-changes/:id/dismiss` | Set a change's status to `confirmed` or `dismissed` and return it in the `GET /api-changes` shape. Confirming recomputes which repositories the change affects; dismissing clears that. |
-| `GET /api-changes/:id/impact` | Repositories and files a change affects, from each repository's newest completed scan. Each impact has `confidence` (`confirmed` when a usage names the retired model, names a removed or renamed parameter on that operation, omits a newly required parameter on that operation, calls a removed endpoint, or is any usage of a behavior change's operation; `possible` when that value is only known at runtime, when a removed or renamed parameter names no operation, or when a removed enum value's parameter is present, which is never `confirmed`) and `files`. A user receives only repositories their installations reach; the service token receives every recorded repository. `404` for an unknown change. |
+| `GET /api-changes/:id/impact` | Repositories and files a change affects, from each repository's newest completed scan. Each impact has `confidence` (`confirmed` or `possible`) and `files`. The match rules are in the Impact analysis section of `infra/Architecture/05 - Self-Maintaining API.md`. A user receives only repositories their installations reach; the service token receives every recorded repository. `404` for an unknown change. |
 
 ## Scanning repositories for API usage
 
@@ -207,6 +207,7 @@ The spec, release notes and changelogs compare against their previous snapshot, 
 Classifying needs `LLM_PROVIDER` `gemini` or `anthropic`; if the model cannot be reached the snapshot is not stored, so the next poll classifies the same lines again.
 Reading the same change again updates its date or replacement, keeps a dismissed change dismissed, and never lets a classified change rewrite one from a table or the spec; a change that later disappears from its source is kept.
 A source that fails to load, or no longer has what its reader expects, is recorded as its `lastError` instead of being read as "nothing changed".
+A failed impact recompute after a snapshot is stored is recorded there too, and the next poll retries it.
 Set `API_MONITOR_ENABLED=false` to stop the schedule.
 
 ```bash
@@ -222,8 +223,10 @@ A change is global, not tied to a repository, so only an admin may confirm or di
 Any other user gets `403`, and with `MONITOR_ADMIN_LOGINS` empty or unset no user is an admin.
 Every change in `GET /api-changes` carries `canReview`, true when the caller may confirm or dismiss it, so the dashboard can hide the buttons.
 Confirming a change records its impact, and dismissing one removes it.
+The monitor does the same when it stores an already-confirmed spec or deprecation change.
+If that recompute fails after the snapshot is stored, the next poll of that source retries it.
 A worker also recomputes every confirmed change when it starts, and again when a repository scan completes.
-The response shapes are documented in `infra/Architecture/05 - Self-Maintaining API.md` under "Monitoring endpoints".
+The response shapes are documented in `infra/Architecture/05 - Self-Maintaining API.md`, under Monitoring endpoints and Impact analysis.
 
 ## Scripts
 

@@ -156,9 +156,7 @@ export class ApiMonitorService {
       if (retryImpact) await this.impact.recomputeAll();
       await this.prisma.apiSource.update({
         where: { id: source.id },
-        data: retryImpact
-          ? { lastCheckedAt: now, lastError: null }
-          : { lastCheckedAt: now },
+        data: retryImpact ? { lastCheckedAt: now, lastError: null } : { lastCheckedAt: now },
       });
       return unchanged;
     }

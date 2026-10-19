@@ -20,7 +20,7 @@ export interface ApiUsage {
   method?: string;
   /** Such as `POST /v1/messages`. Null when the call is not in the operation table. */
   operation: string | null;
-  /** Request-object keys, and query parameter names on a raw HTTP call. */
+  /** Request-object keys, plus query parameter names and header names on a raw HTTP call. */
   params: string[];
   /** Model IDs written as literals in the request. */
   modelIds: string[];
