@@ -12,7 +12,6 @@ import { HeroField } from "@/components/landing/hero-field";
 import { LandingChrome } from "@/components/landing/landing-chrome";
 import { LandingIntro } from "@/components/landing/landing-intro";
 import { ExampleBoard } from "@/components/landing/example-board";
-import { PipelineDiagram } from "@/components/landing/pipeline-diagram";
 import { SectionLink } from "@/components/landing/section-link";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { Mascot } from "@/components/mascot";
@@ -21,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { signInConfigured } from "@/lib/auth";
 import { getJobs } from "@/lib/data";
 import { getSession } from "@/lib/session";
+import type { JobWithRepository } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: { absolute: "SyncLab: breaking changes that open their own pull requests" },
@@ -115,16 +115,20 @@ async function Footer() {
 }
 
 async function ProductPreview() {
+  const session = await getSession();
+  // Signed in, these are the user's own jobs, so an API that is down must not take the page with it.
+  let running: JobWithRepository[] | null;
   try {
-    const session = await getSession();
-    const running = (await getJobs({ status: "IN_PROGRESS" })).slice(0, 2);
-    if (session && running.length === 0) {
-      return <p className="text-sm text-white/55">No migration is running on your repositories.</p>;
-    }
-    return <RunningJobs jobs={running} />;
+    running = (await getJobs({ status: "IN_PROGRESS" })).slice(0, 2);
   } catch {
-    return <p className="text-sm text-white/55">The running migrations could not be loaded.</p>;
+    running = null;
   }
+
+  if (running === null) return <p className="text-sm text-white/55">The running migrations could not be loaded.</p>;
+  if (session && running.length === 0) {
+    return <p className="text-sm text-white/55">No migration is running on your repositories.</p>;
+  }
+  return <RunningJobs jobs={running} />;
 }
 
 const HEADLINE = "Breaking changes, fixed for you.";
@@ -200,13 +204,6 @@ export default function LandingPage() {
               </h2>
             </div>
             <ExampleBoard />
-            <p className="mt-12 max-w-2xl text-pretty text-white/60">
-              Either way, the fix runs through the same stages in throwaway containers, and the repository&apos;s code
-              never runs on the server that orchestrates them.
-            </p>
-            <div className="mt-14">
-              <PipelineDiagram />
-            </div>
           </Band>
 
           <Band label="The dashboard" className="grid gap-12 px-5 py-20 sm:px-10 sm:py-28 min-[900px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[900px]:items-center">

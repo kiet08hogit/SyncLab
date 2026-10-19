@@ -53,11 +53,12 @@ const EXAMPLES = [
   },
 ] as const;
 
-/** The two breaks, and the fix for the one you pick. The code sits under the cards, not inside them. */
+/** Pick a break, then a stage. One pipeline, and the line under it is that stage for the break you picked. */
 export function ExampleBoard() {
   const [example, setExample] = useState(0);
-  const [stage, setStage] = useState<PipelineStage>("REFACTOR");
+  const [stage, setStage] = useState<PipelineStage>("PR");
   const current = EXAMPLES[example];
+  const selected = PIPELINE_STAGES.indexOf(stage);
 
   return (
     <div className="mt-12 flex flex-col gap-8">
@@ -80,30 +81,49 @@ export function ExampleBoard() {
         ))}
       </div>
 
-      <figure className="border border-white/10" aria-live="polite">
+      <figure className="border border-white/10">
         <figcaption className="border-b border-white/10 px-4 py-2 font-mono text-[11px] text-white/45">{current.file}</figcaption>
         <pre className="px-4 py-3 font-mono text-sm leading-7">
           <span className="block text-white/40">- {current.before}</span>
           <span className="block text-[#9db4ff]">+ {current.after}</span>
         </pre>
-        <div role="tablist" aria-label="Stages" className="flex flex-wrap gap-2 border-t border-white/10 px-4 py-3">
-          {PIPELINE_STAGES.map((item) => (
-            <button
-              key={item}
-              type="button"
-              role="tab"
-              aria-selected={item === stage}
-              onClick={() => setStage(item)}
-              className={cn(
-                "border border-white/15 px-2.5 py-1 font-mono text-[11px] text-white/50 transition-colors hover:text-white",
-                item === stage && "border-white/40 text-white",
-              )}
-            >
-              {STAGE_LABEL[item]}
-            </button>
-          ))}
-        </div>
-        <p className="border-t border-white/10 px-4 py-3 text-sm text-white/70">{current.stages[stage]}</p>
+        <ol role="tablist" aria-label="Stages" className="relative grid gap-y-8 border-t border-white/10 px-4 py-6 min-[900px]:grid-cols-8 min-[900px]:gap-x-4">
+          <span
+            aria-hidden
+            className="absolute top-9 bottom-9 left-7 w-px bg-white/12 min-[900px]:top-9 min-[900px]:right-[calc(100%/16)] min-[900px]:bottom-auto min-[900px]:left-[calc(100%/16)] min-[900px]:h-px min-[900px]:w-auto"
+          />
+          {PIPELINE_STAGES.map((item, index) => {
+            const state = index < selected ? "done" : index === selected ? "current" : "upcoming";
+            return (
+              <li key={item}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={item === stage}
+                  onClick={() => setStage(item)}
+                  className="relative flex w-full gap-4 text-left min-[900px]:flex-col min-[900px]:items-center min-[900px]:text-center"
+                >
+                  <span
+                    className={cn(
+                      "relative grid size-6 shrink-0 place-items-center border bg-[#07090c] font-mono text-[10px]",
+                      state === "current" && "border-[#6f93ff] bg-[#0e1a3d] text-white shadow-[0_0_22px_rgba(90,131,255,0.5)]",
+                      state === "done" && "border-[#6f93ff]/60 text-white",
+                      state === "upcoming" && "border-white/15 text-white/50",
+                    )}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className={cn("text-sm font-medium", state === "upcoming" ? "text-white/50" : "text-white")}>
+                    {STAGE_LABEL[item]}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+        <p aria-live="polite" className="border-t border-white/10 px-4 py-3 text-sm text-white/70">
+          {current.stages[stage]}
+        </p>
       </figure>
     </div>
   );
