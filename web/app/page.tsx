@@ -53,7 +53,7 @@ const FEATURES = [
   },
   {
     title: "Your model, your call",
-    body: "Rewrites come from a local model by default, or from a hosted one when you want it.",
+    body: "Rewrites come from the hosted model you pick, and switching is one setting.",
   },
   {
     title: "Every step on the record",

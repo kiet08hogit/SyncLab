@@ -33,12 +33,10 @@ function resultLine(phase: SandboxPhase, run: NonNullable<ScriptedRun['result']>
  * the next scripted run for its phase, writing to the attached stream the way
  * the sandbox image does.
  */
-const OLLAMA_LLM = {
-  provider: 'ollama',
-  apiKey: '',
-  baseUrl: 'http://host.docker.internal:11434',
-  numCtx: 32_768,
-  model: 'qwen2.5-coder:14b',
+const GEMINI_LLM = {
+  provider: 'gemini',
+  apiKey: 'AIza-test',
+  model: 'gemini-3.1-pro-preview',
   maxAttempts: 1,
   maxFiles: 20,
   maxFileBytes: 60_000,
@@ -47,7 +45,7 @@ const OLLAMA_LLM = {
 function setup(
   script: Partial<Record<SandboxPhase, ScriptedRun[]>>,
   sandbox = {},
-  llm: Record<string, unknown> = OLLAMA_LLM,
+  llm: Record<string, unknown> = GEMINI_LLM,
 ) {
   const created: Array<{ phase: SandboxPhase; env: string[]; binds: string[]; network: string }> =
     [];
@@ -595,7 +593,7 @@ describe('DockerSandboxService.classify', () => {
     evidence: 'remove relationship in favor of access_type',
   };
   const ANTHROPIC_LLM = {
-    ...OLLAMA_LLM,
+    ...GEMINI_LLM,
     provider: 'anthropic',
     apiKey: 'sk-ant-test',
     model: 'claude-opus-5-5',
@@ -639,8 +637,7 @@ describe('DockerSandboxService.classify', () => {
     expect(JSON.parse(Buffer.from(env.CLASSIFY_INPUT, 'base64').toString('utf8'))).toEqual(INPUT);
     expect(env.LLM_PROVIDER).toBe('anthropic');
     expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-test');
-    expect(env.LLM_BASE_URL).toBeUndefined();
-    expect(env.LLM_NUM_CTX).toBeUndefined();
+    expect(env.GEMINI_API_KEY).toBeUndefined();
     expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(volume.remove).toHaveBeenCalledWith({ force: true });
   });
@@ -701,20 +698,6 @@ describe('DockerSandboxService.classify', () => {
       ok: false,
       error:
         'LLM_PROVIDER is anthropic but ANTHROPIC_API_KEY is not set, so the classify phase cannot run.',
-      changes: [],
-      output: '',
-    });
-    expect(docker.createVolume).not.toHaveBeenCalled();
-    expect(docker.createContainer).not.toHaveBeenCalled();
-  });
-
-  it('refuses ollama without starting a container', async () => {
-    const { service, docker } = setup({}, {}, OLLAMA_LLM);
-
-    await expect(service.classify(INPUT)).resolves.toEqual({
-      ok: false,
-      error:
-        'Classifying release notes needs LLM_PROVIDER gemini or anthropic; ollama is not supported.',
       changes: [],
       output: '',
     });

@@ -12,7 +12,7 @@ The worker never executes untrusted code itself. It runs a sequence of container
 | `install` | yes | **no** | no | install dependencies with npm, pnpm or yarn, lifecycle scripts included |
 | `test` (baseline) | **no** | **no** | **no** | run the test suite on the current version; the job stops if it already fails |
 | `upgrade` | yes | **no** | no | upgrade the migrated dependency to the target version |
-| `refactor` | yes | no | yes | find files importing the dependency, rewrite them with the configured model (Ollama, Gemini or Claude) |
+| `refactor` | yes | no | yes | find files importing the dependency, rewrite them with the configured model (Gemini or Claude) |
 | `test` | **no** | **no** | **no** | run the package manager's `test` script |
 | `publish` | yes | yes | no | clone afresh at the prepared commit, copy the changes across, commit, push the branch, open a pull request |
 
@@ -20,7 +20,7 @@ Repository code runs in `install`, `upgrade` and `test`, and none of them ever r
 
 After `upgrade`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
 
-A rate-limited model call, an overloaded Anthropic API (529), or an Ollama server that refuses the connection, fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
+A rate-limited model call, an overloaded Anthropic API (529), or a dropped or refused connection to the model provider, fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
 
 ## Setup
 
@@ -68,17 +68,7 @@ The `/migrations` and `/repositories` routes take a bearer token in `Authorizati
 Anything else, including a personal access token or a revoked user token, answers `401`.
 If GitHub rate-limits the access check, the route answers `503` instead, since the token is still valid.
 
-`LLM_PROVIDER` picks the model provider for the refactor phase: `ollama` (the default), `gemini` or `anthropic`.
-
-With `ollama`, no key is needed. Install and start Ollama on the host and pull the model:
-
-```bash
-brew install ollama
-brew services start ollama
-ollama pull qwen2.5-coder:14b
-```
-
-The refactor container reaches it at `LLM_BASE_URL`, which defaults to `http://host.docker.internal:11434`.
+`LLM_PROVIDER` picks the model provider for the refactor phase: `gemini` (the default) or `anthropic`.
 
 With `gemini`, `GEMINI_API_KEY` is required. Create one in [Google AI Studio](https://aistudio.google.com/apikey). It is passed only to the `refactor` container and never to the phase that runs repository code.
 

@@ -117,29 +117,16 @@ describe('buildUserPrompt', () => {
   });
 });
 
-function llm(provider: LlmConfig['provider'], numCtx = 32_768): LlmConfig {
+function llm(provider: LlmConfig['provider']): LlmConfig {
   return {
     provider,
     model: 'claude-opus-5-5',
-    baseUrl: 'http://ollama.invalid:11434',
-    numCtx,
     attempt: 1,
     maxAttempts: 1,
     maxFiles: 20,
     maxFileBytes: 60_000,
   };
 }
-
-describe('a local Ollama model', () => {
-  it('is refused, since classification needs a hosted provider', async () => {
-    const error = await createClassifyChain(llm('ollama'))(INPUT).then(
-      () => assert.fail('expected the chain to refuse'),
-      (reason: unknown) => reason,
-    );
-
-    assert.match(String(error), /needs LLM_PROVIDER gemini or anthropic/);
-  });
-});
 
 function stubAnthropic(t: TestContext, reply: string, stopReason = 'end_turn') {
   process.env.ANTHROPIC_API_KEY = 'test-key';

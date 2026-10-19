@@ -59,7 +59,7 @@ describe('upgrade phase', () => {
       DEPENDENCY_NAME: DEPENDENCY,
       TARGET_VERSION: '2.0.0',
       BRANCH_NAME: `synclab/${DEPENDENCY}-2.0.0`,
-      LLM_MODEL: 'qwen2.5-coder:14b',
+      LLM_MODEL: 'gemini-3.1-pro-preview',
     });
     // The upgrade container is never given a token.
     delete process.env.GITHUB_TOKEN;

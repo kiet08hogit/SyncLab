@@ -29,7 +29,7 @@ To refresh an existing case's lockfile, rename `package.benchmark.json` back to 
 
 ## Running it
 
-Prerequisites: Docker, the API and sandbox built, and the model the worker is configured for (by default Ollama with `qwen2.5-coder:14b`).
+Prerequisites: Docker, the API and sandbox built, and a key for the model the worker is configured for (by default `GEMINI_API_KEY` for Gemini).
 
 ```bash
 # from the repository root

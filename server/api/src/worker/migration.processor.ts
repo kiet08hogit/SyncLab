@@ -62,7 +62,7 @@ export class MigrationProcessor extends WorkerHost {
 
       const keyEnv = LLM_API_KEY_ENV[llm.provider];
 
-      if (keyEnv && !llm.apiKey) {
+      if (!llm.apiKey) {
         throw new UnrecoverableError(
           `LLM_PROVIDER is ${llm.provider} but ${keyEnv} is not set, so the refactoring phase cannot run.`,
         );

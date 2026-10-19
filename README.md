@@ -55,7 +55,7 @@ flowchart LR
         PB["publish"]
     end
 
-    LLM["Ollama (local), Gemini or Claude<br/>via LangChain.js and the Anthropic SDK"]
+    LLM["Gemini or Claude<br/>via LangChain.js and the Anthropic SDK"]
     NPM["npm registry"]
     REPO["Target GitHub repository"]
 
@@ -88,7 +88,7 @@ sequenceDiagram
     participant Q as Redis (BullMQ)
     participant WK as Worker
     participant SB as Sandbox containers
-    participant LLM as Model (Ollama, Gemini or Claude)
+    participant LLM as Model (Gemini or Claude)
     participant GH as GitHub
 
     Src->>GW: bot pull_request webhook or POST /migrations
@@ -291,10 +291,9 @@ Upgrades the migrated dependency with the detected package manager (`server/sand
 1. Walks the repository's `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
 2. Parses each file with Babel and keeps only the files that `import` or `require` the dependency (including deep imports such as `pkg/sub`), recording the imported names and the lines that use them.
 3. Caps the work at `LLM_MAX_FILES` files of at most `LLM_MAX_FILE_BYTES` each, and reports anything it skipped.
-4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Ollama by default).
+4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Gemini by default).
    Gemini answers with structured output `{changed, contents, reason}`.
-   Ollama answers with a one-sentence reason followed by the file in a fenced block, because small local models do not reliably end a whole file inside a JSON string, and its output is capped relative to the file size.
-   Claude answers in the same fenced shape over a streamed request, so the file needs no JSON escaping and a reply cut off at `max_tokens` is caught from the stop reason.
+   Claude answers with a one-sentence reason followed by the file in a fenced block over a streamed request, so the file needs no JSON escaping and a reply cut off at `max_tokens` is caught from the stop reason.
    A Claude refusal is retried server-side on Anthropic's default fallback model before the file is failed.
    The prompt includes the dependency, target version, release notes, the imported names and usage lines, and, on a retry, the previous failing test output.
    The model returns the complete file rather than a diff, because diffs fail to apply too often.
@@ -460,7 +459,7 @@ Only failures that could succeed on a later try are retried; everything else is 
 | --- | --- | --- |
 | Gemini or Anthropic rate limit (429, quota or resource exhausted) | `QUEUED` while retrying, then `FAILED` | yes |
 | Anthropic API overloaded (529) | `QUEUED` while retrying, then `FAILED` | yes |
-| Ollama server not reachable (connection refused) | `QUEUED` while retrying, then `FAILED` | yes |
+| Model provider not reachable (connection refused, reset or timed out) | `QUEUED` while retrying, then `FAILED` | yes |
 | Other model errors (bad key, unknown model, malformed output) | `FAILED` | no |
 | `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` missing for the selected provider | `FAILED` | no |
 | Clone, install or dependency upgrade failed | `FAILED` | no |
@@ -494,7 +493,7 @@ SyncLab/
 │       └── src/
 │           ├── phases/        prepare, clone, install, upgrade, refactor, test, publish, scan, classify
 │           ├── analysis/      Babel import and usage analysis
-│           ├── llm/           Ollama, Gemini and Claude models, refactor and classify chains, retryable error classification
+│           ├── llm/           Gemini and Claude models, refactor and classify chains, retryable error classification
 │           ├── package-manager.ts  npm, pnpm and yarn detection and commands
 │           └── upgrade.ts     dependency upgrade used by the upgrade phase
 └── benchmarks/                validated migration cases, the sandbox benchmark runner and its results
@@ -502,7 +501,7 @@ SyncLab/
 
 ## Getting started
 
-Prerequisites: Node.js 22 or later, Docker, and either [Ollama](https://ollama.com) with `qwen2.5-coder:14b` pulled (the default) or a Gemini or Anthropic API key.
+Prerequisites: Node.js 22 or later, Docker, and a Gemini API key (the default provider) or an Anthropic API key.
 For real repositories you also need a GitHub App (or a personal access token for local experiments).
 
 ```bash
@@ -512,7 +511,7 @@ docker compose up -d
 
 # 2. API: configuration, database, sandbox image
 cd api
-cp .env.example .env          # fill in GITHUB_WEBHOOK_SECRET, GitHub credentials, MIGRATIONS_API_TOKEN (and GEMINI_API_KEY or ANTHROPIC_API_KEY for a hosted LLM_PROVIDER)
+cp .env.example .env          # fill in GITHUB_WEBHOOK_SECRET, GitHub credentials, MIGRATIONS_API_TOKEN and GEMINI_API_KEY (or ANTHROPIC_API_KEY with LLM_PROVIDER=anthropic)
 npm install
 npx prisma migrate deploy
 npm run sandbox:build         # builds synclab-sandbox:latest from ../sandbox
@@ -548,24 +547,10 @@ npm run dev                   # http://localhost:3001
 
 See [`server/api/README.md`](server/api/README.md) for every environment variable, registering the GitHub App, signing a test webhook, and the full script list.
 
-### Hosting a local LLM for development
+### Choosing a model provider
 
-Local development runs the model on your own machine with [Ollama](https://ollama.com), so no API key or per-call cost is involved.
-`LLM_PROVIDER` defaults to `ollama`, so a fresh `.env` needs nothing else.
-
-```bash
-brew install ollama
-brew services start ollama    # serves on localhost:11434 and starts again at login
-ollama pull qwen2.5-coder:14b # about 9 GB
-```
-
-The refactor container reaches the host's Ollama at `http://host.docker.internal:11434` (`LLM_BASE_URL`).
-`qwen2.5-coder:14b` needs about 12 GB of memory with the default 32k context (`LLM_NUM_CTX`), which fits on the GPU of a 24 GB Apple Silicon Mac alongside Docker.
-Larger models are stronger at migrations but will not fit next to Docker on that machine.
-Set `LLM_MODEL` to try another model you have pulled.
-
-Deployed environments use a hosted provider instead of a local model.
-Two are wired in: Claude (`LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, `claude-opus-5-5` by default) and Gemini (`LLM_PROVIDER=gemini` with `GEMINI_API_KEY`).
+Two hosted providers are wired in: Gemini (`LLM_PROVIDER=gemini`, the default, with `GEMINI_API_KEY`, `gemini-3.1-pro-preview` by default) and Claude (`LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, `claude-opus-5-5` by default).
+Set `LLM_MODEL` to use another model from the same provider.
 
 ## Testing and benchmarks
 

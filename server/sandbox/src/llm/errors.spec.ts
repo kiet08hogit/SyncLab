@@ -22,15 +22,15 @@ describe('isRetryableModelError', () => {
     );
   });
 
-  it('recognises an Ollama server that is not running', () => {
+  it('recognises a refused connection', () => {
     const refused = Object.assign(new TypeError('fetch failed'), {
-      cause: Object.assign(new Error('connect ECONNREFUSED 192.168.65.254:11434'), {
+      cause: Object.assign(new Error('connect ECONNREFUSED 142.250.80.10:443'), {
         code: 'ECONNREFUSED',
       }),
     });
 
     assert.equal(isRetryableModelError(refused), true);
-    assert.equal(isRetryableModelError(new Error('connect ECONNREFUSED 127.0.0.1:11434')), true);
+    assert.equal(isRetryableModelError(new Error('connect ECONNREFUSED 142.250.80.10:443')), true);
   });
 
   it('recognises a network failure wrapped by the Anthropic SDK', () => {
@@ -54,10 +54,6 @@ describe('isRetryableModelError', () => {
     assert.equal(isRetryableModelError(new Error('API key not valid')), false);
     assert.equal(isRetryableModelError(Object.assign(new Error('bad request'), { status: 400 })), false);
     assert.equal(isRetryableModelError(new Error('model not found')), false);
-    assert.equal(
-      isRetryableModelError(new Error('model "qwen2.5-coder:14b" not found, try pulling it first')),
-      false,
-    );
   });
 
   it('never retries a failure the chain raised itself, whatever its text says', () => {

@@ -27,31 +27,25 @@ export interface SandboxConfig {
   dockerSocketPath?: string;
 }
 
-export const LLM_PROVIDERS = ['ollama', 'gemini', 'anthropic'] as const;
+export const LLM_PROVIDERS = ['gemini', 'anthropic'] as const;
 
 export type LlmProvider = (typeof LLM_PROVIDERS)[number];
 
 const DEFAULT_LLM_MODELS: Record<LlmProvider, string> = {
-  ollama: 'qwen2.5-coder:14b',
   gemini: 'gemini-3.1-pro-preview',
   anthropic: 'claude-opus-5-5',
 };
 
-/** The variable each hosted provider reads its key from. A local Ollama needs none. */
-export const LLM_API_KEY_ENV: Record<LlmProvider, string | null> = {
-  ollama: null,
+/** The variable each provider reads its key from. */
+export const LLM_API_KEY_ENV: Record<LlmProvider, string> = {
   gemini: 'GEMINI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
 };
 
 export interface LlmConfig {
   provider: LlmProvider;
-  /** Only used by the hosted providers, read from LLM_API_KEY_ENV. */
+  /** Read from LLM_API_KEY_ENV. */
   apiKey: string;
-  /** Only used by the Ollama provider, and resolved from inside the sandbox container. */
-  baseUrl: string;
-  /** Only used by the Ollama provider. */
-  numCtx: number;
   model: string;
   maxAttempts: number;
   maxFiles: number;
@@ -91,7 +85,7 @@ export function resolveAppRole(value: string | undefined): AppRole {
 
 export function resolveLlmProvider(value: string | undefined): LlmProvider {
   if (!value) {
-    return 'ollama';
+    return 'gemini';
   }
 
   if (!LLM_PROVIDERS.includes(value as LlmProvider)) {
@@ -129,7 +123,6 @@ function loadPrivateKey(): string | undefined {
 
 export function configuration(): Configuration {
   const llmProvider = resolveLlmProvider(process.env.LLM_PROVIDER);
-  const llmKeyEnv = LLM_API_KEY_ENV[llmProvider];
 
   return {
     appRole: resolveAppRole(process.env.APP_ROLE),
@@ -169,11 +162,7 @@ export function configuration(): Configuration {
     },
     llm: {
       provider: llmProvider,
-      apiKey: llmKeyEnv ? (process.env[llmKeyEnv] ?? '') : '',
-      // The sandbox container reaches Ollama on the host, so this is the
-      // host as Docker Desktop exposes it, not localhost.
-      baseUrl: process.env.LLM_BASE_URL ?? 'http://host.docker.internal:11434',
-      numCtx: positiveNumber(process.env.LLM_NUM_CTX, 32_768),
+      apiKey: process.env[LLM_API_KEY_ENV[llmProvider]] ?? '',
       model: process.env.LLM_MODEL ?? DEFAULT_LLM_MODELS[llmProvider],
       // Every attempt is a fresh round of LLM calls, so the ceilings are
       // deliberately low: they are the only brake on the cost of one job.

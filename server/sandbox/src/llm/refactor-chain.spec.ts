@@ -52,7 +52,7 @@ describe('parseFencedReply', () => {
   });
 });
 
-function ollamaConfig(numCtx: number): SandboxConfig {
+function anthropicConfig(): SandboxConfig {
   return {
     workspace: '/workspace',
     repoDir: '/workspace/repo',
@@ -64,10 +64,8 @@ function ollamaConfig(numCtx: number): SandboxConfig {
     branchName: 'synclab/lodash',
     githubApiUrl: 'https://api.github.com',
     llm: {
-      provider: 'ollama',
-      model: 'qwen2.5-coder:14b',
-      baseUrl: 'http://ollama.invalid:11434',
-      numCtx,
+      provider: 'anthropic',
+      model: 'claude-opus-5-5',
       attempt: 1,
       maxAttempts: 1,
       maxFiles: 20,
@@ -76,101 +74,12 @@ function ollamaConfig(numCtx: number): SandboxConfig {
   };
 }
 
-/** Answers Ollama's streaming chat endpoint and records what was asked of it. */
-function stubOllama(t: TestContext, reply: string, doneReason: string) {
-  const requests: Array<{ options: { num_ctx: number; num_predict: number } }> = [];
-  const chunks = [
-    { message: { role: 'assistant', content: reply }, done: false },
-    { message: { role: 'assistant', content: '' }, done: true, done_reason: doneReason },
-  ].map((chunk) => JSON.stringify({ model: 'qwen2.5-coder:14b', ...chunk }));
-
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: { body: string }) => {
-    requests.push(JSON.parse(init.body));
-    return new Response(`${chunks.join('\n')}\n`, { status: 200 });
-  });
-
-  return requests;
-}
-
 function request(contents: string, relativePath = 'src/users.js') {
   return {
     relativePath,
     contents,
     usage: { importedNames: ['_'], usageLines: [3] },
   };
-}
-
-describe('the Ollama refactor chain', () => {
-  const withFence =
-    'const doc = `\n```\nexample\n```\n`;\nmodule.exports = _.map(users, "name");\n';
-  // Cut off right after the fence inside the file, which reads like a closed block.
-  const cutOff = `Updated.\n\`\`\`js\n${withFence.slice(0, withFence.lastIndexOf('```') + 3)}`;
-
-  it('returns the rewritten file when the model finished on its own', async (t) => {
-    const requests = stubOllama(
-      t,
-      `Replaced _.pluck with _.map.\n\`\`\`js\n${MIGRATED}\`\`\``,
-      'stop',
-    );
-
-    const outcome = await createRefactorChain(ollamaConfig(32_768))(request(ORIGINAL));
-
-    assert.deepEqual(outcome, {
-      changed: true,
-      contents: MIGRATED,
-      reason: 'Replaced _.pluck with _.map.',
-    });
-    assert.equal(requests[0].options.num_ctx, 32_768);
-    assert.equal(requests[0].options.num_predict, Math.ceil(ORIGINAL.length * 0.5) + 512);
-  });
-
-  it('refuses a reply that hit the output limit after a fence inside the file', async (t) => {
-    stubOllama(t, cutOff, 'length');
-
-    const error = await createRefactorChain(ollamaConfig(32_768))(
-      request(ORIGINAL, 'src/rate limit/429.js'),
-    ).then(
-      () => assert.fail('expected the reply to be refused'),
-      (reason: unknown) => reason,
-    );
-
-    assert.match(String(error), /reached its output limit, so the file was cut off/);
-    assert.equal(isRetryableModelError(error), false);
-  });
-
-  it('keeps the output cap inside the room the prompt leaves', async (t) => {
-    const requests = stubOllama(t, 'Nothing to change.', 'stop');
-    const contents = `${ORIGINAL}${'// filler line for the context budget\n'.repeat(80)}`;
-    const numCtx = 3_000;
-
-    await createRefactorChain(ollamaConfig(numCtx))(request(contents));
-
-    const { num_predict } = requests[0].options;
-    assert.ok(num_predict < Math.ceil(contents.length * 0.5) + 512);
-    assert.ok(num_predict >= Math.ceil(contents.length / 3) + 512);
-    assert.ok(num_predict + Math.ceil(contents.length / 3) < numCtx);
-  });
-
-  it('fails a file that cannot fit the context window without calling the model', async (t) => {
-    const requests = stubOllama(t, 'Nothing to change.', 'stop');
-    const contents = `${ORIGINAL}${'// filler line for the context budget\n'.repeat(400)}`;
-
-    const error = await createRefactorChain(ollamaConfig(8_192))(
-      request(contents, 'src/billing/quota.ts'),
-    ).then(
-      () => assert.fail('expected the file to be refused'),
-      (reason: unknown) => reason,
-    );
-
-    assert.match(String(error), /too large to rewrite within the 8192 token context window/);
-    assert.equal(isRetryableModelError(error), false);
-    assert.equal(requests.length, 0);
-  });
-});
-
-function anthropicConfig(): SandboxConfig {
-  const config = ollamaConfig(32_768);
-  return { ...config, llm: { ...config.llm, provider: 'anthropic', model: 'claude-opus-5-5' } };
 }
 
 /** Answers the Messages API as a server-sent event stream and records the request bodies. */

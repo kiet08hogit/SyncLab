@@ -280,15 +280,6 @@ export class DockerSandboxService {
    */
   async classify(input: SandboxClassifyInput): Promise<SandboxClassifyOutcome> {
     const llm = this.config.get('llm', { infer: true });
-    if (llm.provider === 'ollama') {
-      return {
-        ok: false,
-        error:
-          'Classifying release notes needs LLM_PROVIDER gemini or anthropic; ollama is not supported.',
-        changes: [],
-        output: '',
-      };
-    }
     const keyEnv = LLM_API_KEY_ENV[llm.provider];
     if (!llm.apiKey) {
       return {
