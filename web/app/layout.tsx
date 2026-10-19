@@ -1,14 +1,33 @@
 import type { Metadata } from "next";
-import { Geist, JetBrains_Mono, Lora } from "next/font/google";
+import localFont from "next/font/local";
 import { ThemeProvider } from "next-themes";
 
 import "./globals.css";
 
-const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
+// Vendored in ../fonts. next/font/google fails the build when Google Fonts returns
+// an extensionless /l/font?kit= URL, which Next 16.4 cannot parse.
+const geist = localFont({
+  src: "../fonts/geist-latin.woff2",
+  variable: "--font-geist",
+  weight: "100 900",
+});
 
-const lora = Lora({ variable: "--font-lora", subsets: ["latin"], weight: ["400", "500"] });
+const lora = localFont({
+  src: [
+    { path: "../fonts/lora-latin-400.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/lora-latin-500.woff2", weight: "500", style: "normal" },
+  ],
+  variable: "--font-lora",
+  adjustFontFallback: "Times New Roman",
+});
 
-const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], weight: ["400", "500"] });
+const jetbrains = localFont({
+  src: [
+    { path: "../fonts/jetbrains-mono-latin-400.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/jetbrains-mono-latin-500.woff2", weight: "500", style: "normal" },
+  ],
+  variable: "--font-jetbrains",
+});
 
 export const metadata: Metadata = {
   title: { default: "SyncLab", template: "%s · SyncLab" },
