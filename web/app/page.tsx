@@ -11,6 +11,7 @@ import { Band, Eyebrow } from "@/components/landing/frame";
 import { HeroField } from "@/components/landing/hero-field";
 import { LandingChrome } from "@/components/landing/landing-chrome";
 import { LandingIntro } from "@/components/landing/landing-intro";
+import { ExampleBoard } from "@/components/landing/example-board";
 import { PipelineDiagram } from "@/components/landing/pipeline-diagram";
 import { SectionLink } from "@/components/landing/section-link";
 import { SiteFooter } from "@/components/landing/site-footer";
@@ -24,19 +25,6 @@ import { getSession } from "@/lib/session";
 export const metadata: Metadata = {
   title: { absolute: "SyncLab: breaking changes that open their own pull requests" },
 };
-
-/** The two ways code breaks without anyone touching it, and what sets SyncLab off for each. */
-const TRIGGERS = [
-  {
-    label: "A dependency breaks",
-    body: "Dependabot or Renovate opens a pull request for a breaking npm release. SyncLab picks it up from there: the release notes, your usage of the package, and the code that has to change.",
-  },
-  {
-    label: "An API breaks",
-    body: "A provider retires a model or changes a parameter, often with no SDK release at all. SyncLab watches the provider, and its scanner already knows which of your calls the change reaches.",
-    example: "lib/chat.ts still names chat-large-2024-06.",
-  },
-];
 
 const FEATURES = [
   {
@@ -211,24 +199,7 @@ export default function LandingPage() {
                 Two ways things break. One way they get fixed.
               </h2>
             </div>
-            <ul className="mt-12 grid border-t border-l border-white/10 sm:grid-cols-2">
-              {TRIGGERS.map((trigger) => (
-                <li key={trigger.label} className="flex flex-col gap-3 border-r border-b border-white/10 p-6 sm:p-8">
-                  <h3 className="text-lg font-medium">{trigger.label}</h3>
-                  <p className="text-sm leading-relaxed text-pretty text-white/55">{trigger.body}</p>
-                  {"example" in trigger && <p className="font-mono text-xs text-white/70">{trigger.example}</p>}
-                </li>
-              ))}
-            </ul>
-            <figure className="mt-10 max-w-xl border border-white/10">
-              <figcaption className="border-b border-white/10 px-4 py-2 font-mono text-[11px] text-white/45">
-                lib/chat.ts
-              </figcaption>
-              <pre className="px-4 py-3 font-mono text-sm leading-7">
-                <span className="block text-white/40">- model: &quot;chat-large-2024-06&quot;</span>
-                <span className="block text-[#9db4ff]">+ model: &quot;chat-large-2026-04&quot;</span>
-              </pre>
-            </figure>
+            <ExampleBoard />
             <p className="mt-12 max-w-2xl text-pretty text-white/60">
               Either way, the fix runs through the same stages in throwaway containers, and the repository&apos;s code
               never runs on the server that orchestrates them.

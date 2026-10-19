@@ -13,11 +13,12 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   await page.getByRole("link", { name: "How it works" }).first().click();
   await expect(page.getByRole("region", { name: "How it works" })).toBeInViewport();
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("region", { name: "How it works" }).locator("ol > li")).toHaveCount(8);
-  await expect(page.getByRole("region", { name: "How it works" })).toContainText(
-    "lib/chat.ts still names chat-large-2024-06.",
-  );
-  await expect(page.getByRole("region", { name: "How it works" })).toContainText('model: "chat-large-2026-04"');
+  const how = page.getByRole("region", { name: "How it works" });
+  await expect(how.locator("ol > li")).toHaveCount(8);
+  await how.getByRole("tab", { name: "An API breaks" }).click();
+  await expect(how).toContainText('model: "chat-large-2026-04"');
+  await how.getByRole("tab", { name: "Refactor" }).click();
+  await expect(how).toContainText("lib/chat.ts names chat-large-2026-04.");
 
   await page.getByRole("link", { name: "Continue with GitHub" }).first().click();
   await page.waitForURL("/dashboard");
@@ -118,6 +119,9 @@ test("answers questions in the FAQ and links onward from the footer", async ({ p
   await expect(answer).toBeVisible();
   await faq.getByText("What kinds of breaking changes does it fix?").click();
   await expect(answer).toBeHidden();
+
+  await expect(page.getByRole("contentinfo")).toContainText("All rights reserved by SyncLab");
+  await expect(page.getByRole("contentinfo")).not.toContainText("opened as pull requests");
 
   const footer = page.getByRole("navigation", { name: "Footer" });
   await expect(footer.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
