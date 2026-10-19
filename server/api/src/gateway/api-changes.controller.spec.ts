@@ -19,7 +19,6 @@ function setup(monitorAdminLogins: string[] = ['octo-admin']) {
   const impact = {
     list: jest.fn(),
     recomputeChange: jest.fn().mockResolvedValue(undefined),
-    clearChange: jest.fn().mockResolvedValue(undefined),
   };
   const controller = new ApiChangesController(
     queries as never,
@@ -92,11 +91,7 @@ describe('ApiChangesController', () => {
       canReview: true,
     });
     expect(queries.setStatus).toHaveBeenCalledWith('change-1', status);
-    if (status === 'confirmed') {
-      expect(impact.recomputeChange).toHaveBeenCalledWith('change-1');
-    } else {
-      expect(impact.clearChange).toHaveBeenCalledWith('change-1');
-    }
+    expect(impact.recomputeChange).toHaveBeenCalledWith('change-1');
   });
 
   it.each(['confirm', 'dismiss'] as const)(
@@ -158,7 +153,6 @@ describe('ApiChangesController', () => {
     await expect(controller.confirm(SERVICE, 'missing')).rejects.toBeInstanceOf(NotFoundException);
     await expect(controller.dismiss(SERVICE, 'missing')).rejects.toBeInstanceOf(NotFoundException);
     expect(impact.recomputeChange).not.toHaveBeenCalled();
-    expect(impact.clearChange).not.toHaveBeenCalled();
   });
 
   it('returns the impact of a change and 404 when it does not exist', async () => {

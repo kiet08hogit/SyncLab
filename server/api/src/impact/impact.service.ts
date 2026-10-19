@@ -58,10 +58,6 @@ export class ImpactService {
     return this.recompute({});
   }
 
-  clearChange(changeId: string): Promise<unknown> {
-    return this.prisma.apiImpact.deleteMany({ where: { breakingChangeId: changeId } });
-  }
-
   /** Null when the change does not exist. A user only sees repositories they can reach. */
   async list(changeId: string, caller: Caller) {
     const change = await this.prisma.breakingChange.findUnique({

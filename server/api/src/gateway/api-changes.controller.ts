@@ -129,11 +129,7 @@ export class ApiChangesController {
     if (!change) {
       throw new NotFoundException(`Breaking change ${id} was not found`);
     }
-    if (status === BreakingChangeStatus.CONFIRMED) {
-      await this.impact.recomputeChange(id);
-    } else {
-      await this.impact.clearChange(id);
-    }
+    await this.impact.recomputeChange(id);
     return { ...change, canReview: true };
   }
 
