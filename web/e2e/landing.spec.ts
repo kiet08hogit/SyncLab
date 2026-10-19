@@ -14,6 +14,10 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   await expect(page.getByRole("region", { name: "How it works" })).toBeInViewport();
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("region", { name: "How it works" }).locator("ol > li")).toHaveCount(8);
+  await expect(page.getByRole("region", { name: "How it works" })).toContainText(
+    "One call still names the retired model chat-large-2024-06.",
+  );
+  await expect(page.getByRole("region", { name: "How it works" })).toContainText('model: "chat-large-2026-04"');
 
   await page.getByRole("link", { name: "Continue with GitHub" }).first().click();
   await page.waitForURL("/dashboard");
@@ -21,10 +25,15 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   expect(errors).toEqual([]);
 });
 
-test("sends a signed-in user straight to the dashboard", async ({ page }) => {
-  await signIn(page, "/settings");
-  await page.goto("/");
-  await expect(page).toHaveURL("/dashboard");
+test("lets a signed-in user open the home page and return there from the dashboard", async ({ page }) => {
+  await signIn(page, "/dashboard");
+  await expect(page.getByRole("link", { name: "Previous" })).toHaveAttribute("href", "/");
+  await expect(page.getByRole("link", { name: "Octo E2E" })).toBeVisible();
+  await page.getByRole("link", { name: "Previous" }).click();
+  await expect(page).toHaveURL("/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Breaking changes, fixed for you.");
+  await expect(page.getByRole("banner").getByRole("link", { name: "Octo E2E" })).toBeVisible();
+  await expect(page.getByRole("banner").getByRole("link", { name: /Log in/ })).toHaveCount(0);
 });
 
 test("forwards old dashboard links that used to live at /", async ({ page }) => {
@@ -75,7 +84,7 @@ for (const width of [320, 360, 390, 768, 1024, 1440]) {
     // The header's wordmark keeps a gap before the sign-in button, which stays fully on screen.
     const header = page.locator("header").first();
     const wordmark = await header.getByText("SyncLab", { exact: true }).boundingBox();
-    const action = await header.getByRole("link", { name: "Continue with GitHub" }).boundingBox();
+    const action = await header.getByRole("link", { name: /Log in/ }).boundingBox();
     expect(action!.x - (wordmark!.x + wordmark!.width)).toBeGreaterThanOrEqual(12);
     expect(action!.x + action!.width).toBeLessThanOrEqual(width);
   });

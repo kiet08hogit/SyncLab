@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { IconBrandGithub } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,15 @@ import { cn } from "@/lib/utils";
  * A plain link rather than a client handler: /auth/github answers with a
  * redirect to GitHub, so it works before hydration and without JavaScript.
  */
-export function GithubSignIn({ returnTo, className }: { returnTo?: string; className?: string }) {
+export function GithubSignIn({
+  returnTo,
+  className,
+  label = "Continue with GitHub",
+}: {
+  returnTo?: string;
+  className?: string;
+  label?: ReactNode;
+}) {
   const href = returnTo ? `/auth/github?returnTo=${encodeURIComponent(returnTo)}` : "/auth/github";
   return (
     <Button
@@ -17,7 +26,7 @@ export function GithubSignIn({ returnTo, className }: { returnTo?: string; class
     >
       <a href={href}>
         <IconBrandGithub aria-hidden className="size-5" />
-        Continue with GitHub
+        {label}
       </a>
     </Button>
   );

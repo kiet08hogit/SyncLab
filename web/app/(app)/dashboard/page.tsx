@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { GitPullRequestArrow, Plus, Search, SearchX, X } from "lucide-react";
+import { ArrowLeft, GitPullRequestArrow, Plus, Search, SearchX, X } from "lucide-react";
 
 import { JobsTable } from "@/components/jobs-table";
 import { LiveRefresh } from "@/components/live-refresh";
@@ -20,6 +20,13 @@ function first(value: string | string[] | undefined) {
 export default function MigrationsPage({ searchParams }: PageProps<"/dashboard">) {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-8 sm:py-10">
+      <Link
+        href="/"
+        className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft aria-hidden className="size-4" />
+        Previous
+      </Link>
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Migrations</h1>

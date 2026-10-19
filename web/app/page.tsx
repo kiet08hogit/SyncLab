@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { GithubSignIn } from "@/components/github-sign-in";
+import { SignedIn, type Viewer } from "@/components/signed-in";
 import { Faq } from "@/components/landing/faq";
 import { Band, Eyebrow } from "@/components/landing/frame";
 import { HeroField } from "@/components/landing/hero-field";
@@ -17,6 +18,7 @@ import { RunningJobs } from "@/components/running-jobs";
 import { Button } from "@/components/ui/button";
 import { signInConfigured } from "@/lib/auth";
 import { getJobs } from "@/lib/data";
+import { getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: { absolute: "SyncLab: breaking changes that open their own pull requests" },
@@ -78,6 +80,55 @@ function PrimaryAction({ className }: { className?: string }) {
   );
 }
 
+function viewerOf(session: { login: string; name: string | null; avatarUrl: string }): Viewer {
+  return { login: session.login, name: session.name, avatarUrl: session.avatarUrl };
+}
+
+function HeaderLogin() {
+  return (
+    <GithubSignIn
+      returnTo="/dashboard"
+      label={
+        <>
+          <span className="sm:hidden">Log in</span>
+          <span className="hidden sm:inline">Log in with your GitHub</span>
+        </>
+      }
+      className="h-9 border border-white/25 bg-transparent px-2.5 text-white hover:bg-white/10 min-[360px]:px-3 max-sm:[&_svg]:hidden"
+    />
+  );
+}
+
+/** Login, or the signed-in person. The cookie read stays inside Suspense. */
+async function HeaderAccount() {
+  const session = await getSession();
+  if (!session) return <HeaderLogin />;
+  return (
+    <SignedIn
+      viewer={viewerOf(session)}
+      className="h-9 max-w-44 px-1 text-sm text-white max-sm:[&>span]:sr-only"
+    />
+  );
+}
+
+async function HeroAction() {
+  const session = await getSession();
+  if (session) {
+    return (
+      <Button asChild size="lg">
+        <Link href="/dashboard">Open the dashboard</Link>
+      </Button>
+    );
+  }
+  return <PrimaryAction />;
+}
+
+async function Footer() {
+  const session = await getSession();
+  const action = session ? { label: "Open the dashboard", href: "/dashboard" } : primaryAction();
+  return <SiteFooter action={action} />;
+}
+
 async function ProductPreview() {
   const running = await getJobs({ status: "IN_PROGRESS" });
   return <RunningJobs jobs={running.slice(0, 2)} />;
@@ -109,14 +160,12 @@ export default function LandingPage() {
             <SectionLink section="faq" className={NAV_LINK}>
               FAQ
             </SectionLink>
-            {/* Without sign-in, the button beside it already opens the dashboard. */}
-            {signInConfigured() && (
-              <Link href="/dashboard" className={NAV_LINK}>
-                Dashboard
-              </Link>
-            )}
-            {/* On phones the label alone fits beside the wordmark. */}
-            <PrimaryAction className="h-9 px-2.5 min-[360px]:px-3 max-sm:[&_svg]:hidden" />
+            <Suspense fallback={<HeaderLogin />}>
+              <HeaderAccount />
+            </Suspense>
+            <Button asChild size="lg" className="hidden h-9 px-3 sm:inline-flex">
+              <Link href="/dashboard">Open the dashboard</Link>
+            </Button>
           </nav>
         </header>
 
@@ -137,7 +186,9 @@ export default function LandingPage() {
                 ))}
               </h1>
               <div className="intro-fade flex flex-wrap items-center gap-3" style={after(750)}>
-                <PrimaryAction />
+                <Suspense fallback={<PrimaryAction />}>
+                  <HeroAction />
+                </Suspense>
                 <Button asChild variant="ghost" size="lg" className="h-10 px-4 text-white/80 hover:bg-white/5 hover:text-white">
                   <SectionLink section="how">
                     How it works
@@ -154,6 +205,7 @@ export default function LandingPage() {
               <h2 className="font-serif text-4xl leading-tight tracking-tight text-balance sm:text-5xl">
                 Two ways things break. One way they get fixed.
               </h2>
+              <p className="text-pretty text-white/60">One call still names the retired model chat-large-2024-06.</p>
             </div>
             <ul className="mt-12 grid border-t border-l border-white/10 sm:grid-cols-2">
               {TRIGGERS.map((trigger) => (
@@ -163,6 +215,15 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
+            <figure className="mt-10 max-w-xl border border-white/10">
+              <figcaption className="border-b border-white/10 px-4 py-2 font-mono text-[11px] text-white/45">
+                lib/chat.ts
+              </figcaption>
+              <pre className="px-4 py-3 font-mono text-sm leading-7">
+                <span className="block text-white/40">- model: &quot;chat-large-2024-06&quot;</span>
+                <span className="block text-[#9db4ff]">+ model: &quot;chat-large-2026-04&quot;</span>
+              </pre>
+            </figure>
             <p className="mt-12 max-w-2xl text-pretty text-white/60">
               Either way, the fix runs through the same stages in throwaway containers, and the repository&apos;s code
               never runs on the server that orchestrates them.
@@ -226,7 +287,9 @@ export default function LandingPage() {
           </Band>
         </main>
 
-        <SiteFooter action={primaryAction()} />
+        <Suspense fallback={<SiteFooter action={primaryAction()} />}>
+          <Footer />
+        </Suspense>
       </div>
     </LandingIntro>
   );
