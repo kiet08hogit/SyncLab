@@ -38,8 +38,8 @@ test("lets a signed-in user open the home page and return there from the dashboa
 test("shows a signed-out visitor an API migration on the dashboard", async ({ page }) => {
   await page.goto("/dashboard");
   await expect(page.getByText("Sample data.")).toBeVisible();
-  await expect(page.getByRole("table")).toContainText("chat-large-2024-06");
-  await expect(page.getByRole("table")).toContainText("chat-large-2026-04");
+  await expect(page.getByRole("table")).toContainText("claude-sonnet-4-5-20250929");
+  await expect(page.getByRole("table")).toContainText("claude-sonnet-5-5");
 });
 
 test("forwards old dashboard links that used to live at /", async ({ page }) => {

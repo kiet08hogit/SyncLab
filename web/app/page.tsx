@@ -140,7 +140,7 @@ async function ProductPreview() {
   if (session && running.length === 0) {
     return <p className="text-sm text-white/55">No migration is running on your repositories.</p>;
   }
-  return <RunningJobs jobs={running} />;
+  return <RunningJobs jobs={running} stacked />;
 }
 
 const HEADLINE = "Breaking changes, fixed for you.";

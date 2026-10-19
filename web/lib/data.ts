@@ -78,15 +78,16 @@ const seeds: JobSeed[] = [
   {
     id: "c8e1a4d2-6f3b-4a91-8c07-2b5d9e1f4a20",
     repo: 1,
-    dependencyName: "chat-large-2024-06",
-    targetVersion: "chat-large-2026-04",
+    // The retirement the monitor's own sample data reports, so both pages tell one story.
+    dependencyName: "claude-sonnet-4-5-20250929",
+    targetVersion: "claude-sonnet-5-5",
     status: "IN_PROGRESS",
     // Recent enough that the landing preview's two cards are one of each kind.
     createdAgo: 4 * MINUTE,
     logs: [
       ["STARTED", "Starting migration for northwind/storefront"],
       ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 4,812 objects, done."],
-      ["CHANGELOG", "chat-large-2024-06 is retired. The replacement is chat-large-2026-04."],
+      ["CHANGELOG", "claude-sonnet-4-5-20250929 is retired. The replacement is claude-sonnet-5-5."],
       ["REFACTOR", "Updated the model id in lib/chat.ts."],
     ],
   },
