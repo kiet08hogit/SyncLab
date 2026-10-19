@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { BreakingChangeStatus } from '../common/constants';
+import { ImpactService } from '../impact/impact.service';
 import { DockerSandboxService } from '../worker/sandbox/docker-sandbox.service';
 import type { SandboxClassifyInput } from '../worker/sandbox/sandbox.types';
 import { extractTables, normalizeTables, parseDeprecations, subjectKey } from './deprecations';
@@ -87,6 +88,7 @@ export class ApiMonitorService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly impact: ImpactService,
     @Optional() private readonly sandbox?: DockerSandboxService,
   ) {}
 
@@ -184,6 +186,10 @@ export class ApiMonitorService {
       return this.applyChanges(tx, source.providerId, snapshot.id, read);
     });
     if (!counts) return unchanged;
+
+    if (read.status === BreakingChangeStatus.CONFIRMED && counts.created > 0) {
+      await this.impact.recomputeAll();
+    }
 
     this.logger.log(
       `${source.url}: new snapshot, ${counts.created} new and ${counts.updated} updated changes`,
