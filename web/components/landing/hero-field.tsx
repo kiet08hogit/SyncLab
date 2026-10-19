@@ -381,7 +381,7 @@ export function HeroField({ children }: { children: ReactNode }) {
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_top,#07090c_40%,transparent_62%)] min-[900px]:bg-[linear-gradient(to_right,#07090c_32%,rgba(7,9,12,0.55)_48%,transparent_60%)]"
       />
-      <div className="grid min-h-[calc(100dvh-5rem)] min-[900px]:grid-cols-[minmax(0,56%)_minmax(0,1fr)]">
+      <div className="grid min-h-[calc(100dvh-12rem)] min-[900px]:grid-cols-[minmax(0,56%)_minmax(0,1fr)]">
         {/* Empty: the canvas draws the pup into this box. */}
         <div ref={slotRef} data-pup-slot aria-hidden className="h-[38svh] min-[900px]:order-last min-[900px]:h-auto" />
         <div className="flex flex-col justify-end gap-10 px-5 pb-14 sm:px-10 min-[900px]:justify-center min-[900px]:py-16">
