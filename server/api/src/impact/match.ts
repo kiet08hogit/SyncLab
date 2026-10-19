@@ -108,18 +108,10 @@ function matchParam(
   return ImpactConfidence.CONFIRMED;
 }
 
-function matchBehavior(
-  change: MatchChange,
-  usage: MatchUsage,
-  gate: Gate,
-): ImpactConfidence | null {
+function matchBehavior(gate: Gate): ImpactConfidence | null {
   if (gate === 'match') return ImpactConfidence.CONFIRMED;
   if (gate === 'unknown') return ImpactConfidence.POSSIBLE;
-  if (gate === 'miss' || !change.field) return null;
-  if (usage.modelIds.includes(change.field) || usage.params.includes(change.field)) {
-    return ImpactConfidence.CONFIRMED;
-  }
-  return usage.dynamic ? ImpactConfidence.POSSIBLE : null;
+  return null;
 }
 
 /** How one usage relates to one change. Provider is compared by the caller. */
@@ -139,7 +131,7 @@ export function matchUsage(change: MatchChange, usage: MatchUsage): ImpactConfid
     case 'enum_value_removed':
       return matchParam(change.field, usage, gate, 'enum');
     case 'behavior_changed':
-      return matchBehavior(change, usage, gate);
+      return matchBehavior(gate);
     default:
       return null;
   }

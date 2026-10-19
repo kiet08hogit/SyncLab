@@ -106,6 +106,21 @@ describe('matchUsage', () => {
     });
     expect(matchUsage(behavior, usage({ modelIds: [], params: [] }))).toBe('confirmed');
     expect(matchUsage(behavior, usage({ operation: 'POST /v1/responses' }))).toBeNull();
+    expect(matchUsage(behavior, usage({ operation: null, dynamic: true }))).toBe('possible');
+    expect(matchUsage(behavior, usage({ operation: null }))).toBeNull();
+  });
+
+  it('matches a behavior change with no operation to nothing', () => {
+    const behavior = change({ kind: 'behavior_changed', operation: null, field: 'model' });
+    expect(matchUsage(behavior, usage())).toBeNull();
+    expect(matchUsage(behavior, usage({ modelIds: ['model'], params: ['model'] }))).toBeNull();
+    expect(
+      matchUsage(change({ kind: 'behavior_changed', operation: null, field: 'gpt-4o' }), usage()),
+    ).toBeNull();
+    expect(matchUsage(behavior, usage({ dynamic: true, modelIds: [], params: [] }))).toBeNull();
+    expect(
+      matchUsage(behavior, usage({ operation: null, dynamic: true, modelIds: ['model'] })),
+    ).toBeNull();
   });
 
   it('ignores a kind it does not know', () => {

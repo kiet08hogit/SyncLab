@@ -198,6 +198,69 @@ describe('scanApiUsage', () => {
     );
   });
 
+  it('records query parameter names from a fetch URL and from axios params', () => {
+    const { usages } = scanApiUsage(
+      files({
+        'src/query.ts': [
+          "import axios from 'axios';",
+          'const query = { limit: 10 };',
+          'const n = 10;',
+          'export function calls(opts: object) {',
+          "  fetch('https://api.openai.com/v1/files?limit=10');",
+          "  fetch('https://api.openai.com/v1/files');",
+          '  fetch(`https://api.openai.com/v1/files?limit=${n}`);',
+          '  fetch(`https://api.openai.com/v1/files?${n}`);',
+          "  fetch('https://api.openai.com/v1/chat/completions?limit=10', {",
+          "    method: 'POST',",
+          "    body: JSON.stringify({ model: 'gpt-4o', messages: [] }),",
+          '  });',
+          "  axios.get('https://api.openai.com/v1/files', { params: { limit: 10 } });",
+          "  axios.get('https://api.openai.com/v1/files', { params: query });",
+          "  axios.get('https://api.openai.com/v1/files?order=asc', { params: { limit: 10 } });",
+          "  axios.post('https://api.openai.com/v1/files', { purpose: 'assistants' }, { params: { limit: 10 } });",
+          "  axios({ url: 'https://api.openai.com/v1/files', method: 'get', params: { limit: 10 } });",
+          "  axios.get('https://api.openai.com/v1/files', opts);",
+          "  axios.get('https://api.openai.com/v1/files', { params: { limit: 10, ...opts } });",
+          "  axios('https://api.openai.com/v1/files', { params: { limit: 10 } });",
+          "  axios.request({ url: 'https://api.openai.com/v1/files', params: { limit: 10 } });",
+          '}',
+        ].join('\n'),
+      }),
+    );
+
+    assert.deepEqual(
+      usages.map(({ line, operation, params, modelIds, dynamic }) => ({
+        line,
+        operation,
+        params,
+        modelIds,
+        dynamic,
+      })),
+      [
+        { line: 5, operation: 'GET /v1/files', params: ['limit'], modelIds: [], dynamic: false },
+        { line: 6, operation: 'GET /v1/files', params: [], modelIds: [], dynamic: false },
+        { line: 7, operation: 'GET /v1/files', params: ['limit'], modelIds: [], dynamic: false },
+        { line: 8, operation: 'GET /v1/files', params: [], modelIds: [], dynamic: true },
+        {
+          line: 9,
+          operation: 'POST /v1/chat/completions',
+          params: ['limit', 'messages', 'model'],
+          modelIds: ['gpt-4o'],
+          dynamic: false,
+        },
+        { line: 13, operation: 'GET /v1/files', params: ['limit'], modelIds: [], dynamic: false },
+        { line: 14, operation: 'GET /v1/files', params: ['limit'], modelIds: [], dynamic: false },
+        { line: 15, operation: 'GET /v1/files', params: ['limit', 'order'], modelIds: [], dynamic: false },
+        { line: 16, operation: 'POST /v1/files', params: ['limit', 'purpose'], modelIds: [], dynamic: false },
+        { line: 17, operation: 'GET /v1/files', params: ['limit'], modelIds: [], dynamic: false },
+        { line: 18, operation: 'GET /v1/files', params: [], modelIds: [], dynamic: true },
+        { line: 19, operation: 'GET /v1/files', params: ['limit'], modelIds: [], dynamic: true },
+        { line: 20, operation: 'GET /v1/files', params: ['limit'], modelIds: [], dynamic: false },
+        { line: 21, operation: 'GET /v1/files', params: ['limit'], modelIds: [], dynamic: false },
+      ],
+    );
+  });
+
   it('marks a request it cannot read in full as dynamic', () => {
     const { usages } = scanApiUsage(
       files({

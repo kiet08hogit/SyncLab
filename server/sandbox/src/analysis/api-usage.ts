@@ -20,7 +20,7 @@ export interface ApiUsage {
   method?: string;
   /** Such as `POST /v1/messages`. Null when the call is not in the operation table. */
   operation: string | null;
-  /** Keys of the request object, when it is written out. */
+  /** Request-object keys, and query parameter names on a raw HTTP call. */
   params: string[];
   /** Model IDs written as literals in the request. */
   modelIds: string[];
@@ -690,11 +690,15 @@ class ApiUsageScanner {
         options = httpOptions(args[0], 'data');
         urlPath = options.url;
       } else {
+        const sendsBody = name === 'post' || name === 'put' || name === 'patch';
+        const config = httpOptions(sendsBody ? args[2] : args[1], 'data');
         urlPath = args[0];
         options = {
           method: name.toUpperCase(),
-          body: ['post', 'put', 'patch'].includes(name) ? args[1] : undefined,
-          dynamic: false,
+          body: sendsBody ? args[1] : undefined,
+          dynamic: config.dynamic,
+          queryParams: config.queryParams,
+          queryDynamic: config.queryDynamic,
         };
       }
     } else {
@@ -714,14 +718,16 @@ class ApiUsageScanner {
 
     const { method, body } = options;
     const shape = body ? requestShape(body) : { params: [], modelIds: [], dynamic: false };
+    const fromUrl = queryNames(url);
     return {
       provider,
       file: facts.file.path,
       line: call.node.loc?.start.line ?? 0,
       style: 'http',
       operation: method ? `${method} ${match?.[2] ?? '/'}` : null,
-      ...shape,
-      dynamic: shape.dynamic || options.dynamic || !method,
+      params: [...new Set([...shape.params, ...options.queryParams, ...fromUrl.names])].sort(),
+      modelIds: shape.modelIds,
+      dynamic: shape.dynamic || options.dynamic || options.queryDynamic || fromUrl.dynamic || !method,
     };
   }
 
@@ -778,28 +784,34 @@ interface HttpOptions {
   method?: string;
   body?: NodePath;
   dynamic: boolean;
+  queryParams: string[];
+  queryDynamic: boolean;
 }
 
 /** What fetch options or an axios config tell us; both default to GET when they leave the method out. */
 function httpOptions(options: NodePath | undefined, bodyKey: 'body' | 'data'): HttpOptions {
   if (!options) {
-    return { method: 'GET', dynamic: false };
+    return { method: 'GET', dynamic: false, queryParams: [], queryDynamic: false };
   }
 
   const object = constObject(options);
   if (!object) {
-    return { dynamic: true };
+    return { dynamic: true, queryParams: [], queryDynamic: false };
   }
 
   // A spread can carry any key, the method included.
   const spread = object.get('properties').some((property) => property.isSpreadElement());
   const method = objectProperty(object, 'method');
   const body = objectProperty(object, bodyKey);
+  const query =
+    bodyKey === 'data' ? objectKeys(objectProperty(object, 'params')) : { params: [], dynamic: false };
   return {
     url: objectProperty(object, 'url'),
     method: method ? staticString(method)?.toUpperCase() : spread ? undefined : 'GET',
     body: bodyKey === 'body' ? jsonStringifyArgument(body) : body,
     dynamic: spread,
+    queryParams: query.params,
+    queryDynamic: query.dynamic,
   };
 }
 
@@ -857,22 +869,56 @@ function staticString(value: NodePath | undefined, placeholders = false, depth =
   return undefined;
 }
 
-/** What the code tells us about a request object without running it. */
-function requestShape(argument: NodePath | undefined): Pick<ApiUsage, 'params' | 'modelIds' | 'dynamic'> {
-  if (!argument) {
-    return { params: [], modelIds: [], dynamic: false };
+/**
+ * Query parameter names written in a URL. A name that is only known at
+ * runtime sets `dynamic` and is left out; a known name with a runtime value
+ * is still recorded.
+ */
+function queryNames(url: string): { names: string[]; dynamic: boolean } {
+  const withoutHash = url.split('#', 1)[0] ?? '';
+  const question = withoutHash.indexOf('?');
+  if (question < 0) {
+    return { names: [], dynamic: false };
   }
 
-  // A request built once as a constant and passed by name.
+  const names = new Set<string>();
+  let dynamic = false;
+  for (const part of withoutHash.slice(question + 1).split('&')) {
+    if (!part) {
+      continue;
+    }
+    const raw = part.split('=', 1)[0] ?? '';
+    const decoded = decodeQueryComponent(raw);
+    if (!decoded || decoded.includes('{param}')) {
+      dynamic = true;
+      continue;
+    }
+    names.add(decoded);
+  }
+  return { names: [...names], dynamic };
+}
+
+function decodeQueryComponent(raw: string): string {
+  try {
+    return decodeURIComponent(raw.replace(/\+/g, ' ')).trim();
+  } catch {
+    return raw.trim();
+  }
+}
+
+/** Keys of an object literal. Dynamic means a key is missing, not that a value is. */
+function objectKeys(argument: NodePath | undefined): { params: string[]; dynamic: boolean } {
+  if (!argument) {
+    return { params: [], dynamic: false };
+  }
+
   const object = constObject(argument);
   if (!object) {
-    return { params: [], modelIds: [], dynamic: true };
+    return { params: [], dynamic: true };
   }
 
   const params = new Set<string>();
-  const modelIds = new Set<string>();
   let dynamic = false;
-
   for (const property of object.get('properties')) {
     if (property.isSpreadElement() || (!property.isObjectProperty() && !property.isObjectMethod())) {
       dynamic = true;
@@ -886,18 +932,39 @@ function requestShape(argument: NodePath | undefined): Pick<ApiUsage, 'params' |
       continue;
     }
     params.add(name);
+  }
 
-    if (name === 'model' && property.isObjectProperty()) {
-      const model = staticString(property.get('value') as NodePath);
-      if (model === undefined) {
-        dynamic = true;
-      } else {
-        modelIds.add(model);
-      }
+  return { params: [...params], dynamic };
+}
+
+/** What the code tells us about a request object without running it. */
+function requestShape(argument: NodePath | undefined): Pick<ApiUsage, 'params' | 'modelIds' | 'dynamic'> {
+  // A request built once as a constant and passed by name.
+  const keys = objectKeys(argument);
+  const object = argument ? constObject(argument) : undefined;
+  if (!object) {
+    return { params: [], modelIds: [], dynamic: keys.dynamic };
+  }
+
+  const modelIds = new Set<string>();
+  let dynamic = keys.dynamic;
+  for (const property of object.get('properties')) {
+    if (!property.isObjectProperty() || property.node.computed) {
+      continue;
+    }
+    const name = t.isIdentifier(property.node.key) ? property.node.key.name : stringValue(property.node.key);
+    if (name !== 'model') {
+      continue;
+    }
+    const model = staticString(property.get('value') as NodePath);
+    if (model === undefined) {
+      dynamic = true;
+    } else {
+      modelIds.add(model);
     }
   }
 
-  return { params: [...params].sort(), modelIds: [...modelIds].sort(), dynamic };
+  return { params: [...keys.params].sort(), modelIds: [...modelIds].sort(), dynamic };
 }
 
 /**
