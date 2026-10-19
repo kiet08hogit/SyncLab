@@ -156,7 +156,9 @@ export class ApiMonitorService {
       if (retryImpact) await this.impact.recomputeAll();
       await this.prisma.apiSource.update({
         where: { id: source.id },
-        data: { lastCheckedAt: now, lastError: null },
+        data: retryImpact
+          ? { lastCheckedAt: now, lastError: null }
+          : { lastCheckedAt: now },
       });
       return unchanged;
     }
@@ -174,15 +176,21 @@ export class ApiMonitorService {
         orderBy: { fetchedAt: 'desc' },
         select: { contentHash: true },
       });
+      // Another poll stored a snapshot since this one read the latest. Its
+      // changes were worked out against an older snapshot, so the next poll
+      // diffs again from the new one.
+      if ((current?.contentHash ?? null) !== (latest?.contentHash ?? null)) {
+        await tx.apiSource.update({
+          where: { id: source.id },
+          data: { lastCheckedAt: now },
+        });
+        return null;
+      }
+
       await tx.apiSource.update({
         where: { id: source.id },
         data: { lastCheckedAt: now, lastError: null },
       });
-      // Another poll stored a snapshot since this one read the latest. Its
-      // changes were worked out against an older snapshot, so the next poll
-      // diffs again from the new one.
-      if ((current?.contentHash ?? null) !== (latest?.contentHash ?? null)) return null;
-
       const snapshot = await tx.apiSourceSnapshot.create({
         data: { sourceId: source.id, contentHash, content, fetchedAt: now },
       });
