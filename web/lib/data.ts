@@ -81,7 +81,8 @@ const seeds: JobSeed[] = [
     dependencyName: "chat-large-2024-06",
     targetVersion: "chat-large-2026-04",
     status: "IN_PROGRESS",
-    createdAgo: 8 * MINUTE,
+    // Recent enough that the landing preview's two cards are one of each kind.
+    createdAgo: 4 * MINUTE,
     logs: [
       ["STARTED", "Starting migration for northwind/storefront"],
       ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 4,812 objects, done."],
