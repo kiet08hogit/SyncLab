@@ -17,8 +17,10 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   await expect(how.locator("ol > li")).toHaveCount(8);
   await how.getByRole("tab", { name: "An API breaks" }).click();
   await expect(how).toContainText('model: "chat-large-2026-04"');
-  await how.getByRole("tab", { name: "Refactor" }).click();
-  await expect(how).toContainText("lib/chat.ts names chat-large-2026-04.");
+  // The run plays on its own: the trigger first, then each stage as it reports.
+  await expect(how).toContainText("chat-large-2024-06 is retired");
+  await expect(how).toContainText("Rewrote the one call that named the retired model.", { timeout: 15_000 });
+  await expect(how.locator("li[aria-current='step']")).toHaveCount(1);
 
   await page.getByRole("link", { name: "Continue with GitHub" }).first().click();
   await page.waitForURL("/dashboard");
