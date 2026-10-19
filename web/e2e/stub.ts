@@ -11,6 +11,19 @@ export const USER_TOKEN = "e2e-user-token";
 export const LOGIN = "octo-e2e";
 const CODE = "e2e-oauth-code";
 
+// A second user with the same installations, who is not a monitor admin. A
+// browser carrying the VIEWER_COOKIE for the stub's host signs in as them.
+export const VIEWER_LOGIN = "octo-viewer";
+export const VIEWER_COOKIE = "e2e_viewer";
+const VIEWER_CODE = "e2e-oauth-code-viewer";
+const VIEWER_TOKEN = "e2e-viewer-token";
+
+const TOKENS: Record<string, string> = { [CODE]: USER_TOKEN, [VIEWER_CODE]: VIEWER_TOKEN };
+const USERS: Record<string, { login: string; id: number; name: string }> = {
+  [USER_TOKEN]: { login: LOGIN, id: 1, name: "Octo E2E" },
+  [VIEWER_TOKEN]: { login: VIEWER_LOGIN, id: 3, name: "Octo Viewer" },
+};
+
 export const INSTALLATION_ID = 501;
 export const REPOSITORIES = [
   { id: 9001, full_name: "acme/web", private: false },
@@ -43,12 +56,14 @@ export function startStub(port: number): Promise<http.Server> {
       response.writeHead(status, { "Content-Type": "application/json" });
       response.end(JSON.stringify(body));
     };
-    const authorized = request.headers.authorization === `Bearer ${USER_TOKEN}`;
+    const user = USERS[request.headers.authorization?.replace(/^Bearer /, "") ?? ""];
+    const authorized = user !== undefined;
 
     // GitHub's web sign-in: approve at once and send the user back with a code.
     if (path === "/login/oauth/authorize") {
       const back = new URL(url.searchParams.get("redirect_uri") ?? "");
-      back.searchParams.set("code", CODE);
+      const viewer = request.headers.cookie?.split("; ").includes(`${VIEWER_COOKIE}=1`);
+      back.searchParams.set("code", viewer ? VIEWER_CODE : CODE);
       back.searchParams.set("state", url.searchParams.get("state") ?? "");
       response.writeHead(302, { Location: back.toString() });
       return response.end();
@@ -57,10 +72,11 @@ export function startStub(port: number): Promise<http.Server> {
       let raw = "";
       for await (const chunk of request) raw += chunk;
       const body = JSON.parse(raw) as { client_id?: string; client_secret?: string; code?: string };
-      if (body.client_id !== CLIENT_ID || body.client_secret !== CLIENT_SECRET || body.code !== CODE) {
+      const token = TOKENS[body.code ?? ""];
+      if (body.client_id !== CLIENT_ID || body.client_secret !== CLIENT_SECRET || !token) {
         return json(200, { error: "bad_verification_code", error_description: "The code passed is incorrect." });
       }
-      return json(200, { access_token: USER_TOKEN, expires_in: 28_800, token_type: "bearer" });
+      return json(200, { access_token: token, expires_in: 28_800, token_type: "bearer" });
     }
 
     // The npm registry's abbreviated package document.
@@ -76,7 +92,7 @@ export function startStub(port: number): Promise<http.Server> {
     // GitHub's REST API. The API's own calls use GITHUB_TOKEN, any non-empty token.
     if (path === "/user") {
       if (!authorized) return json(401, { message: "Bad credentials" });
-      return json(200, { login: LOGIN, id: 1, name: "Octo E2E", avatar_url: avatar(1) });
+      return json(200, { ...user, avatar_url: avatar(user.id) });
     }
     if (path === "/user/installations") {
       if (!authorized) return json(401, { message: "Bad credentials" });

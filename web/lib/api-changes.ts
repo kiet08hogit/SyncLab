@@ -52,7 +52,8 @@ const SNAPSHOTS = {
   openai: { id: "a83d5f12-0c6b-4e9a-b2d7-41f6e8c09a52", contentHash: "4c7a09e3f18b", fetchedAt: ago(3 * DAY) },
 };
 
-interface ChangeSeed extends Omit<ApiChange, "source" | "snapshotId" | "detectedAt" | "updatedAt" | "evidence"> {
+interface ChangeSeed
+  extends Omit<ApiChange, "source" | "snapshotId" | "detectedAt" | "updatedAt" | "evidence" | "canReview"> {
   detectedAgo: number;
   reviewedAgo?: number;
   evidence: string;
@@ -160,6 +161,7 @@ function sampleChanges(): ApiChange[] {
       snapshotId: SNAPSHOTS[seed.provider].id,
       detectedAt: ago(detectedAgo),
       updatedAt: ago(reviewedAgo ?? detectedAgo),
+      canReview: false,
     }))
     .sort((a, b) => b.detectedAt.localeCompare(a.detectedAt));
 }

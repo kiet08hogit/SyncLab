@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { expect, test as base, type Page } from "@playwright/test";
 
-import { LOGIN, REPOSITORIES } from "./stub";
+import { STUB_PORT } from "./ports";
+import { LOGIN, REPOSITORIES, VIEWER_COOKIE } from "./stub";
 
 /** Runs SQL in the test database and returns psql's unaligned rows. */
 export function sql(query: string): string {
@@ -51,8 +52,31 @@ export function addLog(jobId: string, log: SeedLog) {
     VALUES (${quote(jobId)}, ${quote(log.step)}, ${log.output === undefined ? "NULL" : quote(log.output)}, now() - interval '${log.ago} minutes')`);
 }
 
-/** Signs in through the real OAuth redirect, which the stub approves at once. */
-export async function signIn(page: Page, returnTo = "/settings") {
+/** Inserts a breaking change on the provider's deprecations source, the way the monitor would have read it. */
+export function seedChange(change: {
+  id: string;
+  provider: "anthropic" | "openai";
+  field: string;
+  evidence: string;
+  status: "detected" | "confirmed" | "dismissed";
+}) {
+  const source = `(SELECT s.id FROM api_sources s JOIN api_providers p ON p.id = s.provider_id
+    WHERE p.slug = ${quote(change.provider)} AND s.kind = 'deprecations' LIMIT 1)`;
+  sql(`
+    INSERT INTO api_source_snapshots (id, source_id, content_hash, content)
+    VALUES (${quote(change.id)}, ${source}, md5(${quote(change.evidence)}), ${quote(change.evidence)});
+    INSERT INTO breaking_changes (id, provider_id, snapshot_id, kind, field, evidence, status, subject_key)
+    SELECT ${quote(change.id)}, id, ${quote(change.id)}, 'model_retired', ${quote(change.field)},
+      ${quote(change.evidence)}, ${quote(change.status)}, ${quote(`|${change.field}`)}
+    FROM api_providers WHERE slug = ${quote(change.provider)};
+  `);
+}
+
+/** Signs in through the real OAuth redirect, which the stub approves at once, as its admin user or its viewer. */
+export async function signIn(page: Page, returnTo = "/settings", as: "admin" | "viewer" = "admin") {
+  if (as === "viewer") {
+    await page.context().addCookies([{ name: VIEWER_COOKIE, value: "1", url: `http://127.0.0.1:${STUB_PORT}` }]);
+  }
   await page.goto(`/auth/github?returnTo=${encodeURIComponent(returnTo)}`);
   await page.waitForURL((url) => url.pathname === returnTo.split("?")[0]);
 }
@@ -66,7 +90,9 @@ const PIXEL = Buffer.from(
 export const test = base.extend<{ cleanSlate: void }>({
   cleanSlate: [
     async ({ page }, use) => {
-      sql("TRUNCATE execution_logs, migration_jobs, repositories CASCADE");
+      sql(
+        "TRUNCATE execution_logs, migration_jobs, api_usages, repository_scans, repositories, breaking_changes, api_source_snapshots",
+      );
       execFileSync("docker", ["exec", process.env.E2E_REDIS_CONTAINER!, "redis-cli", "FLUSHALL"], { stdio: "ignore" });
       // Avatars come from GitHub through Next's image optimizer; keep the suite offline.
       await page.route("**/_next/image**", (route) => route.fulfill({ contentType: "image/png", body: PIXEL }));

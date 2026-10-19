@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FlaskConical, Radar, SearchX } from "lucide-react";
 
 import { ChangeFilters, ChangesTable, changesHref, ProviderCards } from "@/components/api-monitor";
+import { ReviewProvider } from "@/components/review-buttons";
 import { PollButton } from "@/components/poll-button";
 import { SampleDataNotice } from "@/components/sample-data-notice";
 import { TableSkeleton } from "@/components/skeletons";
@@ -107,22 +108,24 @@ async function Monitor({ searchParams }: Pick<PageProps<"/api-changes">, "search
           </h2>
           <ChangeFilters filter={filter} />
         </div>
-        {changes.data.length > 0 ? (
-          <ChangesTable changes={changes.data} filter={filter} />
-        ) : filtered ? (
-          <EmptyState
-            icon={SearchX}
-            title="No changes match these filters"
-            body="Try another provider or status, or clear the filters."
-            action={{ label: "Clear filters", href: changesHref({}) }}
-          />
-        ) : (
-          <EmptyState
-            icon={Radar}
-            title="No breaking changes found yet"
-            body="The monitor lists a change here as soon as a provider announces one."
-          />
-        )}
+        <ReviewProvider changeIds={changes.data.map((change) => change.id)}>
+          {changes.data.length > 0 ? (
+            <ChangesTable changes={changes.data} filter={filter} />
+          ) : filtered ? (
+            <EmptyState
+              icon={SearchX}
+              title="No changes match these filters"
+              body="Try another provider or status, or clear the filters."
+              action={{ label: "Clear filters", href: changesHref({}) }}
+            />
+          ) : (
+            <EmptyState
+              icon={Radar}
+              title="No breaking changes found yet"
+              body="The monitor lists a change here as soon as a provider announces one."
+            />
+          )}
+        </ReviewProvider>
       </section>
     </>
   );

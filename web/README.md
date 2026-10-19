@@ -29,7 +29,7 @@ Tests sign in through the real OAuth redirect, seed jobs straight into the datab
 | `/dashboard` | Job counts per status, the jobs a worker is running now, and a searchable, filterable job table; refreshes every 5 seconds while any job is queued or running and no filter is set |
 | `/jobs/[id]` | One job's pipeline track, failure reason, branch name, how long the latest run took, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running. A failed job has a **Retry migration** button when you are signed in. Output longer than 24 lines folds to its last 12, except on a failed step, and each step's output has a copy button |
 | `/repositories` | Installed repositories with job totals and last activity |
-| `/api-changes` | The API change monitor: each watched Anthropic and OpenAI source with its last check, and the breaking changes found, filterable by provider, status and kind |
+| `/api-changes` | The API change monitor: each watched Anthropic and OpenAI source with its last check, and the breaking changes found, filterable by provider, status and kind; monitor admins confirm or dismiss each change |
 | `/migrations/new` | Pick a repository, a dependency from its root `package.json`, and a stable npm version, then start the job and open its page |
 | `/settings` | Sign in with GitHub, and the App installations you can access, or an Install SyncLab button when there are none |
 
@@ -64,6 +64,7 @@ When the API is down or no longer accepts the session, `app/(app)/error.tsx` off
 
 `/api-changes` reads the change monitor through `lib/api-changes.ts`: `GET /api-providers`, `GET /api-changes` and `POST /api-providers/poll`, with the shapes in the "Monitoring endpoints" section of `infra/Architecture/05 - Self-Maintaining API.md`.
 Signed in to an API that does not run the monitor yet, those routes answer 404, so the page serves its samples too and says the API has no monitor, rather than showing an error.
+Confirm and dismiss (`POST /api-changes/:id/confirm` and `/dismiss`, through `lib/api.ts`) show only on changes whose `canReview` is true, which the API sets for users listed in its `MONITOR_ADMIN_LOGINS`; a refusal says so and refreshes the page.
 
 The pipeline track in `lib/pipeline.ts` reads a job's `execution_logs` the way the worker writes them: a phase's rows are flushed when the phase finishes, and each retry starts a new attempt.
 

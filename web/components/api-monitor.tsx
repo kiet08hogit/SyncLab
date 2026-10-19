@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CircleAlert, CircleCheck, CircleDot, CircleSlash, ExternalLink, type LucideIcon, X } from "lucide-react";
 
+import { ReviewButtons } from "@/components/review-buttons";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -332,6 +333,12 @@ export function ChangesTable({ changes, filter }: { changes: ApiChange[]; filter
                         </a>
                       </figcaption>
                     </figure>
+                    <ReviewButtons
+                      changeId={change.id}
+                      subject={subject}
+                      status={change.status}
+                      canReview={change.canReview}
+                    />
                   </div>
                 </TableCell>
                 <TableCell className="py-3.5 max-lg:hidden">{PROVIDER_LABEL[change.provider]}</TableCell>

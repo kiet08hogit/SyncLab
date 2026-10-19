@@ -1,8 +1,10 @@
-import { expect, signIn, test } from "./fixtures";
+import { expect, seedChange, signIn, sql, test } from "./fixtures";
+import { VIEWER_LOGIN } from "./stub";
 
 // The API change monitor page. The API these tests run is the real one, with
 // the monitor's routes but no worker, so signed in, its sources are never
-// checked and it has found no changes.
+// checked and it has found no changes unless a test seeds one. The stub's
+// user is a monitor admin; its viewer is not.
 
 const WIDTHS = [390, 768, 1024, 1440];
 
@@ -18,6 +20,8 @@ test.describe("API changes, signed out", () => {
     await expect(page.getByText("Last check failed.")).toBeVisible();
     await expect(page.getByRole("row")).toHaveCount(7);
     await expect(page.getByRole("button", { name: "Check now" })).toBeDisabled();
+    // Samples are never reviewable.
+    await expect(page.getByRole("button", { name: /^(Confirm|Dismiss)$/ })).toHaveCount(0);
   });
 
   test("filters by provider and status through the URL, and clears back to everything", async ({ page }) => {
@@ -70,6 +74,68 @@ test.describe("API changes, signed in", () => {
     await expect(page.getByText("Sign in with GitHub to see the changes")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Check now" })).toBeEnabled();
   });
+
+  const CHANGE = {
+    id: "5b0f3c2e-8d41-4a7e-9c16-2f7d0e9a4b83",
+    provider: "anthropic" as const,
+    field: "claude-haiku-3-20240307",
+    evidence: "December 1, 2026 | claude-haiku-3-20240307 | claude-haiku-5",
+  };
+  const status = () => sql(`SELECT status FROM breaking_changes WHERE id = '${CHANGE.id}'`);
+
+  test("an admin confirms a detected change, then dismisses it", async ({ page }) => {
+    seedChange({ ...CHANGE, status: "detected" });
+    await signIn(page, "/api-changes");
+
+    const row = page.getByRole("row").filter({ hasText: CHANGE.field });
+    const review = row.getByRole("group", { name: `Review ${CHANGE.field}` });
+    await expect(row.getByText("Detected", { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(review.getByRole("button")).toHaveText(["Confirm", "Dismiss"]);
+
+    await review.getByRole("button", { name: "Confirm" }).click();
+    await expect(row.getByText("Confirmed", { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(review.getByRole("button")).toHaveText(["Dismiss"]);
+    expect(status()).toBe("confirmed");
+
+    await review.getByRole("button", { name: "Dismiss" }).click();
+    await expect(row.getByText("Dismissed", { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(review.getByRole("button")).toHaveText(["Confirm"]);
+    expect(status()).toBe("dismissed");
+    await expect(row.getByRole("alert")).toHaveCount(0);
+  });
+
+  test("confirming a change that was just deleted says it no longer exists", async ({ page }) => {
+    seedChange({ ...CHANGE, status: "detected" });
+    await signIn(page, "/api-changes");
+    sql(`DELETE FROM breaking_changes WHERE id = '${CHANGE.id}'`);
+
+    await page.getByRole("row").filter({ hasText: CHANGE.field }).getByRole("button", { name: "Confirm" }).click();
+
+    await expect(page.getByRole("alert").filter({ hasText: "This change no longer exists." })).toBeVisible();
+    await expect(page.getByText("No breaking changes found yet")).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: CHANGE.field })).toHaveCount(0);
+  });
+
+  test("a user who is not a monitor admin sees the change without review actions", async ({ page }) => {
+    seedChange({ ...CHANGE, status: "detected" });
+    await signIn(page, "/settings", "viewer");
+    await expect(page.getByText(VIEWER_LOGIN)).toBeVisible();
+    await page.goto("/api-changes");
+
+    const row = page.getByRole("row").filter({ hasText: CHANGE.field });
+    await expect(row.getByText("Detected", { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^(Confirm|Dismiss)$/ })).toHaveCount(0);
+  });
+
+  for (const width of WIDTHS) {
+    test(`review actions fit without sideways scrolling at ${width}px`, async ({ page }) => {
+      seedChange({ ...CHANGE, status: "detected" });
+      await page.setViewportSize({ width, height: 900 });
+      await signIn(page, "/api-changes");
+      await expect(page.getByRole("button", { name: "Confirm" })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    });
+  }
 });
 
 test("the sidebar links to the API changes page and marks it current there", async ({ page }) => {

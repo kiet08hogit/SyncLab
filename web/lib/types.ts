@@ -158,7 +158,11 @@ export interface ApiChange {
   snapshotId: string;
   detectedAt: string;
   updatedAt: string;
+  /** Whether the caller may confirm or dismiss it: only monitor admins may. */
+  canReview: boolean;
 }
+
+export type ApiChangeDecision = "confirm" | "dismiss";
 
 export interface ApiChangeFilter {
   provider?: ApiProvider;
