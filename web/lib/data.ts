@@ -88,7 +88,6 @@ const seeds: JobSeed[] = [
       ["STARTED", "Starting migration for northwind/storefront"],
       ["CLONE", "[exit 0]\nCloning into '/workspace/repo'...\nresolved 4,812 objects, done."],
       ["CHANGELOG", "claude-sonnet-4-5-20250929 is retired. The replacement is claude-sonnet-5-5."],
-      ["REFACTOR", "Updated the model id in lib/chat.ts."],
     ],
   },
   {

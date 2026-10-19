@@ -87,6 +87,15 @@ function viewerOf(session: { login: string; name: string | null; avatarUrl: stri
 }
 
 function HeaderLogin() {
+  if (!signInConfigured()) {
+    const action = primaryAction();
+    return (
+      <Button asChild size="lg" className="h-9 px-3 sm:hidden">
+        <Link href={action.href}>{action.label}</Link>
+      </Button>
+    );
+  }
+
   return (
     <GithubSignIn
       returnTo="/dashboard"
