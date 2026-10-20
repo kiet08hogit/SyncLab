@@ -351,6 +351,8 @@ erDiagram
     API_PROVIDERS ||--o{ API_SOURCES : "is watched through"
     API_SOURCES ||--o{ API_SOURCE_SNAPSHOTS : "changed as"
     API_SOURCE_SNAPSHOTS ||--o{ BREAKING_CHANGES : "evidences"
+    BREAKING_CHANGES ||--o{ API_IMPACTS : "affects"
+    REPOSITORIES ||--o{ API_IMPACTS : "is affected by"
 
     REPOSITORIES {
         uuid id PK
@@ -441,6 +443,14 @@ erDiagram
         varchar status "detected, confirmed, dismissed"
         varchar subject_key
     }
+
+    API_IMPACTS {
+        uuid id PK
+        uuid breaking_change_id FK
+        uuid repository_id FK
+        varchar confidence "confirmed, possible"
+        text_array files
+    }
 ```
 
 `migration_jobs` has a unique constraint on `(repository_id, dependency_name, target_version)`, which is what makes triggers idempotent.
@@ -449,6 +459,7 @@ erDiagram
 `api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
 Only the newest completed scan of a repository keeps its `api_usages`; completing a scan deletes those of older completed scans, while the `repository_scans` rows stay as history.
 `api_source_snapshots` gets a row only when a source's extracted text changes, and `breaking_changes` is unique on `(provider_id, kind, subject_key)`, so reading the same retirement again updates it instead of adding one.
+`api_impacts` is unique on `(breaking_change_id, repository_id)` and holds the files a confirmed change affects in that repository.
 
 ## Failure handling and retries
 
@@ -605,5 +616,5 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 
-After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, and Phase 6, change monitoring, are built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
+After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, Phase 6, change monitoring, and Phase 7, impact analysis, are built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
 See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).

@@ -6,6 +6,7 @@ import { GithubTokenService } from '../github/github-token.service';
 import { DockerSandboxService } from './sandbox/docker-sandbox.service';
 import { JobStatus, SCAN_QUEUE, type ScanJobData } from '../common/constants';
 import { configuration } from '../config/configuration';
+import { ImpactService } from '../impact/impact.service';
 
 // The decorator is evaluated at module load, before ConfigService exists.
 const concurrency = configuration().worker.concurrency;
@@ -23,6 +24,7 @@ export class ScanProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly sandbox: DockerSandboxService,
     private readonly githubToken: GithubTokenService,
+    private readonly impact: ImpactService,
   ) {
     super();
   }
@@ -59,8 +61,8 @@ export class ScanProcessor extends WorkerHost {
       const providers = await this.prisma.apiProvider.findMany();
       const providerIds = new Map(providers.map((provider) => [provider.slug, provider.id]));
 
-      await this.prisma.$transaction([
-        this.prisma.apiUsage.deleteMany({
+      await this.prisma.$transaction(async (tx) => {
+        await tx.apiUsage.deleteMany({
           where: {
             scan: {
               repositoryId: scan.repositoryId,
@@ -69,8 +71,8 @@ export class ScanProcessor extends WorkerHost {
               createdAt: { lt: scan.createdAt },
             },
           },
-        }),
-        this.prisma.apiUsage.createMany({
+        });
+        await tx.apiUsage.createMany({
           data: outcome.usages.flatMap((usage) => {
             const providerId = providerIds.get(usage.provider);
             return providerId
@@ -90,8 +92,8 @@ export class ScanProcessor extends WorkerHost {
                 ]
               : [];
           }),
-        }),
-        this.prisma.repositoryScan.update({
+        });
+        await tx.repositoryScan.update({
           where: { id: scanId },
           data: {
             status: JobStatus.COMPLETED,
@@ -99,8 +101,11 @@ export class ScanProcessor extends WorkerHost {
             output: outcome.output,
             errorMessage: null,
           },
-        }),
-      ]);
+        });
+        // The completed scan is visible inside this transaction, so a failure
+        // here rolls the scan back and a retry runs it again.
+        await this.impact.recomputeRepository(scan.repositoryId, tx);
+      });
     } catch (error: unknown) {
       await this.fail(scanId, error instanceof Error ? error.message : String(error));
       throw error;

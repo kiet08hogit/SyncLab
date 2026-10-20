@@ -16,8 +16,17 @@ function setup(monitorAdminLogins: string[] = ['octo-admin']) {
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
   const config = { get: jest.fn(() => monitorAdminLogins) };
-  const controller = new ApiChangesController(queries as never, queue as never, config as never);
-  return { controller, queries, queue };
+  const impact = {
+    list: jest.fn(),
+    recomputeChange: jest.fn().mockResolvedValue(undefined),
+  };
+  const controller = new ApiChangesController(
+    queries as never,
+    queue as never,
+    config as never,
+    impact as never,
+  );
+  return { controller, queries, queue, impact };
 }
 
 describe('ApiChangesController', () => {
@@ -73,7 +82,7 @@ describe('ApiChangesController', () => {
     ['confirm', 'confirmed'],
     ['dismiss', 'dismissed'],
   ] as const)('lets the service caller %s a change and returns it', async (action, status) => {
-    const { controller, queries } = setup();
+    const { controller, queries, impact } = setup();
     queries.setStatus.mockResolvedValue({ id: 'change-1', status });
 
     await expect(controller[action](SERVICE, 'change-1')).resolves.toEqual({
@@ -82,6 +91,7 @@ describe('ApiChangesController', () => {
       canReview: true,
     });
     expect(queries.setStatus).toHaveBeenCalledWith('change-1', status);
+    expect(impact.recomputeChange).toHaveBeenCalledWith('change-1');
   });
 
   it.each(['confirm', 'dismiss'] as const)(
@@ -137,10 +147,26 @@ describe('ApiChangesController', () => {
   });
 
   it('answers 404 for a change that does not exist', async () => {
-    const { controller, queries } = setup();
+    const { controller, queries, impact } = setup();
     queries.setStatus.mockResolvedValue(null);
 
     await expect(controller.confirm(SERVICE, 'missing')).rejects.toBeInstanceOf(NotFoundException);
     await expect(controller.dismiss(SERVICE, 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    expect(impact.recomputeChange).not.toHaveBeenCalled();
+  });
+
+  it('returns the impact of a change and 404 when it does not exist', async () => {
+    const { controller, impact } = setup();
+    impact.list.mockResolvedValue(null);
+    await expect(controller.getImpact(SERVICE, 'missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    impact.list.mockResolvedValue({ changeId: 'change-1', impacts: [] });
+    await expect(controller.getImpact(SERVICE, 'change-1')).resolves.toEqual({
+      changeId: 'change-1',
+      impacts: [],
+    });
+    expect(impact.list).toHaveBeenCalledWith('change-1', SERVICE);
   });
 });

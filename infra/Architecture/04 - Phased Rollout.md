@@ -67,9 +67,9 @@ The design is in [[05 - Self-Maintaining API]], and the workflow is sketched in 
 - **Goal:** For any breaking change, name the repositories and files it breaks.
 - **Steps:**
   1. Match each confirmed change to usages on provider, operation, and the changed parameter or model ID.
-  2. Write an `ApiImpact` per change and repository, `confirmed` for literal matches and `possible` for dynamic values.
+  2. Write an `ApiImpact` per change and repository, with confidence as defined in the Impact analysis section of [[05 - Self-Maintaining API]].
   3. Recompute impact on a new scan or a newly confirmed change, idempotently.
-  4. Order work by the change's effective date, so a retirement is migrated before it lands.
+  4. Effective-date ordering of migrations is part of Phase 8.
   5. Expose `GET /api-changes` and `GET /api-changes/:id/impact`; report `behavior_changed` items without migrating them.
 - **Done when:** a seeded change against fixture repositories matches every expected file and none of the files that only mention the API in text.
 

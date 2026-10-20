@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { BreakingChangeStatus } from '../common/constants';
+import { ImpactService } from '../impact/impact.service';
 import { DockerSandboxService } from '../worker/sandbox/docker-sandbox.service';
 import type { SandboxClassifyInput } from '../worker/sandbox/sandbox.types';
 import { extractTables, normalizeTables, parseDeprecations, subjectKey } from './deprecations';
@@ -43,6 +44,7 @@ export interface SourceRef {
   kind: string;
   url: string;
   provider?: { slug: string };
+  lastError?: string | null;
 }
 
 export interface PollResult {
@@ -87,6 +89,7 @@ export class ApiMonitorService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly impact: ImpactService,
     @Optional() private readonly sandbox?: DockerSandboxService,
   ) {}
 
@@ -147,11 +150,13 @@ export class ApiMonitorService {
       orderBy: { fetchedAt: 'desc' },
       select: { contentHash: true, content: true },
     });
+    const retryImpact = source.lastError != null;
 
     if (latest?.contentHash === contentHash) {
+      if (retryImpact) await this.impact.recomputeAll();
       await this.prisma.apiSource.update({
         where: { id: source.id },
-        data: { lastCheckedAt: now, lastError: null },
+        data: retryImpact ? { lastCheckedAt: now, lastError: null } : { lastCheckedAt: now },
       });
       return unchanged;
     }
@@ -169,21 +174,34 @@ export class ApiMonitorService {
         orderBy: { fetchedAt: 'desc' },
         select: { contentHash: true },
       });
+      // Another poll stored a snapshot since this one read the latest. Its
+      // changes were worked out against an older snapshot, so the next poll
+      // diffs again from the new one.
+      if ((current?.contentHash ?? null) !== (latest?.contentHash ?? null)) {
+        await tx.apiSource.update({
+          where: { id: source.id },
+          data: { lastCheckedAt: now },
+        });
+        return null;
+      }
+
       await tx.apiSource.update({
         where: { id: source.id },
         data: { lastCheckedAt: now, lastError: null },
       });
-      // Another poll stored a snapshot since this one read the latest. Its
-      // changes were worked out against an older snapshot, so the next poll
-      // diffs again from the new one.
-      if ((current?.contentHash ?? null) !== (latest?.contentHash ?? null)) return null;
-
       const snapshot = await tx.apiSourceSnapshot.create({
         data: { sourceId: source.id, contentHash, content, fetchedAt: now },
       });
       return this.applyChanges(tx, source.providerId, snapshot.id, read);
     });
-    if (!counts) return unchanged;
+    if (!counts) {
+      if (retryImpact) await this.impact.recomputeAll();
+      return unchanged;
+    }
+
+    if (retryImpact || (read.status === BreakingChangeStatus.CONFIRMED && counts.created > 0)) {
+      await this.impact.recomputeAll();
+    }
 
     this.logger.log(
       `${source.url}: new snapshot, ${counts.created} new and ${counts.updated} updated changes`,

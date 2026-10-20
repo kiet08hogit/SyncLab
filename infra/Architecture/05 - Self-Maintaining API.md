@@ -77,6 +77,7 @@ The scanner extends `server/sandbox/src/analysis/imports.ts`:
 3. Records the keys of a literal request object and any literal model ID.
    A value it cannot resolve statically, such as a model read from configuration, is recorded as dynamic.
 4. Finds raw HTTP calls whose URL is a literal or template string on a provider host.
+   Those calls record query parameter names from the URL and header names from the request on `params`, together with the body keys.
 5. Ignores mentions in strings and comments, the same way the dependency analysis does.
 
 ## Data model
@@ -198,7 +199,7 @@ Timestamps are ISO 8601 strings; `effectiveAt` is a calendar date (`YYYY-MM-DD`)
 ]
 ```
 
-`lastCheckedAt` is the last fetch, successful or not; `lastError` is the last fetch's error or `null`; `latestSnapshot` is the last fetch whose content changed, or `null` before the first one.
+`lastCheckedAt` is the last fetch, successful or not; `lastError` is the last fetch's error, or the error from recording impact after that snapshot was stored, or `null`; `latestSnapshot` is the last fetch whose content changed, or `null` before the first one.
 Sources are of kind `deprecations`, `spec` (OpenAI's OpenAPI spec), `release_notes` and `sdk_changelog`.
 
 `GET /api-changes`:
@@ -241,9 +242,42 @@ The spec diff only reads top-level request parameters; a change inside a nested 
 
 Impact is a deterministic join, not a model call.
 A breaking change matches a usage on provider, operation, and the changed parameter or model ID.
-A usage with a dynamic value that could hold the changed value is recorded as `possible` rather than `confirmed`, and only `confirmed` impacts start a migration on their own.
-Impact is recomputed when either side changes: a new scan of a repository, or a newly confirmed change.
+A usage is `possible` rather than `confirmed` when the call's operation or the changed value is only known at runtime, and only `confirmed` impacts start a migration on their own.
+A literal model id is `confirmed` for that model even when a header or query string on the call is dynamic, and a different model id does not match it.
+A removed or renamed parameter that names no operation stays `possible` when the call sends the name.
+A newly required parameter that names no operation matches nothing.
+A newly required parameter matches calls of that operation which do not already send it.
+Parameter names are compared without regard to case.
+An enum value is not stored on a usage, so removing one is `possible` when the parameter is present.
+An endpoint retirement named as a bare path, such as `/v1/edits`, matches a usage whose operation ends with that path.
+A behavior change matches every usage of its operation, matches nothing when it names no operation, and is reported here without a migration.
+Impact is recomputed when a repository is scanned, when a change is confirmed, and when the monitor stores an already-confirmed spec or deprecation change.
+If the monitor's recompute fails after the snapshot is stored, the source keeps the error and the next poll retries it, including when the page has not changed.
+Dismissing a change removes its impacts.
+A worker recomputes every confirmed change when it starts, so impacts exist before the next scan or confirmation.
 Changes with an effective date are migrated in date order, so a retirement is fixed before it lands.
+That ordering is part of running the migration, in Phase 8.
+
+`GET /api-changes/:id/impact` returns:
+
+```json
+{
+  "changeId": "0d4a...",
+  "impacts": [
+    {
+      "repositoryId": "1b2c...",
+      "githubRepoId": "42",
+      "fullName": "acme/api",
+      "confidence": "confirmed",
+      "files": ["src/chat.ts"]
+    }
+  ]
+}
+```
+
+A user receives only repositories their installations reach.
+The service caller receives every recorded repository.
+An unknown change is `404`.
 
 ## Migration and validation
 

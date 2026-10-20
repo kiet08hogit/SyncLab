@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { API_MONITOR_JOB_NAME, API_MONITOR_QUEUE, BreakingChangeStatus } from '../common/constants';
 import type { Configuration } from '../config/configuration';
+import { ImpactService } from '../impact/impact.service';
 import { ApiChangesQueries } from '../monitor/api-changes.queries';
 import { ApiAuthGuard, CurrentCaller, type Caller } from './api-auth.guard';
 
@@ -54,6 +55,7 @@ export class ApiChangesController {
     private readonly queries: ApiChangesQueries,
     @InjectQueue(API_MONITOR_QUEUE) private readonly queue: Queue,
     private readonly config: ConfigService<Configuration, true>,
+    private readonly impact: ImpactService,
   ) {}
 
   @Get('api-providers')
@@ -74,6 +76,16 @@ export class ApiChangesController {
       { jobId: 'manual-poll', removeOnComplete: true, removeOnFail: true },
     );
     return { queued: true };
+  }
+
+  /** Repositories and files a change affects. A user only sees repositories they can reach. */
+  @Get('api-changes/:id/impact')
+  async getImpact(@CurrentCaller() caller: Caller, @Param('id', ParseUUIDPipe) id: string) {
+    const impact = await this.impact.list(id, caller);
+    if (!impact) {
+      throw new NotFoundException(`Breaking change ${id} was not found`);
+    }
+    return impact;
   }
 
   @Get('api-changes')
@@ -117,6 +129,7 @@ export class ApiChangesController {
     if (!change) {
       throw new NotFoundException(`Breaking change ${id} was not found`);
     }
+    await this.impact.recomputeChange(id);
     return { ...change, canReview: true };
   }
 
