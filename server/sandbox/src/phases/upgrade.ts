@@ -10,13 +10,17 @@ import type { PhaseResult } from '../result.js';
  */
 export async function upgrade(): Promise<PhaseResult> {
   const config = loadConfig();
+  const { dependency } = config.migration;
+  if (!dependency) {
+    throw new Error('The upgrade phase needs DEPENDENCY_NAME and TARGET_VERSION');
+  }
   const pm = await detectPackageManager(config.repoDir);
 
   const outcome = await upgradeDependency(
     config.repoDir,
     pm,
-    config.dependencyName,
-    config.targetVersion,
+    dependency.name,
+    dependency.version,
     packageManagerEnv(config.workspace),
   );
 

@@ -59,8 +59,7 @@ function anthropicConfig(): SandboxConfig {
     stateDir: '/workspace/state',
     repoUrl: 'https://example.invalid/repo.git',
     repoFullName: 'synclab/example',
-    dependencyName: 'lodash',
-    targetVersion: '4.17.21',
+    migration: { kind: 'dependency', dependency: { name: 'lodash', version: '4.17.21' } },
     branchName: 'synclab/lodash',
     githubApiUrl: 'https://api.github.com',
     llm: {

@@ -288,6 +288,19 @@ Two things change.
 The prompt gets a migration brief (the change kind, before and after, the evidence quote and its source URL) instead of package release notes.
 Files come from the impact record instead of from the dependency's imports.
 
+The worker tells the sandbox phases which kind of job they are running through these environment variables:
+
+| Variable | Meaning |
+| --- | --- |
+| `MIGRATION_KIND` | `dependency` (the default) or `api_change`. |
+| `API_CHANGE` | The brief as JSON: `provider`, `kind`, `operation`, `field`, `replacement`, `effectiveAt` (`YYYY-MM-DD`), `evidence` and `sourceUrl`. The optional fields may be null. `behavior_changed` is refused, since it is reported and never migrated. |
+| `TARGET_FILES` | The impact's files as a JSON array of repository-relative paths. |
+| `DEPENDENCY_NAME`, `TARGET_VERSION` | Required for a dependency job. For an API change they are set together, only when the change needs a newer SDK, and the worker then runs `upgrade`. |
+| `BRANCH_NAME` | `synclab/api-<provider>-<change>` for an API change. |
+
+`refactor` sends only the listed files that are regular files inside the checkout, so a link planted by repository code is skipped rather than followed.
+`publish` titles the pull request after the change and puts the source and deadline in its body.
+
 Passing tests is necessary but not enough, because a test suite rarely calls the real API.
 So a migration is also validated before `publish`:
 
