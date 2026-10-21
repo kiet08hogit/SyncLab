@@ -18,8 +18,8 @@ These are common instructions for Kun's agents across all scenarios.
 - Apply that same high standard to engineering excellence: lint, test failures, and test flakiness.
   If you see one, even if it is not caused by what you are working on right now, still get it fixed.
 - Use a worktree when dealing with massive projects with slow build/compile times, running concurrent tests across different branches, or using parallel AI coding agents (like Claude Code or Cursor) that require isolated file workspaces.
-- Whenever asked to create a new worktree, first ask the user which issue to work on.
-  Name the worktree after that issue (e.g. `issue-42-short-description`), and do not create it until the issue is provided.
+- Whenever the user asks to work on a new feature or to implement something, create a new worktree before starting.
+  Name it after the work itself, for example `api-change-migrations`.
 - When the work in a worktree is done (its PR is merged), remove the worktree and delete its branch, both locally and on the remote.
   Before removing, confirm the worktree is clean and its commits are on the default branch, so no unmerged work is lost.
   Never remove a worktree or branch that belongs to another session.
