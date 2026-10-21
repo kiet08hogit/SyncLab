@@ -5,6 +5,7 @@ import { PipelineTrackCompact } from "@/components/pipeline-track";
 import { StatusBadge } from "@/components/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, timeAgo } from "@/lib/format";
+import { jobTitle } from "@/lib/jobs";
 import type { JobWithRepository } from "@/lib/types";
 
 export function JobsTable({ jobs }: { jobs: JobWithRepository[] }) {
@@ -13,7 +14,7 @@ export function JobsTable({ jobs }: { jobs: JobWithRepository[] }) {
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="h-10 pl-4 label-mono text-muted-foreground">Upgrade</TableHead>
+            <TableHead className="h-10 pl-4 label-mono text-muted-foreground">Migration</TableHead>
             <TableHead className="h-10 label-mono text-muted-foreground max-xl:hidden">Repository</TableHead>
             <TableHead className="h-10 label-mono text-muted-foreground max-lg:hidden">Pipeline</TableHead>
             <TableHead className="h-10 label-mono text-muted-foreground">Status</TableHead>
@@ -35,14 +36,14 @@ export function JobsTable({ jobs }: { jobs: JobWithRepository[] }) {
                   href={`/jobs/${job.id}`}
                   className="flex items-baseline gap-2 font-medium after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
                 >
-                  {job.dependencyName}
-                  <span className="font-mono text-xs text-muted-foreground">{job.targetVersion}</span>
+                  {jobTitle(job).name}
+                  <span className="font-mono text-xs text-muted-foreground">{jobTitle(job).detail}</span>
                 </Link>
                 <span className="mt-0.5 block text-xs text-muted-foreground xl:hidden">{job.repository.fullName}</span>
               </TableCell>
               <TableCell className="text-muted-foreground max-xl:hidden">{job.repository.fullName}</TableCell>
               <TableCell className="max-lg:hidden">
-                <PipelineTrackCompact steps={job.steps} status={job.status} />
+                <PipelineTrackCompact steps={job.steps} status={job.status} kind={job.kind} />
               </TableCell>
               <TableCell>
                 <StatusBadge status={job.status} />

@@ -19,7 +19,7 @@ function user(ids: bigint[]): Caller {
 describe('ImpactService', () => {
   it('drops impacts for a change that is no longer confirmed', async () => {
     const tx = fakeTx({ changes: [] });
-    const service = new ImpactService(prismaOf(tx) as never);
+    const service = new ImpactService(prismaOf(tx) as never, fakeMigrations() as never);
 
     await service.recomputeChange('change-1');
 
@@ -27,6 +27,38 @@ describe('ImpactService', () => {
       where: { breakingChangeId: 'change-1' },
     });
     expect(tx.apiImpact.createMany).not.toHaveBeenCalled();
+  });
+
+  it('queues migrations for the same scope once its own transaction has committed', async () => {
+    const tx = fakeTx({ changes: [] });
+    let committed = false;
+    const prisma = {
+      $transaction: async (fn: (db: unknown) => Promise<void>) => {
+        await fn(tx);
+        committed = true;
+      },
+    };
+    const migrations = fakeMigrations();
+    migrations.queueConfirmedImpacts.mockImplementation(() => {
+      expect(committed).toBe(true);
+      return Promise.resolve();
+    });
+    const service = new ImpactService(prisma as never, migrations as never);
+
+    await service.recomputeChange('change-1');
+    await service.recomputeAll();
+
+    expect(migrations.queueConfirmedImpacts.mock.calls).toEqual([[{ changeId: 'change-1' }], [{}]]);
+  });
+
+  it('leaves queueing to the caller when it passes its own transaction', async () => {
+    const tx = fakeTx({ changes: [] });
+    const migrations = fakeMigrations();
+    const service = new ImpactService({} as never, migrations as never);
+
+    await service.recomputeRepository('repo-1', tx as never);
+
+    expect(migrations.queueConfirmedImpacts).not.toHaveBeenCalled();
   });
 
   it('replaces one repository from its newest completed scan', async () => {
@@ -56,7 +88,7 @@ describe('ImpactService', () => {
         },
       ],
     });
-    const service = new ImpactService({} as never);
+    const service = new ImpactService({} as never, fakeMigrations() as never);
 
     await service.recomputeRepository('repo-1', tx as never);
 
@@ -78,7 +110,7 @@ describe('ImpactService', () => {
       breakingChange: { findUnique: jest.fn().mockResolvedValue(null) },
       apiImpact: { findMany: jest.fn() },
     };
-    const service = new ImpactService(prisma as never);
+    const service = new ImpactService(prisma as never, fakeMigrations() as never);
 
     await expect(service.list('missing', SERVICE)).resolves.toBeNull();
     expect(prisma.apiImpact.findMany).not.toHaveBeenCalled();
@@ -116,6 +148,10 @@ describe('ImpactService', () => {
     });
   });
 });
+
+function fakeMigrations() {
+  return { queueConfirmedImpacts: jest.fn().mockResolvedValue(undefined) };
+}
 
 function prismaOf(tx: ReturnType<typeof fakeTx>) {
   return { $transaction: (fn: (db: unknown) => Promise<void>) => fn(tx) };

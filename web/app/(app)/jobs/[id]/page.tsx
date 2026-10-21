@@ -13,20 +13,15 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { getJob, isLive, isSampleJob } from "@/lib/data";
 import { formatClock, formatDate, formatDuration, splitExitCode, timeAgo } from "@/lib/format";
+import { jobBranch, jobTitle } from "@/lib/jobs";
 import { latestRunDuration } from "@/lib/pipeline";
 import { cn } from "@/lib/utils";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[id]">): Promise<Metadata> {
   const job = await getJob((await params).id);
-  return { title: job ? `${job.dependencyName} ${job.targetVersion}` : "Job not found" };
-}
-
-// Matches the branch name the worker pushes (see migration.processor.ts).
-function slug(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  if (!job) return { title: "Job not found" };
+  const { name, detail } = jobTitle(job);
+  return { title: `${name} ${detail}` };
 }
 
 export default function JobPage({ params }: PageProps<"/jobs/[id]">) {
@@ -49,11 +44,14 @@ export default function JobPage({ params }: PageProps<"/jobs/[id]">) {
 async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">) {
   const job = await getJob((await params).id);
   if (!job) notFound();
-  // Sample jobs are not in the API, so only a signed-in user's real job can be retried.
-  const canRetry = job.status === "FAILED" && !isSampleJob(job.id) && (await isLive());
+  // Sample jobs are not in the API, so only a signed-in user's real job can be
+  // retried. Retrying starts the same dependency migration again, which an
+  // API change has no trigger for.
+  const canRetry =
+    job.status === "FAILED" && job.kind === "dependency" && !isSampleJob(job.id) && (await isLive());
   const duration = latestRunDuration(job);
-
-  const branch = `synclab/${slug(job.dependencyName)}-${slug(job.targetVersion)}`;
+  const title = jobTitle(job);
+  const change = job.kind === "api_change" ? job.breakingChange : null;
 
   return (
     <>
@@ -62,9 +60,9 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="flex items-baseline gap-2.5 font-serif text-3xl font-normal tracking-tight sm:text-4xl">
-              {job.dependencyName}
+              {title.name}
               <span className="font-mono text-lg font-normal text-muted-foreground sm:text-xl">
-                {job.targetVersion}
+                {title.detail}
               </span>
             </h1>
             <StatusBadge status={job.status} />
@@ -88,8 +86,20 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
                 <GitBranch aria-hidden className="size-3.5" />
                 <span className="sr-only">Branch</span>
               </dt>
-              <dd className="font-mono text-xs">{branch}</dd>
+              <dd className="font-mono text-xs">{jobBranch(job)}</dd>
             </div>
+            {change?.replacement && (
+              <div className="flex gap-1.5">
+                <dt>Replace with</dt>
+                <dd className="font-mono text-xs">{change.replacement}</dd>
+              </div>
+            )}
+            {change && (
+              <div className="flex gap-1.5">
+                <dt>Deadline</dt>
+                <dd>{change.effectiveAt ?? "None announced"}</dd>
+              </div>
+            )}
             <div className="flex gap-1.5">
               <dt>Queued</dt>
               <dd>
@@ -139,7 +149,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
         <h2 id="pipeline-heading" className="label-mono text-muted-foreground">
           Pipeline
         </h2>
-        <PipelineTrack steps={job.steps} status={job.status} />
+        <PipelineTrack steps={job.steps} status={job.status} kind={job.kind} />
       </section>
 
       <section aria-labelledby="log-heading" className="flex flex-col gap-3">

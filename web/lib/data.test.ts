@@ -40,9 +40,9 @@ describe("sample migrations", () => {
       const stages = attemptStages(job.steps, job.status);
       expect(
         stages.map((stage) => PIPELINE_STAGES.indexOf(stage)),
-        job.dependencyName,
+        job.id,
       ).toEqual(stages.map((_, index) => index));
-      if (job.status === "COMPLETED") expect(stages, job.dependencyName).toEqual([...PIPELINE_STAGES]);
+      if (job.status === "COMPLETED") expect(stages, job.id).toEqual([...PIPELINE_STAGES]);
     }
   });
 });

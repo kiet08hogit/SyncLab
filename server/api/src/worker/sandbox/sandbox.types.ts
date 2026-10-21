@@ -45,11 +45,31 @@ export interface SandboxLlmParams {
   maxFileBytes: number;
 }
 
+/** The brief the sandbox reads from API_CHANGE, as server/sandbox/src/config.ts validates it. */
+export interface SandboxApiChange {
+  provider: string;
+  kind: string;
+  operation: string | null;
+  field: string | null;
+  replacement: string | null;
+  /** YYYY-MM-DD. */
+  effectiveAt: string | null;
+  evidence: string;
+  sourceUrl: string;
+}
+
+/**
+ * An API change runs on the SDK the repository already has: nothing records
+ * which SDK version a change needs yet, so it never upgrades.
+ */
+export type SandboxMigration =
+  | { kind: 'dependency'; dependencyName: string; targetVersion: string }
+  | { kind: 'api_change'; change: SandboxApiChange; files: string[] };
+
 export interface SandboxJobParams {
   repoUrl: string;
   repoFullName: string;
-  dependencyName: string;
-  targetVersion: string;
+  migration: SandboxMigration;
   branchName: string;
   token: string;
   llm: SandboxLlmParams;

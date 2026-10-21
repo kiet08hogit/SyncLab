@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { PipelineTrack } from "@/components/pipeline-track";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { timeAgo } from "@/lib/format";
+import { jobTitle } from "@/lib/jobs";
 import { cn } from "@/lib/utils";
 import type { JobWithRepository } from "@/lib/types";
 
@@ -27,8 +28,8 @@ export function RunningJobs({ jobs, stacked = false }: { jobs: JobWithRepository
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 flex-col gap-1">
                   <p className="flex items-baseline gap-2 text-lg font-semibold">
-                    {job.dependencyName}
-                    <span className="font-mono text-sm font-normal text-status-running">{job.targetVersion}</span>
+                    {jobTitle(job).name}
+                    <span className="font-mono text-sm font-normal text-status-running">{jobTitle(job).detail}</span>
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {job.repository.fullName} · started {timeAgo(job.createdAt)}
@@ -42,7 +43,7 @@ export function RunningJobs({ jobs, stacked = false }: { jobs: JobWithRepository
                   />
                 </span>
               </div>
-              <PipelineTrack steps={job.steps} status={job.status} />
+              <PipelineTrack steps={job.steps} status={job.status} kind={job.kind} />
             </Link>
             <BorderBeam
               size={80}

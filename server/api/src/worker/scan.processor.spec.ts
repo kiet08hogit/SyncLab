@@ -51,14 +51,16 @@ function setup(claimed = 1) {
   };
   const githubToken = { getInstallationToken: jest.fn().mockResolvedValue('ghs_token') };
   const impact = { recomputeRepository: jest.fn().mockResolvedValue(undefined) };
+  const migrations = { queueConfirmedImpacts: jest.fn().mockResolvedValue(undefined) };
   const processor = new ScanProcessor(
     prisma as never,
     sandbox as never,
     githubToken as never,
     impact as never,
+    migrations as never,
   );
   const job = { data: { scanId: 'scan-1', repoUrl: 'https://github.com/acme/api.git' } };
-  return { processor, prisma, sandbox, githubToken, impact, job };
+  return { processor, prisma, sandbox, githubToken, impact, migrations, job };
 }
 
 describe('ScanProcessor', () => {
@@ -112,6 +114,35 @@ describe('ScanProcessor', () => {
       },
     });
     expect(impact.recomputeRepository).toHaveBeenCalledWith('repo-1', prisma);
+  });
+
+  it('queues API migrations for the repository only after the scan has committed', async () => {
+    const { processor, prisma, migrations, job } = setup();
+    let committed = false;
+    prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<void>) => {
+      await fn(prisma);
+      committed = true;
+    });
+    migrations.queueConfirmedImpacts.mockImplementation(() => {
+      expect(committed).toBe(true);
+      return Promise.resolve();
+    });
+
+    await processor.process(job as never);
+
+    expect(migrations.queueConfirmedImpacts).toHaveBeenCalledWith({ repositoryId: 'repo-1' });
+  });
+
+  it('keeps the scan completed when queueing its migrations fails', async () => {
+    const { processor, prisma, migrations, job } = setup();
+    migrations.queueConfirmedImpacts.mockRejectedValue(new Error('redis down'));
+
+    await expect(processor.process(job as never)).resolves.toBeUndefined();
+
+    const statuses = prisma.repositoryScan.update.mock.calls.map(
+      ([args]) => (args as { data: { status: string } }).data.status,
+    );
+    expect(statuses).toEqual([JobStatus.COMPLETED]);
   });
 
   it('leaves a scan that already finished alone, so a redelivered job does nothing', async () => {

@@ -4,6 +4,7 @@ import type {
   SandboxClassifyInput,
   SandboxJobParams,
   SandboxLlmParams,
+  SandboxMigration,
   SandboxPhase,
   SandboxScanParams,
 } from './sandbox.types';
@@ -55,6 +56,21 @@ function modelEnv(llm: SandboxLlmParams): Record<string, string> {
   return { [LLM_API_KEY_ENV[llm.provider]]: llm.apiKey };
 }
 
+function migrationEnv(migration: SandboxMigration): Record<string, string> {
+  if (migration.kind === 'dependency') {
+    return {
+      DEPENDENCY_NAME: migration.dependencyName,
+      TARGET_VERSION: migration.targetVersion,
+    };
+  }
+
+  return {
+    MIGRATION_KIND: 'api_change',
+    API_CHANGE: JSON.stringify(migration.change),
+    TARGET_FILES: JSON.stringify(migration.files),
+  };
+}
+
 export function buildPhaseEnv(
   phase: SandboxPhase,
   params: SandboxJobParams,
@@ -63,8 +79,7 @@ export function buildPhaseEnv(
   const env: Record<string, string> = {
     REPO_URL: params.repoUrl,
     REPO_FULL_NAME: params.repoFullName,
-    DEPENDENCY_NAME: params.dependencyName,
-    TARGET_VERSION: params.targetVersion,
+    ...migrationEnv(params.migration),
     BRANCH_NAME: params.branchName,
     SANDBOX_WORKSPACE: WORKSPACE_MOUNT,
     LLM_PROVIDER: params.llm.provider,

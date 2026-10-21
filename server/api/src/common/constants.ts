@@ -13,6 +13,28 @@ export const BreakingChangeStatus = {
 
 export type BreakingChangeStatus = (typeof BreakingChangeStatus)[keyof typeof BreakingChangeStatus];
 
+export const MigrationKind = {
+  DEPENDENCY: 'dependency',
+  API_CHANGE: 'api_change',
+} as const;
+
+export type MigrationKind = (typeof MigrationKind)[keyof typeof MigrationKind];
+
+/** A behavior_changed change has no code fix to make, so it is reported and never migrated. */
+export const REPORTED_ONLY_KIND = 'behavior_changed';
+
+export function isMigratableKind(kind: string): boolean {
+  return kind !== REPORTED_ONLY_KIND;
+}
+
+/** Shared by every path that queues a migration, so all of them retry it the same way. */
+export const MIGRATION_JOB_OPTIONS = {
+  attempts: 3,
+  backoff: { type: 'exponential' as const, delay: 120_000 },
+  removeOnComplete: 100,
+  removeOnFail: 500,
+};
+
 export const JobStatus = {
   QUEUED: 'QUEUED',
   IN_PROGRESS: 'IN_PROGRESS',
