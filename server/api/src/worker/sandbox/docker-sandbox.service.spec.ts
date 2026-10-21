@@ -133,8 +133,7 @@ function params(maxAttempts = 1): SandboxJobParams {
   return {
     repoUrl: 'https://github.com/acme/widgets.git',
     repoFullName: 'acme/widgets',
-    dependencyName: 'react',
-    targetVersion: '19.0.0',
+    migration: { kind: 'dependency', dependencyName: 'react', targetVersion: '19.0.0' },
     branchName: 'synclab/react-19.0.0',
     token: 'gh-token',
     llm: { maxAttempts },
@@ -229,6 +228,42 @@ describe('DockerSandboxService', () => {
       }
       expect(docker.getVolume).toHaveBeenCalledWith('synclab-job-job-1');
       expect(volume.remove).toHaveBeenCalledWith({ force: true });
+    });
+
+    it('skips the upgrade for an API change, which keeps the SDK the repository has', async () => {
+      const { service, created, onSteps } = setup({});
+      const apiChange: SandboxJobParams = {
+        ...params(),
+        migration: {
+          kind: 'api_change',
+          change: {
+            provider: 'anthropic',
+            kind: 'model_retired',
+            operation: null,
+            field: 'claude-3-opus-20240229',
+            replacement: null,
+            effectiveAt: null,
+            evidence: 'Claude 3 Opus is retired.',
+            sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
+          },
+          files: ['src/chat.ts'],
+        },
+      };
+
+      await expect(service.run('job-1', apiChange, onSteps)).resolves.toMatchObject({ ok: true });
+
+      expect(created.map((c) => c.phase)).toEqual([
+        'prepare',
+        'install',
+        'test',
+        'refactor',
+        'test',
+        'publish',
+      ]);
+      for (const container of created) {
+        expect(container.env).toContain('MIGRATION_KIND=api_change');
+        expect(container.env.some((entry) => entry.startsWith('DEPENDENCY_NAME='))).toBe(false);
+      }
     });
 
     it('omits the pull request url when publish does not report one', async () => {

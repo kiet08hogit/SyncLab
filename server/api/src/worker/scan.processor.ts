@@ -6,6 +6,7 @@ import { GithubTokenService } from '../github/github-token.service';
 import { DockerSandboxService } from './sandbox/docker-sandbox.service';
 import { JobStatus, SCAN_QUEUE, type ScanJobData } from '../common/constants';
 import { configuration } from '../config/configuration';
+import { ApiMigrationsService } from '../impact/api-migrations.service';
 import { ImpactService } from '../impact/impact.service';
 
 // The decorator is evaluated at module load, before ConfigService exists.
@@ -25,6 +26,7 @@ export class ScanProcessor extends WorkerHost {
     private readonly sandbox: DockerSandboxService,
     private readonly githubToken: GithubTokenService,
     private readonly impact: ImpactService,
+    private readonly migrations: ApiMigrationsService,
   ) {
     super();
   }
@@ -106,6 +108,16 @@ export class ScanProcessor extends WorkerHost {
         // here rolls the scan back and a retry runs it again.
         await this.impact.recomputeRepository(scan.repositoryId, tx);
       });
+
+      // The scan has committed, so failing to queue must not mark it failed.
+      // Any later recompute queues whatever is still missing.
+      await this.migrations
+        .queueConfirmedImpacts({ repositoryId: scan.repositoryId })
+        .catch((error: unknown) =>
+          this.logger.error(
+            `Could not queue API migrations after scan ${scanId}: ${String(error)}`,
+          ),
+        );
     } catch (error: unknown) {
       await this.fail(scanId, error instanceof Error ? error.message : String(error));
       throw error;

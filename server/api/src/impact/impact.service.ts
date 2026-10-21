@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { BreakingChangeStatus, JobStatus } from '../common/constants';
 import type { Caller } from '../gateway/api-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { ApiMigrationsService } from './api-migrations.service';
 import { collectImpacts } from './match';
 
 // Held for the whole write, so a scan and a confirmation cannot rebuild the
@@ -40,11 +41,15 @@ const SCAN_SELECT = {
  */
 @Injectable()
 export class ImpactService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly migrations: ApiMigrationsService,
+  ) {}
 
   /**
    * Pass the scan transaction so the new usages and their impacts commit
-   * together. The caller has already marked that scan completed.
+   * together. The caller has already marked that scan completed, and queues
+   * the migrations with ApiMigrationsService once the transaction commits.
    */
   recomputeRepository(repositoryId: string, tx?: Db): Promise<void> {
     return this.recompute({ repositoryId }, tx);
@@ -102,6 +107,7 @@ export class ImpactService {
       return;
     }
     await this.prisma.$transaction((db) => this.replace(db, scope));
+    await this.migrations.queueConfirmedImpacts(scope);
   }
 
   private async replace(

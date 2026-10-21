@@ -142,14 +142,16 @@ export class DockerSandboxService {
         };
       }
 
-      const upgraded = await this.runPhase(
-        'upgrade',
-        volumeName,
-        buildPhaseEnv('upgrade', params, 1),
-      );
-      await onSteps(upgraded.steps);
-      if (!upgraded.ok) {
-        return { ok: false, error: upgraded.error ?? 'sandbox phase "upgrade" failed' };
+      if (params.migration.kind === 'dependency') {
+        const upgraded = await this.runPhase(
+          'upgrade',
+          volumeName,
+          buildPhaseEnv('upgrade', params, 1),
+        );
+        await onSteps(upgraded.steps);
+        if (!upgraded.ok) {
+          return { ok: false, error: upgraded.error ?? 'sandbox phase "upgrade" failed' };
+        }
       }
 
       const maxAttempts = params.llm.maxAttempts;
