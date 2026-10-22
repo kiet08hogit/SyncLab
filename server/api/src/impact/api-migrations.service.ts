@@ -15,9 +15,11 @@ import {
 import { ImpactConfidence } from './match';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-// BullMQ's lowest priority. A job with no priority at all, such as a
-// dependency migration, is taken before any prioritized one.
-const MAX_PRIORITY = 2 ** 21;
+// BullMQ rejects a priority above 2**21-1. A job with no priority at all, such
+// as a dependency migration, is taken before any prioritized one. An undated
+// change uses the ceiling so it still queues and runs last; a dated change
+// stops one below that, so it stays ahead of every undated one.
+const MAX_PRIORITY = 2 ** 21 - 1;
 
 /** The sooner a change takes effect, the sooner its migrations run. Undated changes go last. */
 export function priorityFor(effectiveAt: Date | null): number {

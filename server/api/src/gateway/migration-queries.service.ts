@@ -144,6 +144,12 @@ export class MigrationQueriesService {
                 { targetVersion: { contains: query, mode: 'insensitive' } },
                 { breakingChange: { field: { contains: query, mode: 'insensitive' } } },
                 { breakingChange: { operation: { contains: query, mode: 'insensitive' } } },
+                { breakingChange: { kind: { contains: query, mode: 'insensitive' } } },
+                {
+                  breakingChange: {
+                    kind: { contains: query.replaceAll(' ', '_'), mode: 'insensitive' },
+                  },
+                },
                 { repository: { fullName: { contains: query, mode: 'insensitive' } } },
               ],
             }

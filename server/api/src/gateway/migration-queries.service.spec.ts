@@ -50,11 +50,37 @@ describe('MigrationQueriesService', () => {
             { targetVersion: { contains: 'zod', mode: 'insensitive' } },
             { breakingChange: { field: { contains: 'zod', mode: 'insensitive' } } },
             { breakingChange: { operation: { contains: 'zod', mode: 'insensitive' } } },
+            { breakingChange: { kind: { contains: 'zod', mode: 'insensitive' } } },
+            { breakingChange: { kind: { contains: 'zod', mode: 'insensitive' } } },
             { repository: { fullName: { contains: 'zod', mode: 'insensitive' } } },
           ],
         },
         orderBy: { createdAt: 'desc' },
         take: 100,
+      }),
+    );
+  });
+
+  it('matches an API change by the kind shown in the list', async () => {
+    const { prisma, queries } = setup();
+
+    await queries.listJobs(USER, { query: 'model retired' });
+
+    expect(prisma.migrationJob.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: undefined,
+          repository: { githubRepoId: { in: [42n, 43n] } },
+          OR: [
+            { dependencyName: { contains: 'model retired', mode: 'insensitive' } },
+            { targetVersion: { contains: 'model retired', mode: 'insensitive' } },
+            { breakingChange: { field: { contains: 'model retired', mode: 'insensitive' } } },
+            { breakingChange: { operation: { contains: 'model retired', mode: 'insensitive' } } },
+            { breakingChange: { kind: { contains: 'model retired', mode: 'insensitive' } } },
+            { breakingChange: { kind: { contains: 'model_retired', mode: 'insensitive' } } },
+            { repository: { fullName: { contains: 'model retired', mode: 'insensitive' } } },
+          ],
+        },
       }),
     );
   });

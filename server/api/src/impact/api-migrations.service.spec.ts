@@ -137,6 +137,18 @@ describe('ApiMigrationsService', () => {
     );
   });
 
+  it('queues an undated change at the lowest priority BullMQ accepts', async () => {
+    const { service, queue } = setup([impact('repo-1', 'change-1', null)]);
+
+    await service.queueConfirmedImpacts();
+
+    expect(queue.add).toHaveBeenCalledWith(
+      MIGRATION_JOB_NAME,
+      { jobId: 'job-1', repoUrl: 'https://github.com/acme/repo-1.git' },
+      { ...MIGRATION_JOB_OPTIONS, priority: 2 ** 21 - 1 },
+    );
+  });
+
   it('marks a job it could not queue FAILED and still queues the rest', async () => {
     const { service, prisma, queue } = setup([
       impact('repo-1', 'change-1'),
@@ -158,11 +170,11 @@ describe('priorityFor', () => {
   it('runs a sooner deadline first and an undated change last', () => {
     expect(priorityFor(SOON)).toBeLessThan(priorityFor(LATER));
     expect(priorityFor(LATER)).toBeLessThan(priorityFor(null));
-    expect(priorityFor(null)).toBe(2 ** 21);
+    expect(priorityFor(null)).toBe(2 ** 21 - 1);
   });
 
   it('stays inside the range BullMQ accepts', () => {
     expect(priorityFor(new Date(0))).toBe(1);
-    expect(priorityFor(new Date('9999-12-31T00:00:00Z'))).toBe(2 ** 21 - 1);
+    expect(priorityFor(new Date('9999-12-31T00:00:00Z'))).toBe(2 ** 21 - 2);
   });
 });

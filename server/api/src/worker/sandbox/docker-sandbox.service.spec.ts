@@ -376,6 +376,36 @@ describe('DockerSandboxService', () => {
       expect(created.map((c) => c.phase)).toEqual(['prepare', 'install', 'test']);
     });
 
+    it('says a failing baseline stopped an API change before the migration', async () => {
+      const { service, created, onSteps } = setup({
+        test: [{ result: { ok: false, error: 'test suite failed with exit code 1' } }],
+      });
+      const apiChange: SandboxJobParams = {
+        ...params(),
+        migration: {
+          kind: 'api_change',
+          change: {
+            provider: 'anthropic',
+            kind: 'model_retired',
+            operation: null,
+            field: 'claude-3-opus-20240229',
+            replacement: null,
+            effectiveAt: null,
+            evidence: 'Claude 3 Opus is retired.',
+            sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
+          },
+          files: ['src/chat.ts'],
+        },
+      };
+
+      await expect(service.run('job-1', apiChange, onSteps)).resolves.toEqual({
+        ok: false,
+        error:
+          'the test suite already fails before the migration, so a migration cannot be verified: test suite failed with exit code 1',
+      });
+      expect(created.map((c) => c.phase)).toEqual(['prepare', 'install', 'test']);
+    });
+
     it.each([
       ['install', ['prepare', 'install']],
       ['upgrade', ['prepare', 'install', 'test', 'upgrade']],

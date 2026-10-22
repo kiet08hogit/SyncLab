@@ -138,7 +138,7 @@ export class DockerSandboxService {
       if (!baseline.ok) {
         return {
           ok: false,
-          error: `the test suite already fails before the upgrade, so a migration cannot be verified: ${baseline.error ?? 'test suite failed'}`,
+          error: `the test suite already fails before the ${params.migration.kind === 'api_change' ? 'migration' : 'upgrade'}, so a migration cannot be verified: ${baseline.error ?? 'test suite failed'}`,
         };
       }
 
