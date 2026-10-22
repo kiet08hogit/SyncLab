@@ -91,8 +91,8 @@ erDiagram
     API_PROVIDERS ||--o{ BREAKING_CHANGES : "ships"
     API_SOURCE_SNAPSHOTS ||--o{ BREAKING_CHANGES : "evidences"
     BREAKING_CHANGES ||--o{ API_IMPACTS : "affects"
+    BREAKING_CHANGES ||--o{ MIGRATION_JOBS : "is fixed by"
     REPOSITORIES ||--o{ API_IMPACTS : "is affected by"
-    API_IMPACTS ||--o| MIGRATION_JOBS : "is migrated by"
 
     API_PROVIDERS {
         uuid id PK
@@ -154,8 +154,10 @@ erDiagram
     }
 ```
 
-`MIGRATION_JOBS` gains a `kind` (`dependency` or `api_change`) and a nullable `api_impact_id`.
-`dependency_name` and `target_version` become nullable, and an API-change job is unique per repository and breaking change.
+An API-change migration is a `migration_jobs` row that points at `breaking_change_id`, not at an impact.
+Impact rows are deleted and recreated on every recompute, so an impact id is not a stable target.
+The columns and the unique key per repository and change are in `server/api/prisma/schema.prisma`.
+The check that separates a dependency job from an API-change job is in `server/api/prisma/migrations/20261021000000_api_change_jobs/migration.sql`.
 
 ## Monitoring endpoints
 
