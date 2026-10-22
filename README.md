@@ -2,6 +2,7 @@
 
 SyncLab is an autonomous API migration agent.
 When a dependency ships a breaking release, SyncLab clones the affected repository, upgrades the dependency, rewrites the code that uses it with an LLM, proves the change with the repository's own test suite, and opens a pull request.
+A confirmed breaking change in a watched provider API also queues a migration job for each repository it is confirmed to affect.
 
 The untrusted repository code never runs on the orchestrating server.
 Every step that touches it runs in a short-lived, locked-down Docker container, and the only container that executes repository code has no network and no credentials.
@@ -23,9 +24,18 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 
 1. A trigger arrives: a signed `pull_request` webhook for a Dependabot or Renovate npm update, or an authenticated `POST /migrations` request.
 2. The **gateway** records a `MigrationJob` in PostgreSQL and enqueues it on a BullMQ queue in Redis.
-3. A **worker** claims the job and runs the **sandbox** image as a sequence of containers over one shared Docker volume:
+3. A **worker** claims the job and, for a dependency migration, runs the **sandbox** image as a sequence of containers over one shared Docker volume:
    `prepare` (clone, fetch release notes), `install`, a baseline `test` on the current version, `upgrade`, then `refactor` and `test` in a loop, then `publish`.
 4. If the tests pass, `publish` pushes a branch and opens a pull request, and the job is marked `COMPLETED` with the PR URL.
+
+A confirmed breaking change queues a job on its own, whenever impacts are recomputed.
+Each affected repository gets one `api_change` job, and only when the impact's confidence is `confirmed` and the change itself is `confirmed`.
+`behavior_changed` is recorded and never queued.
+The job points at the breaking change, stores no dependency name or version, and is left untouched if one already exists for that repository and change, including a job that `FAILED`.
+Sooner effective dates run first.
+A change with no effective date runs last among API-change jobs, and dependency jobs have no queue priority, so they run before any of them.
+The worker always skips `upgrade` for an API-change job.
+If the queue rejects the job, that job is marked `FAILED` with the queue error.
 
 ## High-level workflow
 
@@ -231,6 +241,9 @@ flowchart TD
     PUB -- ok --> DONE(["COMPLETED + PR URL"])
 ```
 
+The phases above are a dependency job.
+An `api_change` job skips `upgrade`, and a failing baseline says the suite already fails before the migration.
+
 Each phase is a fresh container from the same `synclab-sandbox` image, started with the phase name as its command.
 State passes between phases only through the shared `/workspace` volume: the repository checkout in `/workspace/repo` and small state files in `/workspace/state` (release notes and the last test output).
 
@@ -306,7 +319,9 @@ Runs the package manager's `test` script in the checkout with no network and no 
 #### `publish`
 
 1. Checks `REPO_FULL_NAME` is exactly `owner/repo` before doing anything else, and refuses to publish unless the checkout is a real directory directly inside the workspace, not a symlink, before any credentials are written.
-2. Clones the repository afresh into the container's own temporary directory and checks out `synclab/<dependency>-<version>` at the commit `prepare` cloned, so the branch is based on what was tested even if the default branch has moved.
+2. Clones the repository afresh into the container's own temporary directory and checks out the worker's branch at the commit `prepare` cloned, so the branch is based on what was tested even if the default branch has moved.
+   A dependency job uses `synclab/<dependency>-<version>`.
+   An API-change job uses `synclab/api-<provider>-<subject>-<eight characters of the change id>`, where the subject is a slug of the changed field, operation, or kind.
 3. Copies the working tree from the volume onto that clone, skipping `.git` and `node_modules`, and removes tracked files the earlier phases deleted.
    Symlinks are recreated, never followed, and a write that would resolve outside the clone is refused.
 4. If nothing changed, reports `skipped` and the worker fails the job with `refactor produced no changes`.
@@ -327,7 +342,7 @@ If no result line appears (for example, the container was killed), the raw log b
 | --- | --- |
 | `/` | The landing page, including for a signed-in visitor. Old dashboard filter links (`/?status`, `/?repo`, `/?q`) redirect to `/dashboard` |
 | `/dashboard` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
-| `/jobs/[id]` | One job's pipeline track (clone, changelog, install, baseline, upgrade, refactor, test, pull request), failure reason, a retry button for failed jobs, and execution log |
+| `/jobs/[id]` | One job's pipeline track, failure reason, and execution log. The stages, how an API-change job is titled, and which jobs can be retried are in [`web/README.md`](web/README.md#pages) |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
 | `/api-changes` | The API change monitor's watched Anthropic and OpenAI sources and the breaking changes it found, with a button to check every source now |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
@@ -352,6 +367,7 @@ erDiagram
     API_SOURCES ||--o{ API_SOURCE_SNAPSHOTS : "changed as"
     API_SOURCE_SNAPSHOTS ||--o{ BREAKING_CHANGES : "evidences"
     BREAKING_CHANGES ||--o{ API_IMPACTS : "affects"
+    BREAKING_CHANGES ||--o{ MIGRATION_JOBS : "is fixed by"
     REPOSITORIES ||--o{ API_IMPACTS : "is affected by"
 
     REPOSITORIES {
@@ -365,8 +381,10 @@ erDiagram
     MIGRATION_JOBS {
         uuid id PK
         uuid repository_id FK
-        varchar dependency_name
-        varchar target_version
+        varchar kind "dependency or api_change"
+        varchar dependency_name "dependency jobs only, nullable"
+        varchar target_version "dependency jobs only, nullable"
+        uuid breaking_change_id FK "api_change jobs only, nullable"
         varchar status "QUEUED, IN_PROGRESS, COMPLETED, FAILED"
         varchar pull_request_url
         text error_message
@@ -453,7 +471,10 @@ erDiagram
     }
 ```
 
-`migration_jobs` has a unique constraint on `(repository_id, dependency_name, target_version)`, which is what makes triggers idempotent.
+A dependency job is unique on `(repository_id, dependency_name, target_version)`, which is what makes those triggers idempotent.
+An `api_change` job is unique on `(repository_id, breaking_change_id)` and points at the change, because impact rows are replaced on every recompute.
+Deleting a breaking change deletes its jobs.
+A check in `server/api/prisma/migrations/20261021000000_api_change_jobs/migration.sql` requires a dependency job to have both dependency fields and no breaking change, and an API-change job to have a breaking change and neither dependency field.
 `execution_logs` is append-only and cascades on job deletion.
 `repository_scans.queued_for` holds the repository id only while a scan waits to start, so its unique index allows one waiting scan per repository.
 `api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
@@ -474,14 +495,15 @@ Only failures that could succeed on a later try are retried; everything else is 
 | Other model errors (bad key, unknown model, malformed output) | `FAILED` | no |
 | `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` missing for the selected provider | `FAILED` | no |
 | Clone, install or dependency upgrade failed | `FAILED` | no |
-| Test suite already fails before the upgrade | `FAILED` | no |
+| Test suite already fails before the upgrade (a dependency job) or before the migration (an API-change job) | `FAILED` | no |
 | Tests still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
 | Refactor produced no changes | `FAILED` | no |
 | Infrastructure errors (Docker, GitHub token, database) | `QUEUED` while retrying, then `FAILED` | yes |
 | Already `COMPLETED` when claimed | unchanged | no (logged as `SKIPPED`) |
 
-A failed job can also be retried by triggering the same repository, dependency and version again.
-The **Retry migration** button on a failed job's dashboard page does exactly that, through `POST /migrations`.
+A failed dependency job can also be retried by triggering the same repository, dependency and version again.
+The **Retry migration** button on that job's page does exactly that, through `POST /migrations`.
+An API-change job stays as it is once it exists, including when it has `FAILED`.
 
 ## Repository layout
 
@@ -616,5 +638,7 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 
-After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs (Phase 5, the API usage registry, Phase 6, change monitoring, and Phase 7, impact analysis, are built): it watches Anthropic and OpenAI for breaking changes, finds the connected repositories that call the affected API, and migrates them with the same refactor, test and pull request pipeline.
+After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs.
+Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact analysis), and the Phase 8 queue and dashboard are built.
+The sandbox phases that edit a repository for an API change, detecting when a change needs a newer SDK, and Phases 9 and 10 are not built yet.
 See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).

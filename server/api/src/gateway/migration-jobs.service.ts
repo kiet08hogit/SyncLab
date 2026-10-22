@@ -6,16 +6,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   JobStatus,
   MIGRATION_JOB_NAME,
+  MIGRATION_JOB_OPTIONS,
   MIGRATION_QUEUE,
   type MigrationJobData,
 } from '../common/constants';
-
-const RETRY_JOB_OPTIONS = {
-  attempts: 3,
-  backoff: { type: 'exponential' as const, delay: 120_000 },
-  removeOnComplete: 100,
-  removeOnFail: 500,
-};
 
 const UNIQUE_CONSTRAINT_VIOLATION = 'P2002';
 
@@ -100,7 +94,7 @@ export class MigrationJobsService {
     // No explicit BullMQ jobId: the database unique constraint already
     // deduplicates, and a retained id would block re-queueing a failed job.
     try {
-      await this.migrationQueue.add(MIGRATION_JOB_NAME, jobData, RETRY_JOB_OPTIONS);
+      await this.migrationQueue.add(MIGRATION_JOB_NAME, jobData, MIGRATION_JOB_OPTIONS);
     } catch (error: unknown) {
       // A row left QUEUED with nothing in the queue would make every later
       // trigger skip it, so mark it FAILED to keep it retryable.

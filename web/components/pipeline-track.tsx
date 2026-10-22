@@ -2,7 +2,13 @@ import { Check, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { describePipeline, pipelineStages, type StageState } from "@/lib/pipeline";
-import type { JobStatus, LogStep } from "@/lib/types";
+import type { JobStatus, LogStep, MigrationKind } from "@/lib/types";
+
+interface TrackProps {
+  steps: LogStep[];
+  status: JobStatus;
+  kind?: MigrationKind;
+}
 
 const SEGMENT: Record<StageState, string> = {
   done: "bg-status-completed",
@@ -12,8 +18,8 @@ const SEGMENT: Record<StageState, string> = {
 };
 
 /** One segment per sandbox stage. Sized for a table cell. */
-export function PipelineTrackCompact({ steps, status }: { steps: LogStep[]; status: JobStatus }) {
-  const stages = pipelineStages(steps, status);
+export function PipelineTrackCompact({ steps, status, kind }: TrackProps) {
+  const stages = pipelineStages(steps, status, kind);
   const description = describePipeline(stages, status);
 
   return (
@@ -55,12 +61,16 @@ const STATE_TEXT: Record<StageState, string> = {
  * half-width dashboard card is as narrow as a phone. Below 28rem eight labels
  * collide, so they give way to a single caption naming the current stage.
  */
-export function PipelineTrack({ steps, status }: { steps: LogStep[]; status: JobStatus }) {
-  const stages = pipelineStages(steps, status);
+export function PipelineTrack({ steps, status, kind }: TrackProps) {
+  const stages = pipelineStages(steps, status, kind);
 
   return (
     <div className="@container">
-      <ol aria-label={describePipeline(stages, status)} className="grid grid-cols-8">
+      <ol
+        aria-label={describePipeline(stages, status)}
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
+      >
         {stages.map((stage, index) => (
           <li key={stage.stage} className="relative flex flex-col items-center gap-2 text-center">
             {index > 0 && (

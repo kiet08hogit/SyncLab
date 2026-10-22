@@ -16,11 +16,28 @@ export interface RepositoryOut {
   createdAt: Date;
 }
 
+/** What an api_change job migrates off, for the dashboard to name it. */
+export interface MigrationChangeOut {
+  id: string;
+  provider: string;
+  kind: string;
+  operation: string | null;
+  field: string | null;
+  replacement: string | null;
+  effectiveAt: Date | null;
+}
+
 export interface MigrationJobOut {
   id: string;
   repositoryId: string;
-  dependencyName: string;
-  targetVersion: string;
+  /** dependency or api_change. */
+  kind: string;
+  /** Set for a dependency job only. */
+  dependencyName: string | null;
+  targetVersion: string | null;
+  breakingChangeId: string | null;
+  /** Set for an api_change job only. */
+  breakingChange: MigrationChangeOut | null;
   status: string;
   pullRequestUrl: string | null;
   errorMessage: string | null;
@@ -64,6 +81,26 @@ export interface JobFilter {
   limit?: number;
 }
 
+const CHANGE_INCLUDE = {
+  select: {
+    id: true,
+    kind: true,
+    operation: true,
+    field: true,
+    replacement: true,
+    effectiveAt: true,
+    provider: { select: { slug: true } },
+  },
+} as const;
+
+function changeOut(
+  change: Prisma.BreakingChangeGetPayload<typeof CHANGE_INCLUDE> | null,
+): MigrationChangeOut | null {
+  if (!change) return null;
+  const { provider, ...rest } = change;
+  return { ...rest, provider: provider.slug };
+}
+
 function repositoryOut(repository: {
   id: string;
   githubRepoId: bigint;
@@ -105,6 +142,14 @@ export class MigrationQueriesService {
               OR: [
                 { dependencyName: { contains: query, mode: 'insensitive' } },
                 { targetVersion: { contains: query, mode: 'insensitive' } },
+                { breakingChange: { field: { contains: query, mode: 'insensitive' } } },
+                { breakingChange: { operation: { contains: query, mode: 'insensitive' } } },
+                { breakingChange: { kind: { contains: query, mode: 'insensitive' } } },
+                {
+                  breakingChange: {
+                    kind: { contains: query.replaceAll(' ', '_'), mode: 'insensitive' },
+                  },
+                },
                 { repository: { fullName: { contains: query, mode: 'insensitive' } } },
               ],
             }
@@ -112,14 +157,16 @@ export class MigrationQueriesService {
       },
       include: {
         repository: true,
+        breakingChange: CHANGE_INCLUDE,
         executionLogs: { select: { step: true }, orderBy: { createdAt: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
       take: Math.min(filter.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT),
     });
 
-    return jobs.map(({ executionLogs, repository, ...job }) => ({
+    return jobs.map(({ executionLogs, repository, breakingChange, ...job }) => ({
       ...job,
+      breakingChange: changeOut(breakingChange),
       repository: repositoryOut(repository),
       steps: executionLogs.map((log) => log.step),
     }));
@@ -149,13 +196,21 @@ export class MigrationQueriesService {
   async findDetail(caller: Caller, id: string): Promise<MigrationJobDetail | null> {
     const job = await this.prisma.migrationJob.findFirst({
       where: { id, repository: scope(caller) },
-      include: { repository: true, executionLogs: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        repository: true,
+        breakingChange: CHANGE_INCLUDE,
+        executionLogs: { orderBy: { createdAt: 'asc' } },
+      },
     });
     if (!job) {
       return null;
     }
 
-    return { ...job, repository: repositoryOut(job.repository) };
+    return {
+      ...job,
+      breakingChange: changeOut(job.breakingChange),
+      repository: repositoryOut(job.repository),
+    };
   }
 
   /**

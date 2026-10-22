@@ -25,8 +25,7 @@ const LIMITS: SandboxLimits = {
 const PARAMS: SandboxJobParams = {
   repoUrl: 'https://github.com/acme/widgets.git',
   repoFullName: 'acme/widgets',
-  dependencyName: 'react',
-  targetVersion: 'v18.0.0',
+  migration: { kind: 'dependency', dependencyName: 'react', targetVersion: 'v18.0.0' },
   branchName: 'synclab/react-v18-0-0',
   token: TOKEN,
   llm: {
@@ -108,6 +107,39 @@ describe('buildPhaseEnv', () => {
 
     expect(env.REFACTOR_ATTEMPT).toBe('2');
     expect(env.REFACTOR_MAX_ATTEMPTS).toBe('3');
+  });
+
+  it('describes a dependency job the way the sandbox has always read it', () => {
+    const env = buildPhaseEnv('refactor', PARAMS, 1);
+
+    expect(env.DEPENDENCY_NAME).toBe('react');
+    expect(env.TARGET_VERSION).toBe('v18.0.0');
+    expect(env.MIGRATION_KIND).toBeUndefined();
+    expect(env.API_CHANGE).toBeUndefined();
+  });
+
+  it('hands an API change its brief and files, and no dependency to upgrade', () => {
+    const change = {
+      provider: 'anthropic',
+      kind: 'model_retired',
+      operation: 'POST /v1/messages',
+      field: 'claude-3-opus-20240229',
+      replacement: null,
+      effectiveAt: '2026-01-05',
+      evidence: 'Claude 3 Opus is retired on January 5, 2026.',
+      sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
+    };
+    const env = buildPhaseEnv(
+      'refactor',
+      { ...PARAMS, migration: { kind: 'api_change', change, files: ['src/chat.ts'] } },
+      1,
+    );
+
+    expect(env.MIGRATION_KIND).toBe('api_change');
+    expect(JSON.parse(env.API_CHANGE)).toEqual(change);
+    expect(JSON.parse(env.TARGET_FILES)).toEqual(['src/chat.ts']);
+    expect(env.DEPENDENCY_NAME).toBeUndefined();
+    expect(env.TARGET_VERSION).toBeUndefined();
   });
 });
 

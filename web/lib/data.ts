@@ -301,8 +301,11 @@ function build(seed: JobSeed): JobDetail {
   const job: MigrationJob = {
     id: seed.id,
     repositoryId: repository.id,
+    kind: "dependency",
     dependencyName: seed.dependencyName,
     targetVersion: seed.targetVersion,
+    breakingChangeId: null,
+    breakingChange: null,
     status: seed.status,
     pullRequestUrl: seed.pr ? `https://github.com/${repository.fullName}/pull/${seed.pr}` : null,
     errorMessage: seed.error ?? null,
@@ -332,9 +335,9 @@ export async function getJobs(
     .filter(
       (job) =>
         !query ||
-        job.dependencyName.toLowerCase().includes(query) ||
+        (job.dependencyName ?? "").toLowerCase().includes(query) ||
         job.repository.fullName.toLowerCase().includes(query) ||
-        job.targetVersion.toLowerCase().includes(query),
+        (job.targetVersion ?? "").toLowerCase().includes(query),
     );
 }
 

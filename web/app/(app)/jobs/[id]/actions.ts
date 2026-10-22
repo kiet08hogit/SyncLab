@@ -29,6 +29,9 @@ export async function retryJob(jobId: string): Promise<RetryJobState> {
       refresh();
       return { error: null };
     }
+    if (job.kind !== "dependency" || !job.dependencyName || !job.targetVersion) {
+      return { error: "Only a dependency migration can be retried from here." };
+    }
 
     const result = await createMigration(session.accessToken, {
       repoFullName: job.repository.fullName,

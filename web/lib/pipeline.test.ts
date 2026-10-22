@@ -128,6 +128,32 @@ describe("pipelineStages, against the order the sandbox logs", () => {
   });
 });
 
+describe("pipelineStages for an API change", () => {
+  // An API change has no release notes to fetch and no package to upgrade.
+  const order: LogStep[] = ["STARTED", "CLONE", "INSTALL", "BASELINE", "REFACTOR", "TEST", "PR"];
+  const view = (steps: LogStep[], status: JobStatus) => pipelineStages(steps, status, "api_change");
+
+  it("drops the changelog and upgrade stages", () => {
+    expect(view([], "QUEUED").map((stage) => stage.label)).toEqual([
+      "Clone",
+      "Install",
+      "Baseline",
+      "Refactor",
+      "Test",
+      "Pull request",
+    ]);
+  });
+
+  it("runs refactor right after the baseline", () => {
+    expect(describePipeline(view(order.slice(0, 4), "IN_PROGRESS"), "IN_PROGRESS")).toBe(
+      "Running refactor (stage 4 of 6)",
+    );
+    expect(describePipeline(view([...order.slice(0, 5), "FAILED"], "FAILED"), "FAILED")).toBe(
+      "Failed at refactor (stage 4 of 6)",
+    );
+  });
+});
+
 describe("latestRunDuration", () => {
   const at = (minute: number, second = 0) => `2026-10-16T10:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}Z`;
   const log = (step: LogStep, minute: number, second = 0) => ({ step, createdAt: at(minute, second) });

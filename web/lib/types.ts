@@ -34,6 +34,16 @@ export const PIPELINE_STAGES = [
 ] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
+/**
+ * An API change keeps the SDK the repository has and carries its own brief,
+ * so it reads no release notes and runs no upgrade.
+ */
+export const API_CHANGE_PIPELINE_STAGES: readonly PipelineStage[] = PIPELINE_STAGES.filter(
+  (stage) => stage !== "CHANGELOG" && stage !== "UPGRADE",
+);
+
+export type MigrationKind = "dependency" | "api_change";
+
 export interface Repository {
   id: string;
   githubRepoId: string;
@@ -50,11 +60,27 @@ export interface ExecutionLog {
   createdAt: string;
 }
 
+/** What an api_change job migrates off. */
+export interface MigrationChange {
+  id: string;
+  provider: ApiProvider;
+  kind: ApiChangeKind;
+  operation: string | null;
+  field: string | null;
+  replacement: string | null;
+  effectiveAt: string | null;
+}
+
 export interface MigrationJob {
   id: string;
   repositoryId: string;
-  dependencyName: string;
-  targetVersion: string;
+  kind: MigrationKind;
+  /** Set for a dependency job only. */
+  dependencyName: string | null;
+  targetVersion: string | null;
+  breakingChangeId: string | null;
+  /** Set for an api_change job only. */
+  breakingChange: MigrationChange | null;
   status: JobStatus;
   pullRequestUrl: string | null;
   errorMessage: string | null;

@@ -48,6 +48,10 @@ describe('MigrationQueriesService', () => {
           OR: [
             { dependencyName: { contains: 'zod', mode: 'insensitive' } },
             { targetVersion: { contains: 'zod', mode: 'insensitive' } },
+            { breakingChange: { field: { contains: 'zod', mode: 'insensitive' } } },
+            { breakingChange: { operation: { contains: 'zod', mode: 'insensitive' } } },
+            { breakingChange: { kind: { contains: 'zod', mode: 'insensitive' } } },
+            { breakingChange: { kind: { contains: 'zod', mode: 'insensitive' } } },
             { repository: { fullName: { contains: 'zod', mode: 'insensitive' } } },
           ],
         },
@@ -55,6 +59,73 @@ describe('MigrationQueriesService', () => {
         take: 100,
       }),
     );
+  });
+
+  it('matches an API change by the kind shown in the list', async () => {
+    const { prisma, queries } = setup();
+
+    await queries.listJobs(USER, { query: 'model retired' });
+
+    expect(prisma.migrationJob.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: undefined,
+          repository: { githubRepoId: { in: [42n, 43n] } },
+          OR: [
+            { dependencyName: { contains: 'model retired', mode: 'insensitive' } },
+            { targetVersion: { contains: 'model retired', mode: 'insensitive' } },
+            { breakingChange: { field: { contains: 'model retired', mode: 'insensitive' } } },
+            { breakingChange: { operation: { contains: 'model retired', mode: 'insensitive' } } },
+            { breakingChange: { kind: { contains: 'model retired', mode: 'insensitive' } } },
+            { breakingChange: { kind: { contains: 'model_retired', mode: 'insensitive' } } },
+            { repository: { fullName: { contains: 'model retired', mode: 'insensitive' } } },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('names the change an api_change job migrates off, by provider slug', async () => {
+    const { prisma, queries } = setup();
+    const effectiveAt = new Date('2026-01-05T00:00:00Z');
+    prisma.migrationJob.findMany.mockResolvedValue([
+      {
+        id: 'job-2',
+        repositoryId: 'repo-1',
+        kind: 'api_change',
+        dependencyName: null,
+        targetVersion: null,
+        breakingChangeId: 'change-1',
+        status: 'QUEUED',
+        pullRequestUrl: null,
+        errorMessage: null,
+        createdAt: AT,
+        updatedAt: AT,
+        repository: REPO_ROW,
+        breakingChange: {
+          id: 'change-1',
+          kind: 'model_retired',
+          operation: 'POST /v1/messages',
+          field: 'claude-3-opus-20240229',
+          replacement: 'claude-opus-4-1',
+          effectiveAt,
+          provider: { slug: 'anthropic' },
+        },
+        executionLogs: [],
+      },
+    ]);
+
+    const [job] = await queries.listJobs(USER);
+
+    expect(job.breakingChange).toEqual({
+      id: 'change-1',
+      provider: 'anthropic',
+      kind: 'model_retired',
+      operation: 'POST /v1/messages',
+      field: 'claude-3-opus-20240229',
+      replacement: 'claude-opus-4-1',
+      effectiveAt,
+    });
   });
 
   it('does not limit a service caller', async () => {
@@ -87,6 +158,7 @@ describe('MigrationQueriesService', () => {
 
     const [job] = await queries.listJobs(USER);
 
+    expect(job.breakingChange).toBeNull();
     expect(job.steps).toEqual(['STARTED', 'CLONE']);
     expect(job.repository.githubRepoId).toBe('42');
     expect(job).not.toHaveProperty('executionLogs');

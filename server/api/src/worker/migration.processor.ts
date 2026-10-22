@@ -5,10 +5,19 @@ import { Job, UnrecoverableError } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { GithubTokenService } from '../github/github-token.service';
 import { DockerSandboxService } from './sandbox/docker-sandbox.service';
-import { JobStatus, LogStep, MIGRATION_QUEUE, type MigrationJobData } from '../common/constants';
+import {
+  BreakingChangeStatus,
+  isMigratableKind,
+  JobStatus,
+  LogStep,
+  MIGRATION_QUEUE,
+  MigrationKind,
+  type MigrationJobData,
+} from '../common/constants';
 import { configuration, LLM_API_KEY_ENV, type Configuration } from '../config/configuration';
+import { ImpactConfidence } from '../impact/match';
 import type { SandboxJobParams, StepLog } from './sandbox/sandbox.types';
-import { claimMigrationJob } from './claim-job';
+import { claimMigrationJob, type JobWithRepository } from './claim-job';
 
 function slug(value: string): string {
   return value
@@ -71,9 +80,7 @@ export class MigrationProcessor extends WorkerHost {
       const params: SandboxJobParams = {
         repoUrl: job.data.repoUrl || `https://github.com/${record.repository.fullName}.git`,
         repoFullName: record.repository.fullName,
-        dependencyName: record.dependencyName,
-        targetVersion: record.targetVersion,
-        branchName: `synclab/${slug(record.dependencyName)}-${slug(record.targetVersion)}`,
+        ...(await this.migrationFor(record)),
         token,
         llm,
       };
@@ -108,6 +115,78 @@ export class MigrationProcessor extends WorkerHost {
       await this.fail(jobId, message, willRetry(job, error));
       throw error;
     }
+  }
+
+  /**
+   * An API change is read again here rather than when it was queued: it may
+   * have been dismissed since, and its impact's files follow the latest scan.
+   */
+  private async migrationFor(
+    record: JobWithRepository,
+  ): Promise<Pick<SandboxJobParams, 'migration' | 'branchName'>> {
+    if (record.kind === MigrationKind.DEPENDENCY) {
+      if (!record.dependencyName || !record.targetVersion) {
+        throw new UnrecoverableError(`Dependency job ${record.id} has no dependency or version`);
+      }
+      return {
+        migration: {
+          kind: 'dependency',
+          dependencyName: record.dependencyName,
+          targetVersion: record.targetVersion,
+        },
+        branchName: `synclab/${slug(record.dependencyName)}-${slug(record.targetVersion)}`,
+      };
+    }
+
+    const change = record.breakingChangeId
+      ? await this.prisma.breakingChange.findUnique({
+          where: { id: record.breakingChangeId },
+          include: { provider: true, snapshot: { include: { source: true } } },
+        })
+      : null;
+    if (!change || change.status !== BreakingChangeStatus.CONFIRMED) {
+      throw new UnrecoverableError(
+        'The breaking change is no longer confirmed, so there is nothing to migrate.',
+      );
+    }
+    if (!isMigratableKind(change.kind)) {
+      throw new UnrecoverableError(`A ${change.kind} change is reported, never migrated.`);
+    }
+
+    const impact = await this.prisma.apiImpact.findUnique({
+      where: {
+        breakingChangeId_repositoryId: {
+          breakingChangeId: change.id,
+          repositoryId: record.repositoryId,
+        },
+      },
+    });
+    if (impact?.confidence !== ImpactConfidence.CONFIRMED || impact.files.length === 0) {
+      throw new UnrecoverableError(
+        `The latest scan of ${record.repository.fullName} no longer confirms this change affects it.`,
+      );
+    }
+
+    const subject = slug(change.field ?? change.operation ?? change.kind)
+      .slice(0, 60)
+      .replace(/-+$/, '');
+    return {
+      migration: {
+        kind: 'api_change',
+        change: {
+          provider: change.provider.slug,
+          kind: change.kind,
+          operation: change.operation,
+          field: change.field,
+          replacement: change.replacement,
+          effectiveAt: change.effectiveAt?.toISOString().slice(0, 10) ?? null,
+          evidence: change.evidence,
+          sourceUrl: change.snapshot.source.url,
+        },
+        files: impact.files,
+      },
+      branchName: `synclab/api-${change.provider.slug}-${subject}-${change.id.slice(0, 8)}`,
+    };
   }
 
   private async log(jobId: string, steps: StepLog[]): Promise<void> {

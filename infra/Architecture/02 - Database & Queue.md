@@ -1,6 +1,7 @@
 # 02 - Database & Queue Management
 
-This document defines the data models and queue strategies used by the agent to ensure transactional integrity and idempotency.
+The current tables, including API-change jobs, are in `server/api/prisma/schema.prisma` and summarized in the root README's data model.
+The diagram and SQL below are the original dependency-job design.
 
 ## Entity-Relationship Diagram
 

@@ -18,7 +18,11 @@ The worker never executes untrusted code itself. It runs a sequence of container
 
 Repository code runs in `install`, `upgrade` and `test`, and none of them ever receives a credential. `test` also has no network. Only `prepare` and `publish` hold the token, and they run nothing but SyncLab's own code; `publish` never runs git in the checkout on the volume, because repository code could have planted a hook or config there.
 
-After `upgrade`, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times. Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself. Only when the tests pass does `publish` run. If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
+An `api_change` job skips `upgrade`.
+After `upgrade` on a dependency job, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times.
+Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself.
+Only when the tests pass does `publish` run.
+If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
 
 A rate-limited model call, an overloaded Anthropic API (529), or a dropped or refused connection to the model provider, fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
 
@@ -160,14 +164,14 @@ Every read is limited to the caller's repositories (see [Credentials](#credentia
 
 | Route | Returns |
 | --- | --- |
-| `GET /migrations` | Jobs, newest first, each with its repository and `steps` (the log steps reached so far). Filters: `status`, `repo` (`owner/name`), `q` (case-insensitive match on dependency, version or repository), and `limit` (default 100, at most 500). |
+| `GET /migrations` | Jobs, newest first, each with its repository and `steps` (the log steps reached so far). Filters: `status`, `repo` (`owner/name`), `q` (case-insensitive match on dependency, version, repository, or the breaking change's field, operation, or kind, including a kind typed with spaces instead of underscores), and `limit` (default 100, at most 500). |
 | `GET /migrations/counts` | The number of jobs per status, including statuses with none. |
 | `GET /migrations/:id` | One job with its repository and execution log, oldest entry first. `404` for an unknown or inaccessible job, `400` when the id is not a UUID. |
 | `GET /repositories` | For a user, every repository their installations reach, including ones with no jobs yet; for the service token, every repository SyncLab has recorded. Each has `jobCount`, `completed`, `failed`, `active` and `lastActivityAt`. |
 | `GET /repositories/:githubRepoId/api-usage` | The repository's Anthropic and OpenAI API calls from its newest completed scan (`usageScan`), with the newest scan of any status next to it (`latestScan`). Each usage has its `provider`, `file`, `line`, `style` (`sdk` or `http`), SDK `method`, `operation` (such as `POST /v1/messages`, or `null` when unknown), request `params`, literal `modelIds`, and `dynamic` when part of the request is only known at runtime. `404` for an inaccessible or never-scanned repository. |
 | `GET /api-providers` | Every watched provider with its sources (`kind`, `url`, `lastCheckedAt`, `lastError`, `latestSnapshot`) and its change counts per status. Not limited by repository. |
 | `GET /api-changes` | Breaking changes the monitor read from the providers, newest first. Filters: `provider` (`anthropic`, `openai`), `status` (`detected`, `confirmed`, `dismissed`) and `kind`. Each change has its `field` or `operation`, `replacement`, `effectiveAt` date, the `section` and verbatim `evidence` it was read from, and its `source`. |
-| `POST /api-changes/:id/confirm`, `POST /api-changes/:id/dismiss` | Set a change's status to `confirmed` or `dismissed` and return it in the `GET /api-changes` shape. Confirming recomputes which repositories the change affects; dismissing clears that. |
+| `POST /api-changes/:id/confirm`, `POST /api-changes/:id/dismiss` | Set a change's status to `confirmed` or `dismissed` and return it in the `GET /api-changes` shape. Confirming recomputes which repositories the change affects and queues their migrations, as described in the root README under [How it works in one minute](../../README.md#how-it-works-in-one-minute). Dismissing clears the impacts. |
 | `GET /api-changes/:id/impact` | Repositories and files a change affects, from each repository's newest completed scan. Each impact has `confidence` (`confirmed` or `possible`) and `files`. The match rules are in the Impact analysis section of `infra/Architecture/05 - Self-Maintaining API.md`. A user receives only repositories their installations reach; the service token receives every recorded repository. `404` for an unknown change. |
 
 ## Scanning repositories for API usage
@@ -180,6 +184,9 @@ Apps registered before the push event was added need it switched on under the Ap
 A repository has at most one scan waiting to start, so a burst of pushes is scanned once.
 A failed scan is not retried; the next push, or a manual trigger, scans again.
 Only the newest completed scan of a repository keeps its usages; older scans stay listed as history without them.
+Once the scan has committed, SyncLab queues that repository's API-change migrations.
+Which impacts become jobs, and what a rejected queue does to the job, is described in the root README under [How it works in one minute](../../README.md#how-it-works-in-one-minute).
+If queueing fails, the scan stays `COMPLETED`.
 
 ```bash
 curl -X POST http://localhost:3000/repositories/<githubRepoId>/scan \
@@ -222,7 +229,7 @@ Confirming and dismissing are idempotent, and a dismissed change can be confirme
 A change is global, not tied to a repository, so only an admin may confirm or dismiss it: the `MIGRATIONS_API_TOKEN` service caller, or a user whose GitHub login is listed in `MONITOR_ADMIN_LOGINS` (comma-separated, matched case-insensitively).
 Any other user gets `403`, and with `MONITOR_ADMIN_LOGINS` empty or unset no user is an admin.
 Every change in `GET /api-changes` carries `canReview`, true when the caller may confirm or dismiss it, so the dashboard can hide the buttons.
-Confirming a change records its impact, and dismissing one removes it.
+Confirming a change records its impact and queues its migrations, and dismissing one removes the impacts.
 The monitor does the same when it stores an already-confirmed spec or deprecation change.
 If that recompute fails after the snapshot is stored, the next poll of that source retries it.
 A worker also recomputes every confirmed change when it starts, and again when a repository scan completes.

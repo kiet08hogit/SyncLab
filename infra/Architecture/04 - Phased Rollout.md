@@ -76,11 +76,11 @@ The design is in [[05 - Self-Maintaining API]], and the workflow is sketched in 
 ### Phase 8: API Change Migrations
 - **Goal:** Reuse SyncLab's refactor, sandbox test, retry, and pull request automation to fix impacted code.
 - **Steps:**
-  1. Generalize `MigrationJob` with a `kind` (`dependency` or `api_change`), a nullable `apiImpactId`, and nullable dependency fields, unique per repository and breaking change.
+  1. Generalize `MigrationJob` with a `kind` (`dependency` or `api_change`) and nullable dependency fields, unique per repository and breaking change. The job points at `breakingChangeId`. An impact id is rebuilt on every recompute, so the job must not point at one.
   2. Build a migration brief from the change (kind, before and after, evidence quote, source URL) to replace package release notes in the prompt.
   3. Target the files from the impact record instead of the dependency's imports.
   4. Skip `upgrade` unless the change needs a newer SDK, and then reuse the existing upgrade step.
-  5. Run the existing `refactor` and `test` loop with the configured `LLM_PROVIDER`, then `publish` on branch `synclab/api-<provider>-<change>` with the source and deadline in the pull request body.
+  5. Run the existing `refactor` and `test` loop with the configured `LLM_PROVIDER`, then `publish` on the API-change branch named in the root README, with the source and deadline in the pull request body.
   6. Add benchmark cases for both SDKs: a retired model, a removed parameter, and a replaced endpoint.
 - **Done when:** the benchmark runner passes the new API-change cases end to end.
 
