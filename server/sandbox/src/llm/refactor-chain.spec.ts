@@ -146,6 +146,8 @@ describe('the Anthropic refactor chain', () => {
     assert.equal(requests[0].model, 'claude-opus-5-5');
     assert.equal(requests[0].stream, true);
     assert.equal(requests[0].fallbacks, 'default');
+    const prompt = (requests[0].messages as Array<{ content: string }>)[0].content;
+    assert.match(prompt, /^Dependency: lodash\n\nTarget version: 4\.17\.21$/m);
   });
 
   it('refuses a reply that reached max_tokens', async (t) => {

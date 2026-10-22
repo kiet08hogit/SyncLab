@@ -130,14 +130,25 @@ describe('refactor phase for an API change', () => {
     assert.equal(await fs.readFile(path.join(repoDir, 'src', 'chat.ts'), 'utf8'), MIGRATED);
   });
 
-  it('names the SDK upgrade when the change came with one', async (t) => {
+  it('keeps the release notes after the brief and leaves the dependency lines out', async (t) => {
     process.env.DEPENDENCY_NAME = '@anthropic-ai/sdk';
     process.env.TARGET_VERSION = '0.60.0';
+    const stateDir = path.join(workspace, 'state');
+    await fs.mkdir(stateDir, { recursive: true });
+    await fs.writeFile(
+      path.join(stateDir, 'breaking-changes.md'),
+      'Dropped claude-3-opus-20240229 from the messages API.\n',
+    );
     const prompts = stubAnthropic(t, () => 'Nothing to change.');
 
-    await refactor();
+    const result = await refactor();
 
-    assert.match(prompts[0], /^Dependency: @anthropic-ai\/sdk\n\nTarget version: 0\.60\.0$/m);
+    assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+    assert.match(
+      prompts[0],
+      /Quoted from https:\/\/docs\.anthropic\.com\/en\/docs\/about-claude\/model-deprecations:\nClaude 3 Opus is retired on January 5, 2026\.\n\nRelease notes for the target version:\nDropped claude-3-opus-20240229 from the messages API\./,
+    );
+    assert.doesNotMatch(prompts[0], /Dependency:|Target version:/);
   });
 
   it('never follows a link or leaves the checkout, and sends nothing when no file is left', async (t) => {

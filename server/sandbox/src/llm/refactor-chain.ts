@@ -80,7 +80,7 @@ function buildUserPrompt(config: SandboxConfig, request: RefactorRequest): strin
   const sections =
     migration.kind === 'api_change' ? [describeApiChange(migration.change)] : [];
 
-  if (migration.dependency) {
+  if (migration.kind === 'dependency') {
     sections.push(
       `Dependency: ${migration.dependency.name}`,
       `Target version: ${migration.dependency.version}`,
