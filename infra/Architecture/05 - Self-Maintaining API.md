@@ -283,9 +283,10 @@ An unknown change is `404`.
 
 ## Migration and validation
 
-The migration reuses the existing pipeline: AST targeting, `refactor` with the configured `LLM_PROVIDER`, the repository's own test suite, the retry loop that feeds failures back, and `publish`.
+The migration reuses the existing pipeline: `refactor` with the configured `LLM_PROVIDER`, the repository's own test suite, the retry loop that feeds failures back, and `publish`.
 Two things change.
-The prompt gets a migration brief (the change kind, before and after, the evidence quote and its source URL) instead of package release notes.
+The prompt gets a migration brief (the change kind, before and after, the evidence quote and its source URL), and it does not name the dependency or target version.
+When the change also needs a newer SDK, the release notes for that version follow the brief.
 Files come from the impact record instead of from the dependency's imports.
 
 The worker tells the sandbox phases which kind of job they are running through these environment variables:
@@ -299,7 +300,7 @@ The worker tells the sandbox phases which kind of job they are running through t
 | `BRANCH_NAME` | `synclab/api-<provider>-<change>` for an API change. |
 
 `refactor` sends only the listed files that are regular files inside the checkout, so a link planted by repository code is skipped rather than followed.
-`publish` titles the pull request after the change and puts the source and deadline in its body.
+`publish` titles the commit and the pull request after the change, each as one line of at most 120 characters, and puts the source and deadline in the body.
 
 Passing tests is necessary but not enough, because a test suite rarely calls the real API.
 So a migration is also validated before `publish`:
