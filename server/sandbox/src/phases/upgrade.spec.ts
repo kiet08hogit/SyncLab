@@ -168,4 +168,36 @@ describe('upgrade phase', () => {
     ]);
     assert.equal(await fs.readFile(path.join(repoDir, 'package.json'), 'utf8'), before);
   });
+
+  describe('for an API change', () => {
+    beforeEach(() => {
+      Object.assign(process.env, {
+        MIGRATION_KIND: 'api_change',
+        API_CHANGE: JSON.stringify({
+          provider: 'anthropic',
+          kind: 'param_removed',
+          field: 'top_k',
+          evidence: 'top_k is no longer accepted.',
+          sourceUrl: 'https://docs.anthropic.com/en/release-notes/api',
+        }),
+        TARGET_FILES: JSON.stringify(['index.js']),
+      });
+    });
+
+    it('upgrades the SDK the change needs', async () => {
+      await installed(pinned.url);
+
+      const result = await upgrade();
+
+      assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+      assert.deepEqual((await readJson(path.join(repoDir, 'package.json'))).dependencies, { [DEPENDENCY]: '2.0.0' });
+    });
+
+    it('refuses to run without an SDK to upgrade', async () => {
+      delete process.env.DEPENDENCY_NAME;
+      delete process.env.TARGET_VERSION;
+
+      await assert.rejects(upgrade(), { message: 'The upgrade phase needs DEPENDENCY_NAME and TARGET_VERSION' });
+    });
+  });
 });

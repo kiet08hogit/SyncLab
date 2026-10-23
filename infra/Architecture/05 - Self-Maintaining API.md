@@ -283,10 +283,26 @@ An unknown change is `404`.
 
 ## Migration and validation
 
-The migration reuses the existing pipeline: AST targeting, `refactor` with the configured `LLM_PROVIDER`, the repository's own test suite, the retry loop that feeds failures back, and `publish`.
-Two things change.
-The prompt gets a migration brief (the change kind, before and after, the evidence quote and its source URL) instead of package release notes.
+The migration reuses the existing pipeline: `refactor` with the configured `LLM_PROVIDER`, the repository's own test suite, the retry loop that feeds failures back, and `publish`.
+The prompt gets the migration brief in `API_CHANGE`, and it does not name the dependency or target version.
+When the change also needs a newer SDK, the release notes for that version follow the brief.
 Files come from the impact record instead of from the dependency's imports.
+
+The worker tells the sandbox phases which kind of job they are running through these environment variables:
+
+| Variable | Meaning |
+| --- | --- |
+| `MIGRATION_KIND` | `dependency` (the default) or `api_change`. |
+| `API_CHANGE` | The brief as JSON: `provider`, `kind`, `operation`, `field`, `replacement`, `effectiveAt` (`YYYY-MM-DD`), `evidence` and `sourceUrl`. The optional fields may be null. `behavior_changed` is refused, since it is reported and never migrated. |
+| `TARGET_FILES` | The impact's files as a JSON array of repository-relative paths, each normalized and inside the repository. |
+| `DEPENDENCY_NAME`, `TARGET_VERSION` | Required for a dependency job. For an API change, set both only when a newer SDK is required. `upgrade` throws unless both are set. |
+| `BRANCH_NAME` | The branch `publish` pushes. An API-change job uses the name in the root README. |
+
+`refactor` sends only the listed files that are regular files inside the checkout, so a link planted by repository code is skipped rather than followed.
+`publish` titles the commit `chore: adapt to <provider> <kind>` and the pull request `Adapt to <provider> <kind>`.
+The kind is written with spaces, and the field or the operation follows it when the change has one.
+Each title is a single line capped as in the root README, with newlines flattened, and the body keeps the full values.
+The body includes the source, the deadline (or `none announced`), an SDK upgrade when the change needs one, and the quoted evidence.
 
 Passing tests is necessary but not enough, because a test suite rarely calls the real API.
 So a migration is also validated before `publish`:

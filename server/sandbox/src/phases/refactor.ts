@@ -20,31 +20,61 @@ interface Selection {
   skipped: string[];
 }
 
+const NO_USAGE: DependencyUsage = { importedNames: [], usageLines: [] };
+
 /**
- * The AST scan is what keeps whole repositories out of the prompt: only files
- * that actually import the dependency are sent, and each one arrives with its
- * call sites already identified.
+ * Only a regular file reached without leaving the checkout: repository code
+ * has had the tree since install and could have planted a link to anywhere.
+ */
+async function resolveImpactedFile(repoDir: string, relativePath: string): Promise<string | undefined> {
+  const absolutePath = path.join(repoDir, relativePath);
+  const stat = await fs.lstat(absolutePath).catch(() => undefined);
+  if (!stat?.isFile()) {
+    return undefined;
+  }
+
+  const real = await fs.realpath(absolutePath);
+  return real === path.join(await fs.realpath(repoDir), relativePath) ? absolutePath : undefined;
+}
+
+/**
+ * Keeps whole repositories out of the prompt. A dependency migration sends
+ * only files the AST scan finds importing it, each with its call sites
+ * already identified; an API change sends the files its impact recorded.
  */
 async function selectCandidates(config: SandboxConfig): Promise<Selection> {
-  const files = await collectSourceFiles(config.repoDir);
   const candidates: Candidate[] = [];
   const skipped: string[] = [];
 
-  for (const absolutePath of files) {
-    const contents = await fs.readFile(absolutePath, 'utf8');
-    const usage = analyzeDependencyUsage(contents, config.dependencyName);
-    if (!usage) {
-      continue;
-    }
-
+  function consider(absolutePath: string, contents: string, usage: DependencyUsage): void {
     const relativePath = path.relative(config.repoDir, absolutePath);
 
     if (Buffer.byteLength(contents, 'utf8') > config.llm.maxFileBytes) {
       skipped.push(`${relativePath} (over the ${config.llm.maxFileBytes} byte limit)`);
-      continue;
+      return;
     }
 
     candidates.push({ absolutePath, relativePath, contents, usage });
+  }
+
+  const { migration } = config;
+  if (migration.kind === 'dependency') {
+    for (const absolutePath of await collectSourceFiles(config.repoDir)) {
+      const contents = await fs.readFile(absolutePath, 'utf8');
+      const usage = analyzeDependencyUsage(contents, migration.dependency.name);
+      if (usage) {
+        consider(absolutePath, contents, usage);
+      }
+    }
+  } else {
+    for (const file of migration.files) {
+      const absolutePath = await resolveImpactedFile(config.repoDir, file);
+      if (!absolutePath) {
+        skipped.push(`${file} (not a regular file inside the repository)`);
+        continue;
+      }
+      consider(absolutePath, await fs.readFile(absolutePath, 'utf8'), NO_USAGE);
+    }
   }
 
   if (candidates.length <= config.llm.maxFiles) {
@@ -70,9 +100,16 @@ export async function refactor(): Promise<PhaseResult> {
   const { candidates, skipped } = await selectCandidates(config);
 
   if (candidates.length === 0) {
+    const reason =
+      config.migration.kind === 'dependency'
+        ? `No source file imports "${config.migration.dependency.name}"`
+        : 'None of the impacted files could be sent';
     steps.push({
       step: 'REFACTOR',
-      output: `No source file imports "${config.dependencyName}", so nothing was sent to the model.`,
+      output: [
+        `${reason}, so nothing was sent to the model.`,
+        ...skipped.map((entry) => `Skipped ${entry}`),
+      ].join('\n'),
     });
     return { phase: 'refactor', ok: true, steps, data: { changedFiles: [] } };
   }

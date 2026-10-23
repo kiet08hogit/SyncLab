@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { SandboxConfig } from '../config.js';
+import type { ApiChange, SandboxConfig } from '../config.js';
 import type { DependencyUsage } from '../analysis/imports.js';
 import { PermanentModelError } from './errors.js';
 import { createAnthropicClient, createGeminiModel } from './model.js';
@@ -22,7 +22,7 @@ const RefactorSchema = z.object({
 });
 
 const RULES = [
-  'You migrate JavaScript and TypeScript source files to a new version of a dependency.',
+  'You migrate JavaScript and TypeScript source files to a new version of a dependency, or off a breaking change in an API they call.',
   '',
   'Rules:',
   '- Return the complete file, not a diff and not an excerpt.',
@@ -62,11 +62,30 @@ export interface RefactorOutcome {
   reason: string;
 }
 
+function describeApiChange(change: ApiChange): string {
+  return [
+    `Breaking change in the ${change.provider} API: ${change.kind}`,
+    change.operation && `Operation: ${change.operation}`,
+    change.field && `Affected parameter or model: ${change.field}`,
+    change.replacement && `Replacement: ${change.replacement}`,
+    change.effectiveAt && `Effective: ${change.effectiveAt}`,
+    `Quoted from ${change.sourceUrl}:\n${change.evidence}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 function buildUserPrompt(config: SandboxConfig, request: RefactorRequest): string {
-  const sections = [
-    `Dependency: ${config.dependencyName}`,
-    `Target version: ${config.targetVersion}`,
-  ];
+  const { migration } = config;
+  const sections =
+    migration.kind === 'api_change' ? [describeApiChange(migration.change)] : [];
+
+  if (migration.kind === 'dependency') {
+    sections.push(
+      `Dependency: ${migration.dependency.name}`,
+      `Target version: ${migration.dependency.version}`,
+    );
+  }
 
   if (request.breakingChanges?.trim()) {
     sections.push(`Release notes for the target version:\n${request.breakingChanges.trim()}`);

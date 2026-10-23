@@ -187,6 +187,48 @@ describe('prepare phase', () => {
       await assert.rejects(fs.access(path.join(repoDir, 'stale.js')));
     });
 
+    describe('for an API change', () => {
+      function apiChangeEnv(overrides: Record<string, string> = {}): Record<string, string> {
+        const env = jobEnv(origin.url, {
+          MIGRATION_KIND: 'api_change',
+          API_CHANGE: JSON.stringify({
+            provider: 'anthropic',
+            kind: 'model_retired',
+            field: 'claude-3-opus-20240229',
+            evidence: 'Claude 3 Opus is retired on January 5, 2026.',
+            sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
+          }),
+          TARGET_FILES: JSON.stringify(['src/chat.ts']),
+          BRANCH_NAME: 'synclab/api-anthropic-1b2c',
+        });
+        delete env.DEPENDENCY_NAME;
+        delete env.TARGET_VERSION;
+        return { ...env, ...overrides };
+      }
+
+      it('clones without looking for release notes when the SDK stays as it is', async () => {
+        setJobEnv(apiChangeEnv());
+
+        const result = await prepare();
+
+        assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+        assert.deepEqual(result.steps.map((step) => step.step), ['CLONE']);
+        assert.deepEqual(result.data, { headSha: origin.headSha });
+        assert.equal(calls.length, 0);
+        assert.equal(await readBreakingChanges(path.join(workspace, 'state')), undefined);
+      });
+
+      it('records the release notes of the SDK the change needs', async () => {
+        setJobEnv(apiChangeEnv({ DEPENDENCY_NAME: DEPENDENCY, TARGET_VERSION: '2.0.0' }));
+
+        const result = await prepare();
+
+        assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+        assert.deepEqual(result.steps.map((step) => step.step), ['CLONE', 'CHANGELOG']);
+        assert.equal(await readBreakingChanges(path.join(workspace, 'state')), releaseBody);
+      });
+    });
+
     it('does not validate the target version or the dependency, which is left to the upgrade phase', async () => {
       setJobEnv(jobEnv(origin.url, { DEPENDENCY_NAME: 'lodash', TARGET_VERSION: '9.9.9' }));
 

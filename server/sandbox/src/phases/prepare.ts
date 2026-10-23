@@ -22,26 +22,27 @@ export async function prepare(): Promise<PhaseResult> {
   // Dependencies are installed by the install phase, which has no token:
   // install scripts are repository code and must not run beside it.
   // Release notes are fetched here because this is the last phase that has
-  // both a GitHub token and a network connection.
-  const octokit = new Octokit({ auth: token, baseUrl: config.githubApiUrl });
-  const notes = await fetchReleaseNotes(
-    octokit,
-    config.dependencyName,
-    config.targetVersion,
-  ).catch(() => undefined);
+  // both a GitHub token and a network connection. An API change that keeps
+  // its SDK has no release to read; its brief arrives with the job instead.
+  const { dependency } = config.migration;
+  if (dependency) {
+    const octokit = new Octokit({ auth: token, baseUrl: config.githubApiUrl });
+    const notes = await fetchReleaseNotes(octokit, dependency.name, dependency.version).catch(
+      () => undefined,
+    );
 
-  await writeBreakingChanges(
-    config.stateDir,
-    notes ??
-      `No release notes were found for ${config.dependencyName} ${config.targetVersion}.`,
-  );
+    await writeBreakingChanges(
+      config.stateDir,
+      notes ?? `No release notes were found for ${dependency.name} ${dependency.version}.`,
+    );
 
-  steps.push({
-    step: 'CHANGELOG',
-    output: notes
-      ? `Found release notes for ${config.dependencyName} ${config.targetVersion} (${notes.length} characters).`
-      : `No release notes found for ${config.dependencyName} ${config.targetVersion}; continuing without them.`,
-  });
+    steps.push({
+      step: 'CHANGELOG',
+      output: notes
+        ? `Found release notes for ${dependency.name} ${dependency.version} (${notes.length} characters).`
+        : `No release notes found for ${dependency.name} ${dependency.version}; continuing without them.`,
+    });
+  }
 
   return {
     phase: 'prepare',
