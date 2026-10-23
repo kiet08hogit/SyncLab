@@ -79,6 +79,21 @@ const COMPILED_EXTENSIONS: Record<string, string[]> = {
   '.cjs': ['.cts'],
 };
 const AXIOS_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'request']);
+const SDK_REQUEST_OPTIONS = new Set([
+  'method',
+  'path',
+  'query',
+  'body',
+  'headers',
+  'maxRetries',
+  'stream',
+  'timeout',
+  'fetchOptions',
+  'httpAgent',
+  'signal',
+  'idempotencyKey',
+  'defaultBaseURL',
+]);
 const MAX_RESOLVE_DEPTH = 10;
 
 function resolveRelative(fromFile: string, specifier: string, known: Set<string>): string | undefined {
@@ -684,6 +699,9 @@ class ApiUsageScanner {
       return;
     }
     const { params, dynamic } = objectKeys(argument);
+    if (usage.style === 'sdk' && params.length > 0 && params.every((key) => SDK_REQUEST_OPTIONS.has(key))) {
+      return;
+    }
     this.requests.set(usage, { keys: [...params].sort(), complete: !dynamic && !gainsKeys(argument) });
   }
 

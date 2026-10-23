@@ -19,6 +19,10 @@ const OPERATIONS: OpenaiSchema['operations'] = {
     params: ['agent', 'input'],
     required: ['agent'],
   },
+  'GET /v1/models/{model}': {
+    params: ['model'],
+    required: ['model'],
+  },
 };
 
 function mismatches(code: string, files = ['src/chat.ts']): string[] {
@@ -102,6 +106,13 @@ describe('findSchemaMismatches', () => {
     );
     assert.deepEqual(mismatches("client.beta.threads.messages.create(threadId, { role: 'user' });"), [
       'src/chat.ts:3 POST /v1/threads/{thread_id}/messages: leaves out content, which the new spec requires',
+    ]);
+  });
+
+  it('does not mistake the per-request options of a method without a request object for one', () => {
+    assert.deepEqual(mismatches("client.models.retrieve('gpt-4o', { timeout: 5000 });"), []);
+    assert.deepEqual(mismatches("client.models.retrieve('gpt-4o', { timeout: 5000, verbose: true });"), [
+      'src/chat.ts:3 GET /v1/models/{model}: sends timeout, verbose, which the new spec does not accept',
     ]);
   });
 
