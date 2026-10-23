@@ -273,8 +273,9 @@ These rules live in `server/api/src/worker/sandbox/container-options.ts`.
 #### `prepare`
 
 1. Writes the token to a git credential file in the container's home (never into the remote URL or the volume), then clones the repository (full clone, since GitHub rejects pushes from some shallow clones).
-2. Resolves the dependency's GitHub repository from the npm registry and fetches the release notes for the target tag (`1.2.3` or `v1.2.3`).
+2. When the job names a dependency, resolves that package's GitHub repository from the npm registry and fetches the release notes for the target tag (`1.2.3` or `v1.2.3`).
    This is best effort; a migration without notes still runs.
+   An API change that keeps its SDK does not fetch notes.
 3. Reports the cloned commit, which the worker later hands to `publish`.
 
 #### `install`
@@ -301,14 +302,17 @@ Upgrades the migrated dependency with the detected package manager (`server/sand
 
 #### `refactor`
 
-1. Walks the repository's `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
+1. For a dependency job, walks the repository's `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
 2. Parses each file with Babel and keeps only the files that `import` or `require` the dependency (including deep imports such as `pkg/sub`), recording the imported names and the lines that use them.
+   An API-change job sends the files from its impact record instead of this import scan.
+   Its prompt is the migration brief in [Self-Maintaining API](infra/Architecture/05%20-%20Self-Maintaining%20API.md#migration-and-validation).
 3. Caps the work at `LLM_MAX_FILES` files of at most `LLM_MAX_FILE_BYTES` each, and reports anything it skipped.
 4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Gemini by default).
    Gemini answers with structured output `{changed, contents, reason}`.
    Claude answers with a one-sentence reason followed by the file in a fenced block over a streamed request, so the file needs no JSON escaping and a reply cut off at `max_tokens` is caught from the stop reason.
    A Claude refusal is retried server-side on Anthropic's default fallback model before the file is failed.
-   The prompt includes the dependency, target version, release notes, the imported names and usage lines, and, on a retry, the previous failing test output.
+   For a dependency job, the prompt includes the dependency, target version, release notes, and the imported names and usage lines.
+   On a retry, the prompt also includes the previous failing test output.
    The model returns the complete file rather than a diff, because diffs fail to apply too often.
 5. Writes back only files the model actually changed.
 
@@ -325,7 +329,10 @@ Runs the package manager's `test` script in the checkout with no network and no 
 3. Copies the working tree from the volume onto that clone, skipping `.git` and `node_modules`, and removes tracked files the earlier phases deleted.
    Symlinks are recreated, never followed, and a write that would resolve outside the clone is refused.
 4. If nothing changed, reports `skipped` and the worker fails the job with `refactor produced no changes`.
-5. Otherwise commits everything (code changes plus the `package.json` and lockfile bump) with hooks disabled, and force-pushes the branch so a retried job reuses it.
+5. Otherwise commits everything with hooks disabled, and force-pushes the branch so a retried job reuses it.
+   The commit subject and pull request title are a single line of at most 120 characters.
+   A dependency upgrade includes the `package.json` and lockfile bump in that commit.
+   An API-change commit and pull request are titled as described in [Self-Maintaining API](infra/Architecture/05%20-%20Self-Maintaining%20API.md#migration-and-validation).
 6. Opens a pull request against the repository's default branch, or returns the already open one for that branch.
 
 #### Phase result protocol
@@ -640,5 +647,6 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 
 After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs.
 Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact analysis), and the Phase 8 queue and dashboard are built.
-The sandbox phases that edit a repository for an API change, detecting when a change needs a newer SDK, and Phases 9 and 10 are not built yet.
-See [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
+The sandbox edits a repository for a confirmed API change.
+How that job is prompted and published is in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
+Detecting when the change needs a newer SDK, and Phases 9 and 10, are not built yet.

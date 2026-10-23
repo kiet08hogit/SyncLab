@@ -8,11 +8,11 @@ The worker never executes untrusted code itself. It runs a sequence of container
 
 | Phase | Network | GitHub token | Model key | Does |
 | --- | --- | --- | --- | --- |
-| `prepare` | yes | yes | no | clone the repository, fetch the target release notes, report the cloned commit |
+| `prepare` | yes | yes | no | clone the repository, fetch release notes when the job names a dependency, report the cloned commit |
 | `install` | yes | **no** | no | install dependencies with npm, pnpm or yarn, lifecycle scripts included |
 | `test` (baseline) | **no** | **no** | **no** | run the test suite on the current version; the job stops if it already fails |
 | `upgrade` | yes | **no** | no | upgrade the migrated dependency to the target version |
-| `refactor` | yes | no | yes | find files importing the dependency, rewrite them with the configured model (Gemini or Claude) |
+| `refactor` | yes | no | yes | rewrite the files the job targets with the configured model (Gemini or Claude) |
 | `test` | **no** | **no** | **no** | run the package manager's `test` script |
 | `publish` | yes | yes | no | clone afresh at the prepared commit, copy the changes across, commit, push the branch, open a pull request |
 
@@ -250,4 +250,4 @@ The response shapes are documented in `infra/Architecture/05 - Self-Maintaining 
 | `npm test` | unit tests |
 | `npm run test:e2e` | end-to-end tests (no Postgres or Redis needed) |
 
-The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise every phase except `refactor` and their helpers against local git repositories and a stub npm registry.
+The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the phases and their helpers against local git repositories and a stub npm registry.
