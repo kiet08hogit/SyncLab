@@ -1,0 +1,22 @@
+{
+  "id": "api-openai-endpoint-replaced",
+  "kind": "api_change",
+  "package": "openai",
+  "fromVersion": "4.24.0",
+  "category": "endpoint_removed",
+  "difficulty": "hard",
+  "change": {
+    "provider": "openai",
+    "kind": "endpoint_removed",
+    "operation": "/v1/edits",
+    "field": null,
+    "replacement": "/v1/chat/completions",
+    "effectiveAt": "2024-01-04",
+    "evidence": "2024-01-04 | /v1/edits | /v1/chat/completions",
+    "sourceUrl": "https://platform.openai.com/docs/deprecations"
+  },
+  "impactFiles": ["src/copyedit.js"],
+  "source": "Recorded: the deprecations parser reads this row from server/api/src/monitor/fixtures/openai-deprecations-2026-10-17.html.gz.",
+  "breakingChange": "The Edits endpoint was shut down, so openai.edits.create fails. src/copyedit.js calls it twice (fix spelling, and rewrite in a tone) and reads choices[].text; both must move to chat.completions.create with the instruction and input as messages, and read choices[0].message.content.",
+  "reference": "https://platform.openai.com/docs/deprecations"
+}

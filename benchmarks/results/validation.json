@@ -26,6 +26,129 @@
       "validatedAt": "2026-10-16T19:10:10.883Z"
     },
     {
+      "id": "api-anthropic-endpoint-replaced",
+      "checks": {
+        "impactConfirmed": true,
+        "impactMatchesCase": true,
+        "install": true,
+        "baselinePasses": true,
+        "breaksOnNewApi": true,
+        "referenceFixPasses": true,
+        "referenceFixClearsImpact": true
+      },
+      "valid": true,
+      "impactFiles": [
+        "src/classify.js",
+        "src/tags.js"
+      ],
+      "validatedAt": "2026-10-23T04:33:40.267Z"
+    },
+    {
+      "id": "api-anthropic-model-retired",
+      "checks": {
+        "impactConfirmed": true,
+        "impactMatchesCase": true,
+        "install": true,
+        "baselinePasses": true,
+        "breaksOnNewApi": true,
+        "referenceFixPasses": true,
+        "referenceFixClearsImpact": true
+      },
+      "valid": true,
+      "impactFiles": [
+        "src/summarize.js"
+      ],
+      "validatedAt": "2026-10-23T04:33:44.325Z"
+    },
+    {
+      "id": "api-anthropic-model-retired-partial-fix",
+      "checks": {
+        "impactConfirmed": true,
+        "impactMatchesCase": true,
+        "install": true,
+        "baselinePasses": true,
+        "partialFixPassesTests": true,
+        "partialFixStillMatched": true,
+        "breaksOnNewApi": true,
+        "referenceFixPasses": true,
+        "referenceFixClearsImpact": true
+      },
+      "valid": true,
+      "impactFiles": [
+        "src/chat.js",
+        "src/titles.js"
+      ],
+      "validatedAt": "2026-10-23T04:33:49.334Z"
+    },
+    {
+      "id": "api-anthropic-param-removed",
+      "checks": {
+        "impactConfirmed": true,
+        "impactMatchesCase": true,
+        "install": true,
+        "baselinePasses": true,
+        "breaksOnNewApi": true,
+        "referenceFixPasses": true,
+        "referenceFixClearsImpact": true
+      },
+      "valid": true,
+      "impactFiles": [
+        "src/review.js"
+      ],
+      "validatedAt": "2026-10-23T04:33:53.411Z"
+    },
+    {
+      "id": "api-openai-endpoint-replaced",
+      "checks": {
+        "impactConfirmed": true,
+        "impactMatchesCase": true,
+        "install": true,
+        "baselinePasses": true,
+        "breaksOnNewApi": true,
+        "referenceFixPasses": true,
+        "referenceFixClearsImpact": true
+      },
+      "valid": true,
+      "impactFiles": [
+        "src/copyedit.js"
+      ],
+      "validatedAt": "2026-10-23T04:33:57.621Z"
+    },
+    {
+      "id": "api-openai-model-retired",
+      "checks": {
+        "impactConfirmed": true,
+        "impactMatchesCase": true,
+        "install": true,
+        "baselinePasses": true,
+        "breaksOnNewApi": true,
+        "referenceFixPasses": true,
+        "referenceFixClearsImpact": true
+      },
+      "valid": true,
+      "impactFiles": [
+        "src/translate.js"
+      ],
+      "validatedAt": "2026-10-23T04:34:01.801Z"
+    },
+    {
+      "id": "api-openai-param-removed",
+      "checks": {
+        "impactConfirmed": true,
+        "impactMatchesCase": true,
+        "install": true,
+        "baselinePasses": true,
+        "breaksOnNewApi": true,
+        "referenceFixPasses": true,
+        "referenceFixClearsImpact": true
+      },
+      "valid": true,
+      "impactFiles": [
+        "src/research.js"
+      ],
+      "validatedAt": "2026-10-23T04:34:06.938Z"
+    },
+    {
       "id": "chalk-4-to-5-instance-keyword",
       "checks": {
         "install": true,

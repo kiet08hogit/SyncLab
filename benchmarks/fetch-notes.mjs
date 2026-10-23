@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { argSet, loadCases, notesDir, root } from './lib/sandbox.mjs';
+import { argSet, isApiChange, loadCases, notesDir, root } from './lib/sandbox.mjs';
 
 const sandboxRequire = createRequire(path.join(root, 'server', 'sandbox', 'package.json'));
 const { Octokit } = await import(sandboxRequire.resolve('@octokit/rest'));
@@ -19,7 +19,8 @@ const token = process.env.GITHUB_TOKEN || execFileSync('gh', ['auth', 'token'], 
 const octokit = new Octokit({ auth: token });
 const refresh = process.argv.includes('--refresh');
 
-const cases = await loadCases(argSet('only'));
+// An API change has no release to read: its brief travels with the job.
+const cases = (await loadCases(argSet('only'))).filter((spec) => !isApiChange(spec));
 await fs.mkdir(notesDir, { recursive: true });
 const indexFile = path.join(notesDir, 'index.json');
 const index = JSON.parse(await fs.readFile(indexFile, 'utf8').catch(() => '{}'));

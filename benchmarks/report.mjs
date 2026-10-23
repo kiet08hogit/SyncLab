@@ -83,9 +83,11 @@ for (const row of results.filter((row) => row.success)) {
 }
 const validCount = validation.cases.filter((entry) => entry.valid).length;
 const packages = new Set(results.map((row) => row.package));
-const notesFound = results.filter((row) => row.releaseNotesFound).length;
-const withNotes = summarize(results.filter((row) => row.releaseNotesFound));
-const withoutNotes = summarize(results.filter((row) => !row.releaseNotesFound));
+// API change cases have no release notes: their brief comes with the job.
+const dependencyRows = results.filter((row) => row.releaseNotesFound !== null);
+const notesFound = dependencyRows.filter((row) => row.releaseNotesFound).length;
+const withNotes = summarize(dependencyRows.filter((row) => row.releaseNotesFound));
+const withoutNotes = summarize(dependencyRows.filter((row) => !row.releaseNotesFound));
 
 const FAILURE_TEXT = {
   tests_failed: 'the model changed code but the suite still failed after the last attempt',
@@ -97,6 +99,8 @@ const FAILURE_TEXT = {
   install_failed: 'dependency install failed',
   baseline_failed: 'the suite failed on the old version at run time',
   upgrade_failed: 'the upgrade to the target version failed',
+  no_impact: 'the scan did not confirm the API change affects the case, so no migration would start',
+  api_still_broken: "the suite passed, but the provider's post-change contract tests still failed",
   harness_error: 'the benchmark harness itself errored',
 };
 
@@ -142,7 +146,7 @@ Generated from \`${path.basename(inFile)}\` by \`benchmarks/report.mjs\`. Every 
 
 Successful cases by the attempt that passed: ${[...attemptsOnSuccess.entries()].sort((a, b) => a[0] - b[0]).map(([attempt, count]) => `attempt ${attempt}: ${count}`).join(', ') || 'none'}.
 
-Release notes were found for ${notesFound} of ${all.total} cases. Success with notes: ${withNotes.success}/${withNotes.total} (${pct(withNotes.success, withNotes.total)}); without: ${withoutNotes.success}/${withoutNotes.total} (${pct(withoutNotes.success, withoutNotes.total)}). This is not a controlled comparison: the two groups contain different packages, difficulties and models.
+Release notes were found for ${notesFound} of ${dependencyRows.length} dependency cases. Success with notes: ${withNotes.success}/${withNotes.total} (${pct(withNotes.success, withNotes.total)}); without: ${withoutNotes.success}/${withoutNotes.total} (${pct(withoutNotes.success, withoutNotes.total)}). This is not a controlled comparison: the two groups contain different packages, difficulties and models.
 
 ### Failure reasons
 

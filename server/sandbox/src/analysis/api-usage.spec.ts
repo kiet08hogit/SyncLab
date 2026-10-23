@@ -146,6 +146,30 @@ describe('scanApiUsage', () => {
     );
   });
 
+  it('maps OpenAI operations the provider has retired or changed', () => {
+    assert.deepEqual(
+      calls({
+        'src/legacy.ts': [
+          "import OpenAI from 'openai';",
+          'const client = new OpenAI();',
+          "client.edits.create({ model: 'text-davinci-edit-001', input: 'a', instruction: 'b' });",
+          "client.beta.agents.sessions.create({ environment: { type: 'none' }, spend_control: { limit: 500 } });",
+          "client.beta.agents.sessions.update('sess_1', { spend_control: null });",
+        ].join('\n'),
+      }),
+      [
+        { file: 'src/legacy.ts', line: 3, method: 'edits.create', operation: 'POST /v1/edits' },
+        { file: 'src/legacy.ts', line: 4, method: 'beta.agents.sessions.create', operation: 'POST /v1/agents/sessions' },
+        {
+          file: 'src/legacy.ts',
+          line: 5,
+          method: 'beta.agents.sessions.update',
+          operation: 'POST /v1/agents/sessions/{session_id}',
+        },
+      ],
+    );
+  });
+
   it('records raw HTTP calls to the provider hosts', () => {
     const { usages } = scanApiUsage(
       files({

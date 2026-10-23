@@ -1,0 +1,22 @@
+{
+  "id": "api-openai-model-retired",
+  "kind": "api_change",
+  "package": "openai",
+  "fromVersion": "4.104.0",
+  "category": "model_retired",
+  "difficulty": "easy",
+  "change": {
+    "provider": "openai",
+    "kind": "model_retired",
+    "operation": null,
+    "field": "gpt-4.5-preview",
+    "replacement": "gpt-4.1",
+    "effectiveAt": "2025-07-14",
+    "evidence": "2025-07-14 | gpt-4.5-preview | gpt-4.1",
+    "sourceUrl": "https://platform.openai.com/docs/deprecations"
+  },
+  "impactFiles": ["src/translate.js"],
+  "source": "Recorded: the deprecations parser reads this row from server/api/src/monitor/fixtures/openai-deprecations-2026-10-17.html.gz.",
+  "breakingChange": "GPT-4.5 preview was removed, so a chat completion naming gpt-4.5-preview returns model_not_found. src/translate.js keeps the model in a constant next to the call. src/glossary.js calls the same endpoint with gpt-4.1 and is not affected.",
+  "reference": "https://platform.openai.com/docs/deprecations"
+}

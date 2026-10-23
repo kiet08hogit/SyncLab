@@ -1,0 +1,22 @@
+{
+  "id": "api-openai-param-removed",
+  "kind": "api_change",
+  "package": "openai",
+  "fromVersion": "7.43.0",
+  "category": "param_removed",
+  "difficulty": "medium",
+  "change": {
+    "provider": "openai",
+    "kind": "param_removed",
+    "operation": "POST /v1/agents/sessions",
+    "field": "spend_control",
+    "replacement": null,
+    "effectiveAt": null,
+    "evidence": "POST /v1/agents/sessions | param spend_control",
+    "sourceUrl": "https://raw.githubusercontent.com/openai/openai-openapi/main/openapi.json"
+  },
+  "impactFiles": ["src/research.js"],
+  "source": "Recorded: diffing the request surfaces of server/api/src/monitor/fixtures/openai-openapi-35060f5b.json.gz and openai-openapi-6ca9cb2b.json.gz reports this removal.",
+  "breakingChange": "The OpenAPI spec dropped spend_control from creating an agent session, so the API rejects it as an unknown parameter. src/research.js sends it from a module-level client. src/sessions.js updates sessions, a different operation, and is not affected.",
+  "reference": "https://github.com/openai/openai-openapi"
+}

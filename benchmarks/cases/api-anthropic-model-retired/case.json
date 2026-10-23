@@ -1,0 +1,22 @@
+{
+  "id": "api-anthropic-model-retired",
+  "kind": "api_change",
+  "package": "@anthropic-ai/sdk",
+  "fromVersion": "0.65.0",
+  "category": "model_retired",
+  "difficulty": "easy",
+  "change": {
+    "provider": "anthropic",
+    "kind": "model_retired",
+    "operation": null,
+    "field": "claude-3-5-haiku-20241022",
+    "replacement": "claude-haiku-4-5-20251001",
+    "effectiveAt": "2026-02-19",
+    "evidence": "February 19, 2026 | claude-3-5-haiku-20241022 | claude-haiku-4-5-20251001",
+    "sourceUrl": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+  },
+  "impactFiles": ["src/summarize.js"],
+  "source": "Recorded: the deprecations parser reads this row from server/api/src/monitor/fixtures/anthropic-deprecations-2026-10-01.html.gz.",
+  "breakingChange": "Claude Haiku 3.5 was retired, so every request naming claude-3-5-haiku-20241022 returns a not_found_error. src/summarize.js sends it as a literal model ID. src/about.js only names the model in a sentence and must not be counted as a usage.",
+  "reference": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "api-openai-model-retired",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "openai": "4.104.0"
+  }
+}

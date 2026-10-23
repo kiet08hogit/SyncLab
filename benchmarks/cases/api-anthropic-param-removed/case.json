@@ -1,0 +1,22 @@
+{
+  "id": "api-anthropic-param-removed",
+  "kind": "api_change",
+  "package": "@anthropic-ai/sdk",
+  "fromVersion": "0.65.0",
+  "category": "param_removed",
+  "difficulty": "medium",
+  "change": {
+    "provider": "anthropic",
+    "kind": "param_removed",
+    "operation": "POST /v1/messages",
+    "field": "speed",
+    "replacement": null,
+    "effectiveAt": "2026-07-24",
+    "evidence": "We've removed fast mode for Claude Opus 4.7. Requests to claude-opus-4-7 with speed: \"fast\" now return an error; unlike Claude Opus 4.6, they do not fall back to standard speed. Claude Opus 4.7 itself remains available at standard speed.",
+    "sourceUrl": "https://platform.claude.com/docs/en/release-notes/api"
+  },
+  "impactFiles": ["src/review.js"],
+  "source": "Recorded: the July 24, 2026 entry of server/api/src/monitor/fixtures/anthropic-release-notes-2026-10-17.html.gz, shaped as the classify phase reports a release-note change.",
+  "breakingChange": "Fast mode was removed for Claude Opus 4.7, so a Messages request to claude-opus-4-7 with speed: \"fast\" is rejected with an invalid_request_error. src/review.js sends it on the beta Messages API with the fast-mode beta. src/explain.js calls the same model without speed and is not affected.",
+  "reference": "https://platform.claude.com/docs/en/release-notes/api"
+}
