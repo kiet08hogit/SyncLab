@@ -1,17 +1,21 @@
 // Runs every validated case through SyncLab's real migration loop, exactly as
 // the worker sequences it (install -> baseline test -> upgrade -> refactor/test
-// up to LLM_MAX_ATTEMPTS), each phase in the production sandbox image with the
-// production container options. Only prepare (clone) and publish (push, PR)
-// are left out: the checkout is seeded from the case instead of cloned, and
-// nothing is pushed.
+// up to LLM_MAX_ATTEMPTS, then validate once the suite passes), each phase in
+// the production sandbox image with the production container options. Only
+// prepare (clone) and publish (push, PR) are left out: the checkout is seeded
+// from the case instead of cloned, and nothing is pushed.
 //
 // Success means the project's own test suite passes after the migration and
 // no test file was modified. Results are appended after every case, so an
 // interrupted run continues with --resume.
 //
 // An API change case runs as the worker runs an api_change job: its target
-// files are the impact the scan confirms, and there is no upgrade. Its own
-// suite passes before the migration too, so success also needs the case's
+// files are the impact the scan confirms, and there is no upgrade. Validate
+// records its baseline after that scan and before install. A passing suite
+// still has to pass validate, and a failed check is retried. A case with
+// partial/ spends its first attempt on that fix, which still uses the change,
+// so the gate must reject it and a later attempt has to finish the fix. Its
+// own suite passes before the migration too, so success also needs the case's
 // contract tests, which play the provider after the change, to pass on the
 // migrated tree. They are added only after the run, so the model never sees them.
 import { execFileSync } from 'node:child_process';
@@ -120,6 +124,22 @@ async function runCase(spec) {
       params = jobParams(spec, config, impact.value.files);
     }
 
+    // The re-scan check compares the migrated tree with the clone, recorded
+    // before install can write generated files. An image with no such check
+    // reports no digest and the later validate runs without one.
+    let validateEnv = {};
+    if (apiChange) {
+      const recorded = await timed(() =>
+        driver.runPhase('validate', volume, params, 1, { VALIDATE_BASELINE: 'true' }),
+      );
+      record.timings.validateBaselineMs = recorded.ms;
+      if (!recorded.value.ok) {
+        return fail(record, 'validate_baseline_failed', tail(stepsText(recorded.value)));
+      }
+      const digest = recorded.value.data?.baselineDigest;
+      if (typeof digest === 'string') validateEnv = { VALIDATE_BASELINE_DIGEST: digest };
+    }
+
     const install = await timed(() => driver.runPhase('install', volume, params, 1));
     record.timings.installMs = install.ms;
     if (!install.value.ok) {
@@ -147,28 +167,41 @@ async function runCase(spec) {
     }
 
     let passed = false;
+    let lastGate = 'tests';
     let lastTestOutput = '';
+    const partialDir = path.join(spec.dir, 'partial');
+    const scriptedPartial = apiChange && (await directoryExists(partialDir));
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       record.attemptsUsed = attempt;
       const entry = { attempt };
       record.attempts.push(entry);
+      const usePartial = scriptedPartial && attempt === 1;
 
-      let refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
-      for (const wait of RATE_LIMIT_BACKOFF_MS) {
-        if (refactor.value.ok || refactor.value.data?.retryable !== true) break;
-        entry.rateLimitRetries = (entry.rateLimitRetries ?? 0) + 1;
-        record.timings.rateLimitWaitMs = (record.timings.rateLimitWaitMs ?? 0) + wait + refactor.ms;
-        await sleep(wait);
-        refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
-      }
-      entry.refactorMs = refactor.ms;
-      entry.refactorOk = refactor.value.ok;
-      entry.refactorChangedFiles = refactor.value.data?.changedFiles ?? [];
-      entry.refactorLog = tail(stepsText(refactor.value), 40);
-      if (!refactor.value.ok) {
-        record.timings.migrationMs = Date.now() - migrationStarted - (record.timings.rateLimitWaitMs ?? 0);
-        const limited = refactor.value.data?.retryable === true;
-        return fail(record, limited ? 'rate_limited' : 'model_error', refactor.value.error ?? 'refactor failed');
+      if (usePartial) {
+        // The known-bad migration: the suite passes and the retired usage remains.
+        await overlay(volume, partialDir);
+        entry.scripted = 'partial';
+        entry.refactorMs = 0;
+        entry.refactorOk = true;
+        entry.refactorChangedFiles = await listFiles(partialDir);
+      } else {
+        let refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
+        for (const wait of RATE_LIMIT_BACKOFF_MS) {
+          if (refactor.value.ok || refactor.value.data?.retryable !== true) break;
+          entry.rateLimitRetries = (entry.rateLimitRetries ?? 0) + 1;
+          record.timings.rateLimitWaitMs = (record.timings.rateLimitWaitMs ?? 0) + wait + refactor.ms;
+          await sleep(wait);
+          refactor = await timed(() => driver.runPhase('refactor', volume, params, attempt));
+        }
+        entry.refactorMs = refactor.ms;
+        entry.refactorOk = refactor.value.ok;
+        entry.refactorChangedFiles = refactor.value.data?.changedFiles ?? [];
+        entry.refactorLog = tail(stepsText(refactor.value), 40);
+        if (!refactor.value.ok) {
+          record.timings.migrationMs = Date.now() - migrationStarted - (record.timings.rateLimitWaitMs ?? 0);
+          const limited = refactor.value.data?.retryable === true;
+          return fail(record, limited ? 'rate_limited' : 'model_error', refactor.value.error ?? 'refactor failed');
+        }
       }
 
       const tested = await timed(() => driver.runPhase('test', volume, params, attempt));
@@ -176,10 +209,38 @@ async function runCase(spec) {
       entry.testPassed = tested.value.ok;
       lastTestOutput = stepsText(tested.value);
       entry.testTail = tail(lastTestOutput, 25);
-      if (tested.value.ok) {
+      if (!tested.value.ok) {
+        lastGate = 'tests';
+        continue;
+      }
+
+      if (!apiChange) {
         passed = true;
         break;
       }
+
+      const validated = await timed(() => driver.runPhase('validate', volume, params, attempt, validateEnv));
+      entry.validateMs = validated.ms;
+      entry.validatePassed = validated.value.ok;
+      entry.validateTail = tail(stepsText(validated.value), 25);
+      if (!validated.value.ok) {
+        lastGate = 'validation';
+        lastTestOutput = stepsText(validated.value);
+        continue;
+      }
+      if (usePartial) {
+        record.timings.migrationMs = Date.now() - migrationStarted - (record.timings.rateLimitWaitMs ?? 0);
+        const recorded = typeof validateEnv.VALIDATE_BASELINE_DIGEST === 'string';
+        return fail(
+          record,
+          recorded ? 'validation_missed' : 'validation_unavailable',
+          recorded
+            ? 'the partial fix passed validation while the change was still in use'
+            : 'the sandbox image recorded no re-scan baseline, so it cannot reject a fix that still uses the change',
+        );
+      }
+      passed = true;
+      break;
     }
     record.timings.migrationMs = Date.now() - migrationStarted - (record.timings.rateLimitWaitMs ?? 0);
 
@@ -196,7 +257,11 @@ async function runCase(spec) {
     if (!passed) {
       return fail(
         record,
-        diff.changedFiles.length === 0 ? 'no_changes' : 'tests_failed',
+        lastGate === 'validation'
+          ? 'validation_failed'
+          : diff.changedFiles.length === 0
+            ? 'no_changes'
+            : 'tests_failed',
         tail(lastTestOutput, 25),
       );
     }
@@ -220,6 +285,14 @@ async function runCase(spec) {
   } finally {
     record.timings.totalMs = Date.now() - started;
     await removeVolume(volume);
+  }
+}
+
+async function directoryExists(dir) {
+  try {
+    return (await fs.stat(dir)).isDirectory();
+  } catch {
+    return false;
   }
 }
 
