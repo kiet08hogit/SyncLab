@@ -101,6 +101,17 @@ export async function refactor(): Promise<PhaseResult> {
 
   const { candidates, skipped } = await selectCandidates(config);
 
+  // Validation rejects any literal use left in an impacted file, so a file the
+  // model never sees would fail every attempt: stop before spending them.
+  if (config.migration.kind === 'api_change' && skipped.length > 0) {
+    const error = [
+      `${skipped.length} impacted file(s) cannot be sent to the model, so the migration could never pass validation:`,
+      ...skipped.map((entry) => `Skipped ${entry}`),
+    ].join('\n');
+    steps.push({ step: 'REFACTOR', output: error });
+    return { phase: 'refactor', ok: false, error, steps };
+  }
+
   if (candidates.length === 0) {
     const reason =
       config.migration.kind === 'dependency'

@@ -310,6 +310,7 @@ Upgrades the migrated dependency with the detected package manager (`server/sand
 1. For a dependency job, walks the repository's `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` files, skipping `node_modules`, `dist`, `build` and similar directories.
 2. Parses each file with Babel and keeps only the files that `import` or `require` the dependency (including deep imports such as `pkg/sub`), recording the imported names and the lines that use them.
    An API-change job sends the files from its impact record instead of this import scan.
+   If any of them cannot be sent (over a limit below, or not a regular file inside the repository), the job fails before any model call, since `validate` would reject every attempt.
    Its prompt is the migration brief in [Self-Maintaining API](infra/Architecture/05%20-%20Self-Maintaining%20API.md#migration-and-validation).
 3. Caps the work at `LLM_MAX_FILES` files of at most `LLM_MAX_FILE_BYTES` each, and reports anything it skipped.
 4. Sends each candidate file to the configured model (`LLM_PROVIDER`, Gemini by default).
@@ -336,7 +337,8 @@ The container has no network and no token, so a check cannot call a provider.
 
 A check that compares against the tree as cloned also records a baseline.
 The phase runs once with `VALIDATE_BASELINE=true` right after `prepare`, before any repository code can write to the volume.
-The worker keeps what it returns and hands it to every later `validate` run in `VALIDATE_BASELINE_DATA`.
+It saves the baselines to the volume and reports their SHA-256 digest, which the worker hands to every later `validate` run in `VALIDATE_BASELINE_DIGEST`.
+Repository code can rewrite the file, so a later run trusts it only while the digest matches, and fails otherwise.
 
 The `rescan` check scans the migrated tree with the same scanner as a repository scan, and matches it with the same rules as impact analysis:
 - The change being migrated must be gone.
@@ -344,6 +346,7 @@ The `rescan` check scans the migrated tree with the same scanner as a repository
 - No other confirmed retirement or removal (`model_retired`, `endpoint_removed`, `param_removed`, `param_renamed`) may be newly used: a file with more literal matches than before fails.
 - A file that parsed before the migration and no longer does fails, since the scan cannot see its calls.
 
+Only the source files the clone had are judged: install and test scripts can generate others, such as build output, which the migration neither wrote nor can fix.
 A dependency job has no change being migrated, so it only gets the second rule and the third.
 
 #### `publish`

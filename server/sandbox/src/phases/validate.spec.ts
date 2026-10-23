@@ -47,18 +47,85 @@ describe('validate', () => {
       { name: 'schema', run: async (b?: unknown) => { seen.push(b); return undefined; } },
     ];
 
-    const recorded = await recordBaseline(checks);
+    const recorded = await recordBaseline(stateDir, checks);
     assert.equal(recorded.ok, true);
-    assert.deepEqual(recorded.data, { baselines: { rescan: { hits: 1 } } });
+    assert.match(String(recorded.data?.baselineDigest), /^[0-9a-f]{64}$/);
     assert.match(recorded.steps[0].output, /baseline of rescan/);
 
-    const result = await runValidation(
-      stateDir,
-      checks,
-      JSON.parse(JSON.stringify((recorded.data as { baselines: Record<string, unknown> }).baselines)),
-    );
+    const result = await runValidation(stateDir, checks, { rescan: { hits: 1 } });
     assert.equal(result.ok, true);
     assert.deepEqual(seen, [{ hits: 1 }, undefined]);
+  });
+
+  describe('with the rescan check and a recorded baseline', () => {
+    const RETIRED = 'claude-3-opus-20240229';
+    const chat = (model: string) =>
+      [
+        "import Anthropic from '@anthropic-ai/sdk';",
+        'const client = new Anthropic();',
+        `export const ask = () => client.messages.create({ model: '${model}', max_tokens: 8, messages: [] });`,
+      ].join('\n');
+    let saved: Record<string, string | undefined>;
+
+    beforeEach(async () => {
+      saved = {
+        VALIDATE_CONTEXT: process.env.VALIDATE_CONTEXT,
+        VALIDATE_BASELINE: process.env.VALIDATE_BASELINE,
+        VALIDATE_BASELINE_DIGEST: process.env.VALIDATE_BASELINE_DIGEST,
+      };
+      process.env.VALIDATE_CONTEXT = JSON.stringify({
+        rescan: {
+          target: { provider: 'anthropic', kind: 'model_retired', operation: null, field: RETIRED },
+          removed: [],
+        },
+      });
+      await fs.mkdir(path.join(workspace, 'repo', 'src'), { recursive: true });
+      await fs.writeFile(path.join(workspace, 'repo', 'src', 'chat.ts'), chat(RETIRED));
+      process.env.VALIDATE_BASELINE = 'true';
+      const recorded = await validate();
+      assert.equal(recorded.ok, true, JSON.stringify(recorded));
+      delete process.env.VALIDATE_BASELINE;
+      process.env.VALIDATE_BASELINE_DIGEST = String(recorded.data?.baselineDigest);
+    });
+
+    afterEach(() => {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    });
+
+    it('rejects a tree that still sends the retired model, then accepts the fixed one', async () => {
+      const rejected = await validate();
+      assert.equal(rejected.ok, false);
+      assert.equal(rejected.error, `rescan: src/chat.ts (line 3) still sends the retired model ${RETIRED}.`);
+
+      await fs.writeFile(path.join(workspace, 'repo', 'src', 'chat.ts'), chat('claude-opus-4-1'));
+      const accepted = await validate();
+      assert.equal(accepted.ok, true, JSON.stringify(accepted));
+    });
+
+    it('refuses a baseline that repository code changed after it was recorded', async () => {
+      await fs.writeFile(
+        path.join(stateDir, 'validate-baseline.json'),
+        JSON.stringify({ rescan: { files: [], hits: {}, unparsed: [] } }),
+      );
+
+      const result = await validate();
+
+      assert.equal(result.ok, false);
+      assert.match(result.error ?? '', /baseline recorded before the migration is missing or was changed/);
+      assert.equal(await readValidationFailure(stateDir), result.error);
+    });
+
+    it('refuses a baseline that was removed', async () => {
+      await fs.rm(path.join(stateDir, 'validate-baseline.json'));
+
+      const result = await validate();
+
+      assert.equal(result.ok, false);
+      assert.match(result.error ?? '', /missing or was changed/);
+    });
   });
 
   it('saves each failed check for the next refactor attempt', async () => {

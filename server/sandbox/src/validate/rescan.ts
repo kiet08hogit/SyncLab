@@ -18,7 +18,12 @@ export interface RescanContext {
 
 /** Recorded on the tree as prepare cloned it, before any repository code ran. */
 export interface RescanBaseline {
-  /** Matches per change, file and confidence. */
+  /**
+   * The source files the clone had. Install and test scripts can generate
+   * more, such as build output, which a migration neither wrote nor can fix.
+   */
+  files: string[];
+  /** Matches per change, file and confidence, only of the kinds rescan reads. */
   hits: Record<string, number>;
   unparsed: string[];
 }
@@ -86,7 +91,12 @@ function hitKey(hit: Hit): string {
 async function scanTree(repoDir: string, context: RescanContext) {
   const { files } = await readSourceFiles(repoDir);
   const { usages, unparsed } = scanApiUsage(files);
-  return { hits: findHits(usages, context), unparsed };
+  return { files: files.map((file) => file.path), hits: findHits(usages, context), unparsed };
+}
+
+/** Rescan only ever compares the target's hits, and literal hits of other removals. */
+function isCompared(hit: Hit): boolean {
+  return hit.target || hit.confidence === ImpactConfidence.CONFIRMED;
 }
 
 export async function recordRescanBaseline(
@@ -94,13 +104,13 @@ export async function recordRescanBaseline(
   context: RescanContext | undefined,
 ): Promise<RescanBaseline | undefined> {
   if (!context) return undefined;
-  const { hits, unparsed } = await scanTree(repoDir, context);
+  const { files, hits, unparsed } = await scanTree(repoDir, context);
   const counts: Record<string, number> = {};
-  for (const hit of hits) {
+  for (const hit of hits.filter(isCompared)) {
     const key = hitKey(hit);
     counts[key] = (counts[key] ?? 0) + 1;
   }
-  return { hits: counts, unparsed };
+  return { files, hits: counts, unparsed };
 }
 
 function isBaseline(value: unknown): value is RescanBaseline {
@@ -108,6 +118,8 @@ function isBaseline(value: unknown): value is RescanBaseline {
   return (
     typeof baseline === 'object' &&
     baseline !== null &&
+    Array.isArray(baseline.files) &&
+    baseline.files.every((file) => typeof file === 'string') &&
     typeof baseline.hits === 'object' &&
     baseline.hits !== null &&
     Object.values(baseline.hits).every((count) => Number.isInteger(count)) &&
@@ -153,7 +165,12 @@ export async function rescan(
     throw new Error('no re-scan baseline was recorded before the migration');
   }
 
-  const { hits, unparsed } = await scanTree(repoDir, context);
+  // The refactor only rewrites files the clone had, so anything else came from
+  // repository scripts and is not the migration's to fix.
+  const cloned = new Set(baseline.files);
+  const scanned = await scanTree(repoDir, context);
+  const hits = scanned.hits.filter((hit) => cloned.has(hit.file));
+  const unparsed = scanned.unparsed.filter((file) => cloned.has(file));
   const groups = new Map<string, Hit[]>();
   for (const hit of hits) {
     const key = hitKey(hit);

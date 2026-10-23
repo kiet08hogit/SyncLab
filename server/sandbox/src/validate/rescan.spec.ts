@@ -49,8 +49,10 @@ describe('rescan', () => {
     await fs.rm(repoDir, { recursive: true, force: true });
   });
 
-  const write = (file: string, contents: string) =>
-    fs.writeFile(path.join(repoDir, file), contents, 'utf8');
+  const write = async (file: string, contents: string) => {
+    await fs.mkdir(path.dirname(path.join(repoDir, file)), { recursive: true });
+    await fs.writeFile(path.join(repoDir, file), contents, 'utf8');
+  };
 
   async function migrate(context: RescanContext, after: Record<string, string>) {
     const baseline = await recordRescanBaseline(repoDir, context);
@@ -177,6 +179,37 @@ describe('rescan', () => {
     assert.equal(
       reason,
       'src/chat.ts no longer parses, so the re-scan cannot show its API calls are fixed.',
+    );
+  });
+
+  it('ignores files that repository scripts generated after the clone, such as build output', async () => {
+    await write('src/chat.ts', chat(`'${RETIRED}'`));
+    await write('src/legacy.ts', chat("'claude-3-sonnet-20240229'"));
+
+    const reason = await migrate({ target: retiredOpus, removed: [retiredSonnet] }, {
+      'src/chat.ts': chat("'claude-opus-4-1'"),
+      // What `"prepare": "tsc"` with `outDir: "lib"` leaves behind on install.
+      'lib/chat.js': chat(`'${RETIRED}'`),
+      'lib/legacy.js': chat("'claude-3-sonnet-20240229'"),
+      'lib/bundle.js': 'export const = ;',
+    });
+
+    assert.equal(reason, undefined);
+  });
+
+  it('records the cloned files, and only the hits the re-scan compares', async () => {
+    await write('src/chat.ts', chat(`'${RETIRED}'`));
+    await write('src/config.ts', chat('process.env.MODEL'));
+
+    const baseline = await recordRescanBaseline(repoDir, { target: retiredOpus, removed: [retiredSonnet] });
+
+    assert.deepEqual(baseline?.files, ['src/chat.ts', 'src/config.ts']);
+    assert.deepEqual(
+      Object.keys(baseline?.hits ?? {})
+        .map((key) => JSON.parse(key) as unknown[])
+        .map(([, , , field, file, confidence]) => `${String(field)} ${String(file)} ${String(confidence)}`)
+        .sort(),
+      [`${RETIRED} src/chat.ts confirmed`, `${RETIRED} src/config.ts possible`],
     );
   });
 

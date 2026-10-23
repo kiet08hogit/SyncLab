@@ -14,6 +14,10 @@ jest.mock('dockerode');
 const TIMEOUT_MS = 1000;
 const HEAD_SHA = 'a'.repeat(40);
 const PASSED: ScriptedRun = { result: { ok: true } };
+const BASELINE_DIGEST = 'b'.repeat(64);
+const BASELINE_RECORDED: ScriptedRun = {
+  result: { ok: true, data: { baselineDigest: BASELINE_DIGEST } },
+};
 
 /** What one phase container prints and how it exits. `hang` never exits. */
 interface ScriptedRun {
@@ -78,7 +82,9 @@ function setup(
           script[phase]?.shift() ??
           (phase === 'prepare' || phase === 'clone'
             ? { result: { ok: true, data: { headSha: HEAD_SHA } } }
-            : PASSED);
+            : phase === 'validate'
+              ? BASELINE_RECORDED
+              : PASSED);
         const stream = new PassThrough();
 
         const container = {
@@ -328,7 +334,7 @@ describe('DockerSandboxService', () => {
       const { service, created, onSteps } = setup({
         test: [PASSED, PASSED, PASSED],
         validate: [
-          PASSED,
+          BASELINE_RECORDED,
           { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
           PASSED,
         ],
@@ -362,7 +368,7 @@ describe('DockerSandboxService', () => {
     it('gives up without publishing when validation never passes', async () => {
       const { service, created, onSteps } = setup({
         validate: [
-          PASSED,
+          BASELINE_RECORDED,
           { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
           { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
         ],
@@ -376,12 +382,11 @@ describe('DockerSandboxService', () => {
       expect(created.map((c) => c.phase)).not.toContain('publish');
     });
 
-    it('records the validate baseline before any repository code runs, and hands it to every validate run', async () => {
-      const baselines = { rescan: { hits: { '["anthropic"]': 1 }, unparsed: [] } };
+    it('records the validate baseline before any repository code runs, and hands its digest to every validate run', async () => {
       const { service, created, onSteps } = setup({
         test: [PASSED, PASSED, PASSED],
         validate: [
-          { result: { ok: true, data: { baselines } } },
+          BASELINE_RECORDED,
           { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
           PASSED,
         ],
@@ -398,8 +403,18 @@ describe('DockerSandboxService', () => {
       expect(later).toHaveLength(2);
       for (const run of later) {
         expect(run.env).not.toContain('VALIDATE_BASELINE=true');
-        expect(run.env).toContain(`VALIDATE_BASELINE_DATA=${JSON.stringify(baselines)}`);
+        expect(run.env).toContain(`VALIDATE_BASELINE_DIGEST=${BASELINE_DIGEST}`);
       }
+    });
+
+    it('stops before install when the validate baseline reports no digest', async () => {
+      const { service, created, onSteps } = setup({ validate: [PASSED] });
+
+      await expect(service.run('job-1', params(), onSteps)).resolves.toEqual({
+        ok: false,
+        error: 'sandbox phase "validate" did not report its baseline digest',
+      });
+      expect(created.map((c) => c.phase)).toEqual(['prepare', 'validate']);
     });
 
     it('stops before install when the validate baseline cannot be recorded', async () => {
