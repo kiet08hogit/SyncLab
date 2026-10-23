@@ -359,9 +359,12 @@ So the baseline run fails, before install and any model call, when the clone has
 The `schema` check runs for an OpenAI API change.
 The worker sends every operation of the newest OpenAI spec snapshot, with the parameter names it accepts and requires, and the files the migration rewrites.
 The check scans the whole checkout, so a client imported from another file is still followed, and keeps the requests in those files whose request is an object literal: the SDK argument after any path parameters, or a raw HTTP call's body.
-A request fails when it sends a key the new spec does not accept, which covers a removed parameter, when it leaves out a required field, or when the spec no longer has its operation.
+A request fails when it sends a key the new spec does not accept, which covers a removed parameter, when it leaves out a required field, or when the spec no longer has the operation of an SDK method or of a raw URL with no runtime part.
+A body field declared by any of an operation's media types is accepted, and a field is required only when every media type requires it.
+An array query parameter the spec names with a trailing `[]`, such as `include[]`, is matched by its name without the brackets.
 A path parameter is passed positionally, so it is never required in the object, and an object with a spread is not failed for a missing field the spread may carry.
-A request that is not a literal, or an SDK method missing from the scanner's operation table, is not checked.
+A const request object that later gains keys by assignment or `Object.assign` is likewise not failed for a missing field.
+A request that is not a literal, an SDK method missing from the scanner's operation table, an SDK argument holding only per-request options, or a raw URL with a runtime part that matches no operation, is not checked.
 Before the monitor has stored an OpenAI spec, and for every other job, the check has nothing to reject.
 
 #### `publish`

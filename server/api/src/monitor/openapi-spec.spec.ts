@@ -101,6 +101,23 @@ describe('requestSchemas', () => {
     expect(before['POST /v1/agents/sessions'].params).toContain('spend_control');
     expect(after['POST /v1/agents/sessions'].params).not.toContain('spend_control');
   });
+
+  it('names an array query parameter without its brackets, as the SDK does', () => {
+    const schemas = requestSchemas(extractSurface(recorded('openai-openapi-6ca9cb2b.json.gz')));
+
+    expect(schemas['POST /v1/threads/{thread_id}/runs'].params).toContain('include');
+    expect(schemas['POST /v1/threads/{thread_id}/runs'].params).not.toContain('include[]');
+  });
+
+  it('accepts the multipart fields of the recorded image edit body', () => {
+    const schemas = requestSchemas(extractSurface(recorded('openai-openapi-6ca9cb2b.json.gz')));
+    const edit = schemas['POST /v1/images/edits'];
+
+    expect(edit.params).toEqual(expect.arrayContaining(['image', 'images', 'response_format']));
+    expect(edit.required).toContain('prompt');
+    expect(edit.required).not.toContain('image');
+    expect(edit.required).not.toContain('images');
+  });
 });
 
 describe('extractSurface', () => {
@@ -257,6 +274,42 @@ describe('extractSurface', () => {
     );
 
     expect(surface).toBe('POST /v1/files\nPOST /v1/files | param file | required');
+  });
+
+  it('unions every body media type, requiring only what each one requires', () => {
+    const surface = extractSurface(
+      spec({
+        '/edits': {
+          post: {
+            requestBody: {
+              content: {
+                'application/json': {
+                  schema: {
+                    properties: { images: {}, prompt: {}, mode: { enum: ['a'] } },
+                    required: ['images', 'prompt'],
+                  },
+                },
+                'multipart/form-data': {
+                  schema: {
+                    properties: { image: {}, prompt: {}, mode: { enum: ['b'] } },
+                    required: ['image', 'prompt'],
+                  },
+                },
+                'text/plain': { schema: { properties: { ignored: {} } } },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(surface.split('\n')).toEqual([
+      'POST /v1/edits',
+      'POST /v1/edits | param image',
+      'POST /v1/edits | param images',
+      'POST /v1/edits | param mode | enum a',
+      'POST /v1/edits | param prompt | required',
+    ]);
   });
 
   it('reads an enum only when every non-null branch is restricted', () => {
