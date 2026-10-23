@@ -88,6 +88,7 @@ const dependencyRows = results.filter((row) => row.releaseNotesFound !== null);
 const notesFound = dependencyRows.filter((row) => row.releaseNotesFound).length;
 const withNotes = summarize(dependencyRows.filter((row) => row.releaseNotesFound));
 const withoutNotes = summarize(dependencyRows.filter((row) => !row.releaseNotesFound));
+const apiCaseText = (lines) => (dependencyRows.length < results.length ? `\n${lines.join('\n')}` : '');
 
 const FAILURE_TEXT = {
   tests_failed: 'the model changed code but the suite still failed after the last attempt',
@@ -172,9 +173,14 @@ ${failures.map((row) => `| \`${row.id}\` | \`${row.failureCategory}\` | ${row.at
 
 **Cases.** Each case is a small project pinned (with a lockfile) to an older release of one npm package whose newer release has a real breaking change: a removed or renamed API, a changed signature or default export, an ESM-only release, or a behaviour change. The project has its own \`node:test\` suite that only imports the project's code, never the dependency.
 
-**Validation before scoring.** \`benchmarks/validate.mjs\` runs every case in the same sandbox, without any model, and a case is scored only if (1) its suite passes on the old version, (2) the suite fails after the upgrade alone, proving the break is real, and (3) the suite passes again with the reference fix in \`solution/\` applied, proving the case is solvable. Cases that fail any check are excluded.
+**Validation before scoring.** \`benchmarks/validate.mjs\` runs every case in the same sandbox, without any model, and a case is scored only if (1) its suite passes on the old version, (2) the suite fails after the upgrade alone, proving the break is real, and (3) the suite passes again with the reference fix in \`solution/\` applied, proving the case is solvable. Cases that fail any check are excluded.${apiCaseText([
+  'An API change case keeps its SDK pinned and instead has hidden `contract/` tests that play the provider after the change.',
+  "It is scored only if (1) the scan confirms the change affects exactly the files its `case.json` names in `impactFiles`, (2) its suite passes on the original code, (3) the contract tests fail on the original code, proving the break is real, and (4) with the reference fix the suite and the contract tests pass and the scan no longer matches the change.",
+])}
 
-**The pipeline under test.** \`benchmarks/run.mjs\` loads the compiled worker's own \`DockerSandboxService\` and configuration and runs each case through the same phases and order as a real job: \`install\` (lifecycle scripts, no token), a baseline \`test\`, \`upgrade\` to the exact target version, then \`refactor\` and \`test\` alternating up to ${meta.maxAttempts} attempts, with each failing test output passed to the next refactor attempt. Each phase is a fresh container from the production sandbox image with the production limits; test phases have no network. Only \`prepare\` (clone) and \`publish\` (push and pull request) are not run: the checkout is seeded from the case instead.
+**The pipeline under test.** \`benchmarks/run.mjs\` loads the compiled worker's own \`DockerSandboxService\` and configuration and runs each case through the same phases and order as a real job: \`install\` (lifecycle scripts, no token), a baseline \`test\`, \`upgrade\` to the exact target version, then \`refactor\` and \`test\` alternating up to ${meta.maxAttempts} attempts, with each failing test output passed to the next refactor attempt. Each phase is a fresh container from the production sandbox image with the production limits; test phases have no network. Only \`prepare\` (clone) and \`publish\` (push and pull request) are not run: the checkout is seeded from the case instead.${apiCaseText([
+  "An API change case mirrors the worker's `api_change` job instead: the target files are the impact the real `scan` phase confirms, there is no `upgrade`, and the change brief travels with the job rather than as release notes.",
+])}
 
 **Release notes.** The model receives the release notes production would fetch, not a hand-written hint. \`benchmarks/fetch-notes.mjs\` ran production's \`fetchReleaseNotes\` once per case (npm registry, then the GitHub release for the target tag) and stored the result, or production's fallback sentence when nothing was found, in \`benchmarks/notes/\`. Every run reuses these snapshots.
 
@@ -182,7 +188,10 @@ ${failures.map((row) => `| \`${row.id}\` | \`${row.failureCategory}\` | ${row.at
 
 **Rate limits.** A rate-limited model call is retried after 2 and then 4 minutes, as BullMQ retries a rate-limited job in production. The waits are excluded from migration time. Production re-runs the whole job on a retry; the benchmark retries only the refactor attempt that was limited, which leads to the same outcome without repeating the earlier phases.
 
-**Metrics.** Success means the project's existing test suite passes after the migration and no test file changed. First-attempt pass means it passed after the first refactor. Migration time runs from the start of \`upgrade\` to the end of the last test run (install and baseline excluded); it includes container start-up and model latency on this host.
+**Metrics.** Success means the project's existing test suite passes after the migration and no test file changed. First-attempt pass means it passed after the first refactor. Migration time runs from the start of \`upgrade\` to the end of the last test run (install and baseline excluded); it includes container start-up and model latency on this host.${apiCaseText([
+  'For an API change case, success also requires the hidden contract tests, added only after the run, to pass.',
+  'Its migration time runs from the start of the first `refactor`, since there is no `upgrade`.',
+])}
 
 ## Limitations
 ${(meta.models ?? []).length > 1 ? `
