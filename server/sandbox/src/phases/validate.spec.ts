@@ -72,7 +72,19 @@ describe('validate', () => {
         VALIDATE_CONTEXT: process.env.VALIDATE_CONTEXT,
         VALIDATE_BASELINE: process.env.VALIDATE_BASELINE,
         VALIDATE_BASELINE_DIGEST: process.env.VALIDATE_BASELINE_DIGEST,
+        MIGRATION_KIND: process.env.MIGRATION_KIND,
+        API_CHANGE: process.env.API_CHANGE,
+        TARGET_FILES: process.env.TARGET_FILES,
       };
+      process.env.MIGRATION_KIND = 'api_change';
+      process.env.API_CHANGE = JSON.stringify({
+        provider: 'anthropic',
+        kind: 'model_retired',
+        field: RETIRED,
+        evidence: `${RETIRED} is retired.`,
+        sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
+      });
+      process.env.TARGET_FILES = JSON.stringify(['src/chat.ts']);
       process.env.VALIDATE_CONTEXT = JSON.stringify({
         rescan: {
           target: { provider: 'anthropic', kind: 'model_retired', operation: null, field: RETIRED },
@@ -116,6 +128,13 @@ describe('validate', () => {
       assert.equal(result.ok, false);
       assert.match(result.error ?? '', /baseline recorded before the migration is missing or was changed/);
       assert.equal(await readValidationFailure(stateDir), result.error);
+    });
+
+    it('fails the baseline run when a file the impact record does not list sends the retired model', async () => {
+      await fs.writeFile(path.join(workspace, 'repo', 'src', 'new.ts'), chat(RETIRED));
+      process.env.VALIDATE_BASELINE = 'true';
+
+      await assert.rejects(validate(), /^Error: src\/new\.ts \(line 3\) sends the retired model .*the default branch moved since the scan/);
     });
 
     it('refuses a baseline that was removed', async () => {

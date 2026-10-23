@@ -55,7 +55,7 @@ describe('rescan', () => {
   };
 
   async function migrate(context: RescanContext, after: Record<string, string>) {
-    const baseline = await recordRescanBaseline(repoDir, context);
+    const baseline = await recordRescanBaseline(repoDir, context, ['src/chat.ts']);
     for (const [file, contents] of Object.entries(after)) {
       await write(file, contents);
     }
@@ -201,7 +201,9 @@ describe('rescan', () => {
     await write('src/chat.ts', chat(`'${RETIRED}'`));
     await write('src/config.ts', chat('process.env.MODEL'));
 
-    const baseline = await recordRescanBaseline(repoDir, { target: retiredOpus, removed: [retiredSonnet] });
+    const baseline = await recordRescanBaseline(repoDir, { target: retiredOpus, removed: [retiredSonnet] }, [
+      'src/chat.ts',
+    ]);
 
     assert.deepEqual(baseline?.files, ['src/chat.ts', 'src/config.ts']);
     assert.deepEqual(
@@ -213,10 +215,37 @@ describe('rescan', () => {
     );
   });
 
+  it('refuses to record a baseline when the retired model is sent from a file the impact record does not list', async () => {
+    await write('src/chat.ts', chat(`'${RETIRED}'`));
+    await write('src/new.ts', `${chat(`'${RETIRED}'`)}\nexport const again = () => client.messages.create({ model: '${RETIRED}', max_tokens: 1, messages: [] });`);
+
+    await assert.rejects(recordRescanBaseline(repoDir, { target: retiredOpus, removed: [] }, ['src/chat.ts']), {
+      message: `src/new.ts (line 4, 6) sends the retired model ${RETIRED}, but the impact record does not list it: the default branch moved since the scan, and the refactor only sends the files the scan found. Re-scan the repository, then migrate again.`,
+    });
+  });
+
+  it('records a baseline when the unlisted match of the target is only known at runtime, or is another removal', async () => {
+    await write('src/chat.ts', chat(`'${RETIRED}'`));
+    await write('src/config.ts', chat('process.env.MODEL'));
+    await write('src/legacy.ts', chat("'claude-3-sonnet-20240229'"));
+
+    const baseline = await recordRescanBaseline(repoDir, { target: retiredOpus, removed: [retiredSonnet] }, [
+      'src/chat.ts',
+    ]);
+
+    assert.ok(baseline);
+  });
+
+  it('records a dependency migration baseline whatever files send a removal', async () => {
+    await write('src/legacy.ts', chat("'claude-3-sonnet-20240229'"));
+
+    assert.ok(await recordRescanBaseline(repoDir, { target: null, removed: [retiredSonnet] }, []));
+  });
+
   it('passes without a baseline when there is nothing to compare', async () => {
     await write('src/chat.ts', chat(`'${RETIRED}'`));
 
-    assert.equal(await recordRescanBaseline(repoDir, undefined), undefined);
+    assert.equal(await recordRescanBaseline(repoDir, undefined, []), undefined);
     assert.equal(await rescan(repoDir, undefined, undefined), undefined);
   });
 

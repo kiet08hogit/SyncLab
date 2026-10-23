@@ -349,6 +349,9 @@ The `rescan` check scans the migrated tree with the same scanner as a repository
 Only the source files the clone had are judged: install and test scripts can generate others, such as build output, which the migration neither wrote nor can fix.
 A dependency job has no change being migrated, so it only gets the second rule and the third.
 
+The refactor only sends the files the impact record lists (`TARGET_FILES`), and the default branch can move between the scan and the migration.
+So the baseline run fails, before install and any model call, when the clone has a literal match of the change being migrated in a file the impact record does not list, and the job is not retried: every attempt would fail on a file the model never sees.
+
 #### `publish`
 
 1. Checks `REPO_FULL_NAME` is exactly `owner/repo` before doing anything else, and refuses to publish unless the checkout is a real directory directly inside the workspace, not a symlink, before any credentials are written.

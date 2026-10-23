@@ -99,12 +99,33 @@ function isCompared(hit: Hit): boolean {
   return hit.target || hit.confidence === ImpactConfidence.CONFIRMED;
 }
 
+/**
+ * `impacted` is the impact record's files, the only ones the refactor sends.
+ * A literal match of the target anywhere else would fail every attempt, so
+ * recording the baseline fails instead, before any model call.
+ */
 export async function recordRescanBaseline(
   repoDir: string,
   context: RescanContext | undefined,
+  impacted: string[],
 ): Promise<RescanBaseline | undefined> {
   if (!context) return undefined;
   const { files, hits, unparsed } = await scanTree(repoDir, context);
+
+  const listed = new Set(impacted);
+  const unlisted = new Map<string, number[]>();
+  for (const hit of hits) {
+    if (hit.target && hit.confidence === ImpactConfidence.CONFIRMED && !listed.has(hit.file)) {
+      unlisted.set(hit.file, [...(unlisted.get(hit.file) ?? []), hit.line]);
+    }
+  }
+  if (context.target && unlisted.size > 0) {
+    const where = [...unlisted].map(([file, lines]) => `${file} (line ${lines.join(', ')})`).join(', ');
+    throw new Error(
+      `${where} ${describe(context.target)}, but the impact record does not list it: the default branch moved since the scan, and the refactor only sends the files the scan found. Re-scan the repository, then migrate again.`,
+    );
+  }
+
   const counts: Record<string, number> = {};
   for (const hit of hits.filter(isCompared)) {
     const key = hitKey(hit);

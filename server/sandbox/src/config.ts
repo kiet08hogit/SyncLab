@@ -142,7 +142,7 @@ function parseJson<T>(name: string, schema: z.ZodType<T>): T {
   return parsed.data;
 }
 
-function loadMigration(): Migration {
+export function loadMigration(): Migration {
   const kind = process.env.MIGRATION_KIND || 'dependency';
 
   if (kind === 'dependency') {
