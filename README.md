@@ -415,7 +415,7 @@ erDiagram
     EXECUTION_LOGS {
         uuid id PK
         uuid job_id FK
-        varchar step "STARTED, CLONE, CHANGELOG, INSTALL, BASELINE, UPGRADE, REFACTOR, TEST, PR, SKIPPED, FAILED"
+        varchar step "STARTED, CLONE, CHANGELOG, INSTALL, BASELINE, UPGRADE, REFACTOR, TEST, VALIDATE, PR, SKIPPED, FAILED"
         text output
         timestamptz created_at
     }
@@ -516,7 +516,7 @@ Only failures that could succeed on a later try are retried; everything else is 
 | `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` missing for the selected provider | `FAILED` | no |
 | Clone, install or dependency upgrade failed | `FAILED` | no |
 | Test suite already fails before the upgrade (a dependency job) or before the migration (an API-change job) | `FAILED` | no |
-| Tests still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
+| Tests or validation still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
 | Refactor produced no changes | `FAILED` | no |
 | Infrastructure errors (Docker, GitHub token, database) | `QUEUED` while retrying, then `FAILED` | yes |
 | Already `COMPLETED` when claimed | unchanged | no (logged as `SKIPPED`) |

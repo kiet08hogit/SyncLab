@@ -4,27 +4,8 @@ NestJS service containing both the Gateway (receives GitHub webhooks, enqueues j
 
 ## How a job runs
 
-The worker never executes untrusted code itself. It runs a sequence of containers over a single shared Docker volume mounted at `/workspace`:
-
-| Phase | Network | GitHub token | Model key | Does |
-| --- | --- | --- | --- | --- |
-| `prepare` | yes | yes | no | clone the repository, fetch release notes when the job names a dependency, report the cloned commit |
-| `install` | yes | **no** | no | install dependencies with npm, pnpm or yarn, lifecycle scripts included |
-| `test` (baseline) | **no** | **no** | **no** | run the test suite on the current version; the job stops if it already fails |
-| `upgrade` | yes | **no** | no | upgrade the migrated dependency to the target version |
-| `refactor` | yes | no | yes | rewrite the files the job targets with the configured model (Gemini or Claude) |
-| `test` | **no** | **no** | **no** | run the package manager's `test` script |
-| `publish` | yes | yes | no | clone afresh at the prepared commit, copy the changes across, commit, push the branch, open a pull request |
-
-Repository code runs in `install`, `upgrade` and `test`, and none of them ever receives a credential. `test` also has no network. Only `prepare` and `publish` hold the token, and they run nothing but SyncLab's own code; `publish` never runs git in the checkout on the volume, because repository code could have planted a hook or config there.
-
-An `api_change` job skips `upgrade`.
-After `upgrade` on a dependency job, the worker alternates `refactor` and `test` until the repository's own suite accepts the change, up to `LLM_MAX_ATTEMPTS` times.
-Each failing test run is left on the volume so the next refactor attempt can read the failure and correct itself.
-Only when the tests pass does `publish` run.
-If the refactor changed no files, there is nothing to publish and the job is marked failed with `refactor produced no changes`.
-
-A rate-limited model call, an overloaded Anthropic API (529), or a dropped or refused connection to the model provider, fails the job in a way BullMQ retries with backoff. Every other failure, including tests that still fail after the last attempt, is marked unrecoverable so a doomed migration does not spend the quota three times over.
+The worker never executes untrusted code itself. It runs a sequence of sandbox containers over a single shared Docker volume mounted at `/workspace`.
+The phases, what each one may reach, and the retry loop are documented in the root README under [Sandbox phase loop](../../README.md#3-sandbox-phase-loop), and which failures BullMQ retries under [Failure handling and retries](../../README.md#failure-handling-and-retries).
 
 ## Setup
 
