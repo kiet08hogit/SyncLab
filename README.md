@@ -233,9 +233,11 @@ flowchart TD
     REF -- "model rate limited" --> F2["QUEUED, BullMQ retries with backoff<br/>(FAILED after the last attempt)"]
     REF -- "other model error" --> F3["FAILED, not retried"]
     REF -- ok --> TEST["test (attempt n)"]
-    TEST -- pass --> PUB["publish"]
+    TEST -- pass --> VAL["validate"]
     TEST -- "fail, output saved to volume" --> NEXT["attempt n + 1"] --> LOOP
-    LOOP -- "no, attempts exhausted" --> F4["FAILED: tests still failing"]
+    VAL -- pass --> PUB["publish"]
+    VAL -- "fail, reason saved to volume" --> NEXT
+    LOOP -- "no, attempts exhausted" --> F4["FAILED: tests or validation still failing"]
     PUB -- "no file changes" --> F5["FAILED: refactor produced no changes"]
     PUB -- "push or PR failed" --> F6["FAILED"]
     PUB -- ok --> DONE(["COMPLETED + PR URL"])
@@ -245,7 +247,7 @@ The phases above are a dependency job.
 An `api_change` job skips `upgrade`, and a failing baseline says the suite already fails before the migration.
 
 Each phase is a fresh container from the same `synclab-sandbox` image, started with the phase name as its command.
-State passes between phases only through the shared `/workspace` volume: the repository checkout in `/workspace/repo` and small state files in `/workspace/state` (release notes and the last test output).
+State passes between phases only through the shared `/workspace` volume: the repository checkout in `/workspace/repo` and small state files in `/workspace/state` (release notes, the last test output, and the last validation failure).
 
 #### Phase isolation
 
@@ -258,6 +260,7 @@ The same image also runs the phases of a repository scan (`clone`, then `scan`) 
 | `upgrade` | yes | **no** | no | **yes** (the new release's install scripts) |
 | `refactor` | yes | no | yes | no |
 | `test` | **none** | no | no | **yes** (the test suite, baseline and each attempt) |
+| `validate` | **none** | no | no | no (only SyncLab's checks) |
 | `publish` | yes | yes | no | no |
 | `clone` | yes | yes | no | no |
 | `scan` | **none** | no | no | no (only parses the checkout) |
@@ -312,13 +315,23 @@ Upgrades the migrated dependency with the detected package manager (`server/sand
    Claude answers with a one-sentence reason followed by the file in a fenced block over a streamed request, so the file needs no JSON escaping and a reply cut off at `max_tokens` is caught from the stop reason.
    A Claude refusal is retried server-side on Anthropic's default fallback model before the file is failed.
    For a dependency job, the prompt includes the dependency, target version, release notes, and the imported names and usage lines.
-   On a retry, the prompt also includes the previous failing test output.
+   On a retry, the prompt also includes the previous failing test output, or the validation failure when the suite passed and a check did not.
    The model returns the complete file rather than a diff, because diffs fail to apply too often.
 5. Writes back only files the model actually changed.
 
 #### `test`
 
 Runs the package manager's `test` script in the checkout with no network and no credentials, and saves the full output to the volume so the next `refactor` attempt can correct itself.
+A failing run also drops any validation failure left by the previous attempt, since this attempt never reached validation.
+
+#### `validate`
+
+Runs after a test attempt passes, and only then, for both dependency jobs and API-change jobs.
+It loads every check module in `server/sandbox/src/validate/checks` and passes when none of them reports a problem.
+No checks are registered yet, so today it passes.
+The worker passes each check the JSON it builds in `server/api/src/worker/sandbox/validation-context/`, and a check adds its own keys in its own file there.
+A failed check is written to the volume and the next `refactor` attempt reads it.
+The container has no network and no token, so a check cannot call a provider.
 
 #### `publish`
 

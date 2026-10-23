@@ -107,7 +107,7 @@ describe('main', () => {
       assert.equal(code, 2, label);
       assert.equal(
         stderr,
-        `Expected one of prepare, install, upgrade, refactor, test, publish, clone, scan, classify but received "${args[0] ?? ''}"\n`,
+        `Expected one of prepare, install, upgrade, refactor, test, validate, publish, clone, scan, classify but received "${args[0] ?? ''}"\n`,
         label,
       );
       assert.equal(stdout, '', label);

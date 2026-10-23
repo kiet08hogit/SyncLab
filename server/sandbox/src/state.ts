@@ -8,6 +8,7 @@ import path from 'node:path';
  */
 const BREAKING_CHANGES_FILE = 'breaking-changes.md';
 const TEST_OUTPUT_FILE = 'test-output.txt';
+const VALIDATION_FAILURE_FILE = 'validation-failure.txt';
 
 async function write(stateDir: string, name: string, contents: string): Promise<void> {
   await fs.mkdir(stateDir, { recursive: true });
@@ -36,4 +37,20 @@ export function writeTestOutput(stateDir: string, contents: string): Promise<voi
 
 export function readTestOutput(stateDir: string): Promise<string | undefined> {
   return read(stateDir, TEST_OUTPUT_FILE);
+}
+
+export function clearTestOutput(stateDir: string): Promise<void> {
+  return fs.rm(path.join(stateDir, TEST_OUTPUT_FILE), { force: true });
+}
+
+export function writeValidationFailure(stateDir: string, contents: string): Promise<void> {
+  return write(stateDir, VALIDATION_FAILURE_FILE, contents);
+}
+
+export function readValidationFailure(stateDir: string): Promise<string | undefined> {
+  return read(stateDir, VALIDATION_FAILURE_FILE);
+}
+
+export function clearValidationFailure(stateDir: string): Promise<void> {
+  return fs.rm(path.join(stateDir, VALIDATION_FAILURE_FILE), { force: true });
 }

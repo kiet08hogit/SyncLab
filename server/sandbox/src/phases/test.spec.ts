@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { readTestOutput } from '../state.js';
+import { readTestOutput, readValidationFailure, writeValidationFailure } from '../state.js';
 import { test as runTestPhase } from './test.js';
 
 function restoreEnv(saved: NodeJS.ProcessEnv): void {
@@ -166,6 +166,26 @@ describe('test phase', () => {
     assert.equal(result.error, 'test suite failed with exit code 7');
     assert.equal(result.steps[0].exitCode, 7);
     assert.match(result.steps[0].output, /expected 1 to equal 2/);
+  });
+
+  it('drops a stale validation failure when the suite fails', async () => {
+    await writeValidationFailure(stateDir, 'rescan: still retired');
+    await writeTestScript('node -e "process.exit(1)"');
+
+    await runTestPhase();
+
+    assert.equal(await readValidationFailure(stateDir), undefined);
+    assert.equal(typeof (await readTestOutput(stateDir)), 'string');
+  });
+
+  it('leaves a validation failure in place when the suite passes', async () => {
+    await writeValidationFailure(stateDir, 'rescan: still retired');
+    await writeTestScript('node -e "process.exit(0)"');
+
+    const result = await runTestPhase();
+
+    assert.equal(result.ok, true);
+    assert.equal(await readValidationFailure(stateDir), 'rescan: still retired');
   });
 
   it('saves the test output for the next refactor attempt', async () => {

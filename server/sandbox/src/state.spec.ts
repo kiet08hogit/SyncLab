@@ -4,10 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
+  clearTestOutput,
+  clearValidationFailure,
   readBreakingChanges,
   readTestOutput,
+  readValidationFailure,
   writeBreakingChanges,
   writeTestOutput,
+  writeValidationFailure,
 } from './state.js';
 
 describe('state', () => {
@@ -24,6 +28,7 @@ describe('state', () => {
   it('reads back nothing before anything was written', async () => {
     assert.equal(await readBreakingChanges(root), undefined);
     assert.equal(await readTestOutput(path.join(root, 'missing')), undefined);
+    assert.equal(await readValidationFailure(root), undefined);
   });
 
   it('creates the state directory on first write', async () => {
@@ -40,6 +45,19 @@ describe('state', () => {
 
     assert.equal(await readBreakingChanges(root), 'notes');
     assert.equal(await readTestOutput(root), 'FAIL src/a.test.js');
+  });
+
+  it('keeps a validation failure apart from the test output, and can drop either', async () => {
+    await writeTestOutput(root, 'FAIL src/a.test.js');
+    await writeValidationFailure(root, 'rescan: still retired');
+
+    assert.equal(await readValidationFailure(root), 'rescan: still retired');
+    await clearTestOutput(root);
+    assert.equal(await readTestOutput(root), undefined);
+    assert.equal(await readValidationFailure(root), 'rescan: still retired');
+
+    await clearValidationFailure(root);
+    assert.equal(await readValidationFailure(root), undefined);
   });
 
   it('overwrites the previous attempt instead of appending', async () => {

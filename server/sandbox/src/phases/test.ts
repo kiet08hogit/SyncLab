@@ -1,7 +1,7 @@
 import { run } from '../exec.js';
 import { loadConfig } from '../config.js';
 import { detectPackageManager, packageManagerEnv, testCommand } from '../package-manager.js';
-import { writeTestOutput } from '../state.js';
+import { clearValidationFailure, writeTestOutput } from '../state.js';
 import type { PhaseResult, StepLog } from '../result.js';
 
 /**
@@ -37,6 +37,9 @@ export async function test(): Promise<PhaseResult> {
   });
 
   if (result.code !== 0) {
+    // This attempt never reached validation, so a reason from the previous
+    // attempt must not ride along beside the new test failure.
+    await clearValidationFailure(config.stateDir);
     return {
       phase: 'test',
       ok: false,

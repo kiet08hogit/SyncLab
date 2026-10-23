@@ -30,19 +30,21 @@ export interface ContainerOptionsInput {
  * Install and upgrade also run untrusted code - dependency lifecycle scripts -
  * but cannot fetch packages without the registry, so they keep the network
  * and instead never receive a token. Refactor and classify need the model
- * provider and only run SyncLab's own code. Scan only parses the clone, so it
- * has no reason to reach anything.
+ * provider and only run SyncLab's own code. Scan only parses the clone, and
+ * validate only runs SyncLab's own checks, so neither has a reason to reach
+ * anything. A check that could open a connection could call a provider with
+ * repository code, which validation must not do.
  */
 export function phaseNeedsNetwork(phase: SandboxPhase): boolean {
-  return phase !== 'test' && phase !== 'scan';
+  return phase !== 'test' && phase !== 'scan' && phase !== 'validate';
 }
 
 /**
  * Kept separate from network access on purpose: these are independent reasons
  * to withhold something from a phase. Only the phases that clone or push, and
  * run nothing but SyncLab's own code, get the token; install scripts and the
- * test suite never run beside it, and refactor, scan and classify have no
- * business reaching GitHub.
+ * test suite never run beside it, and refactor, scan, classify and validate
+ * have no business reaching GitHub.
  */
 export function phaseNeedsToken(phase: SandboxPhase): boolean {
   return phase === 'prepare' || phase === 'clone' || phase === 'publish';
@@ -89,6 +91,10 @@ export function buildPhaseEnv(
     REFACTOR_ATTEMPT: String(attempt),
     REFACTOR_MAX_ATTEMPTS: String(params.llm.maxAttempts),
   };
+
+  if (phase === 'validate') {
+    env.VALIDATE_CONTEXT = params.validationContext || '{}';
+  }
 
   if (phaseNeedsToken(phase)) {
     env.GITHUB_TOKEN = params.token;

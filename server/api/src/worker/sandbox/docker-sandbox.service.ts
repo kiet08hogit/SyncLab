@@ -40,6 +40,7 @@ const FALLBACK_STEP: Record<SandboxPhase, LogStep> = {
   upgrade: LogStep.UPGRADE,
   refactor: LogStep.REFACTOR,
   test: LogStep.TEST,
+  validate: LogStep.VALIDATE,
   publish: LogStep.PR,
   clone: LogStep.CLONE,
   scan: LogStep.SCAN,
@@ -89,8 +90,9 @@ export class DockerSandboxService {
   /**
    * Prepare and install, prove the suite passes on the current version, then
    * upgrade and alternate refactor and test until the repository's own suite
-   * accepts the change, then publish. Each test failure is left on the shared
-   * volume for the next refactor attempt to read.
+   * accepts the change. A passing suite still has to pass validate before
+   * publish. A test failure or a failed check is left on the shared volume
+   * for the next refactor attempt to read.
    */
   async run(
     jobId: string,
@@ -155,8 +157,9 @@ export class DockerSandboxService {
       }
 
       const maxAttempts = params.llm.maxAttempts;
-      let testsPassed = false;
-      let lastTestError: string | undefined;
+      let accepted = false;
+      let lastGate: 'tests' | 'validation' = 'tests';
+      let lastError: string | undefined;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const refactored = await this.runPhase(
@@ -180,18 +183,33 @@ export class DockerSandboxService {
         );
         await onSteps(tested.steps);
 
-        if (tested.ok) {
-          testsPassed = true;
+        if (!tested.ok) {
+          lastGate = 'tests';
+          lastError = tested.error ?? 'test suite failed';
+          continue;
+        }
+
+        // The suite passing is not enough: validate checks the migrated tree
+        // and, on failure, leaves its reason where the next refactor reads it.
+        const validated = await this.runPhase(
+          'validate',
+          volumeName,
+          buildPhaseEnv('validate', params, attempt),
+        );
+        await onSteps(validated.steps);
+        if (validated.ok) {
+          accepted = true;
           break;
         }
 
-        lastTestError = tested.error ?? 'test suite failed';
+        lastGate = 'validation';
+        lastError = validated.error ?? 'validation failed';
       }
 
-      if (!testsPassed) {
+      if (!accepted) {
         return {
           ok: false,
-          error: `tests still failing after ${maxAttempts} refactor attempt(s): ${lastTestError}`,
+          error: `${lastGate} still failing after ${maxAttempts} refactor attempt(s): ${lastError}`,
         };
       }
 

@@ -57,6 +57,7 @@ export const LogStep = {
   UPGRADE: 'UPGRADE',
   REFACTOR: 'REFACTOR',
   TEST: 'TEST',
+  VALIDATE: 'VALIDATE',
   PR: 'PR',
   SCAN: 'SCAN',
   SKIPPED: 'SKIPPED',

@@ -28,6 +28,7 @@ const PARAMS: SandboxJobParams = {
   migration: { kind: 'dependency', dependencyName: 'react', targetVersion: 'v18.0.0' },
   branchName: 'synclab/react-v18-0-0',
   token: TOKEN,
+  validationContext: '{}',
   llm: {
     provider: 'gemini',
     apiKey: API_KEY,
@@ -53,6 +54,17 @@ describe('buildPhaseEnv', () => {
     expect(buildPhaseEnv('test', PARAMS, 1).GITHUB_TOKEN).toBeUndefined();
   });
 
+  it('gives the validation context only to validate, and no credential', () => {
+    const withContext: SandboxJobParams = { ...PARAMS, validationContext: '{"rescan":{}}' };
+    const env = buildPhaseEnv('validate', withContext, 1);
+
+    expect(env.VALIDATE_CONTEXT).toBe('{"rescan":{}}');
+    expect(env.GITHUB_TOKEN).toBeUndefined();
+    expect(env.GEMINI_API_KEY).toBeUndefined();
+    expect(buildPhaseEnv('refactor', withContext, 1).VALIDATE_CONTEXT).toBeUndefined();
+    expect(buildPhaseEnv('test', withContext, 1).VALIDATE_CONTEXT).toBeUndefined();
+  });
+
   it('withholds the GitHub token from refactor, which has no reason to reach GitHub', () => {
     expect(buildPhaseEnv('refactor', PARAMS, 1).GITHUB_TOKEN).toBeUndefined();
   });
@@ -76,7 +88,7 @@ describe('buildPhaseEnv', () => {
   it('gives the model key only to the refactor phase', () => {
     expect(buildPhaseEnv('refactor', PARAMS, 1).GEMINI_API_KEY).toBe(API_KEY);
 
-    for (const phase of ['prepare', 'test', 'publish'] as const) {
+    for (const phase of ['prepare', 'test', 'validate', 'publish'] as const) {
       expect(buildPhaseEnv(phase, PARAMS, 1).GEMINI_API_KEY).toBeUndefined();
     }
   });
@@ -97,7 +109,7 @@ describe('buildPhaseEnv', () => {
     expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-test');
     expect(env.GEMINI_API_KEY).toBeUndefined();
 
-    for (const phase of ['prepare', 'test', 'publish'] as const) {
+    for (const phase of ['prepare', 'test', 'validate', 'publish'] as const) {
       expect(buildPhaseEnv(phase, anthropic, 1).ANTHROPIC_API_KEY).toBeUndefined();
     }
   });
@@ -226,12 +238,13 @@ describe('capClassifyText', () => {
 });
 
 describe('buildContainerOptions', () => {
-  it('disables networking for the test suite and for the scan, which only parses files', () => {
+  it('disables networking for the test suite, the scan, and validation', () => {
     expect(optionsFor('prepare').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('refactor').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('install').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('upgrade').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('test').HostConfig?.NetworkMode).toBe('none');
+    expect(optionsFor('validate').HostConfig?.NetworkMode).toBe('none');
     expect(optionsFor('publish').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('clone').HostConfig?.NetworkMode).toBe('bridge');
     expect(optionsFor('scan').HostConfig?.NetworkMode).toBe('none');

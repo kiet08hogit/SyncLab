@@ -6,6 +6,7 @@ export type PhaseName =
   | 'upgrade'
   | 'refactor'
   | 'test'
+  | 'validate'
   | 'publish'
   | 'clone'
   | 'scan'

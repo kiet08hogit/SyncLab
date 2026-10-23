@@ -14,6 +14,7 @@ export const SANDBOX_PHASES = [
   'upgrade',
   'refactor',
   'test',
+  'validate',
   'publish',
   'clone',
   'scan',
@@ -73,6 +74,11 @@ export interface SandboxJobParams {
   branchName: string;
   token: string;
   llm: SandboxLlmParams;
+  /**
+   * JSON for the validate phase only. Each check adds its own keys through
+   * buildValidationContext, so a new check does not change this field.
+   */
+  validationContext: string;
 }
 
 /** A scan clones the default branch and parses it; it needs nothing about a migration. */
