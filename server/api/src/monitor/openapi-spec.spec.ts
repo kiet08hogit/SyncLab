@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { diffSurfaces, extractSurface } from './openapi-spec';
+import { diffSurfaces, extractSurface, requestSchemas } from './openapi-spec';
 
 /** OpenAI's spec at a commit of github.com/openai/openai-openapi. */
 function recorded(name: string): unknown {
@@ -67,6 +67,39 @@ describe('extractSurface and diffSurfaces on recorded specs', () => {
     expect(diffSurfaces(after, after)).toEqual([]);
     // Re-adding spend_control is an addition, which is never breaking.
     expect(diffSurfaces(after, before)).toEqual([]);
+  });
+});
+
+describe('requestSchemas', () => {
+  it('lists each operation with the parameters it accepts and requires', () => {
+    const surface = extractSurface(
+      spec({
+        '/items/{id}': {
+          post: {
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            ...jsonBody({
+              type: 'object',
+              properties: { name: {}, mode: { enum: ['a', 'b'] } },
+              required: ['name'],
+            }),
+          },
+          get: {},
+        },
+      }),
+    );
+
+    expect(requestSchemas(surface)).toEqual({
+      'GET /v1/items/{id}': { params: [], required: [] },
+      'POST /v1/items/{id}': { params: ['id', 'mode', 'name'], required: ['id', 'name'] },
+    });
+  });
+
+  it('drops a removed parameter from the recorded spec that removed it', () => {
+    const before = requestSchemas(extractSurface(recorded('openai-openapi-35060f5b.json.gz')));
+    const after = requestSchemas(extractSurface(recorded('openai-openapi-6ca9cb2b.json.gz')));
+
+    expect(before['POST /v1/agents/sessions'].params).toContain('spend_control');
+    expect(after['POST /v1/agents/sessions'].params).not.toContain('spend_control');
   });
 });
 

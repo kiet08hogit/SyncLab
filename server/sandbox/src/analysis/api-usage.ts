@@ -34,6 +34,15 @@ export interface ApiUsageScan {
   unparsed: string[];
 }
 
+/** A request object a call writes as a literal, inline or bound once as a `const`. */
+export interface RequestObject {
+  usage: ApiUsage;
+  /** The keys written in the object, sorted. */
+  keys: string[];
+  /** False when a spread or a computed key may add keys the code does not spell out. */
+  complete: boolean;
+}
+
 interface ExportEntry {
   /** The local binding the export points at. */
   id?: t.Node;
@@ -151,6 +160,8 @@ class ApiUsageScanner {
   private readonly facts = new Map<string, FileFacts>();
   private readonly known: Set<string>;
   private readonly unparsed: string[] = [];
+  /** The literal request object of each usage that has one, filled by scan(). */
+  readonly requests = new Map<ApiUsage, Omit<RequestObject, 'usage'>>();
 
   constructor(files: SourceFile[]) {
     this.known = new Set(files.map((file) => file.path));
@@ -652,15 +663,28 @@ class ApiUsageScanner {
     }
 
     const method = names.join('.');
-    return {
+    const operation = lookupOperation(provider, method);
+    const args = call.get('arguments') as NodePath[];
+    const usage: ApiUsage = {
       provider,
       file: facts.file.path,
       line: call.node.loc?.start.line ?? 0,
       style: 'sdk',
       method,
-      operation: lookupOperation(provider, method),
-      ...requestShape((call.get('arguments') as NodePath[])[0]),
+      operation,
+      ...requestShape(args[0]),
     };
+    // The SDKs take path parameters positionally, ahead of the request object.
+    this.recordRequest(usage, args[operation?.match(/\{[^}]+\}/g)?.length ?? 0]);
+    return usage;
+  }
+
+  private recordRequest(usage: ApiUsage, argument: NodePath | undefined): void {
+    if (!argument || !constObject(argument)) {
+      return;
+    }
+    const { params, dynamic } = objectKeys(argument);
+    this.requests.set(usage, { keys: [...params].sort(), complete: !dynamic });
   }
 
   private httpCall(facts: FileFacts, call: NodePath<t.CallExpression | t.OptionalCallExpression>): ApiUsage | undefined {
@@ -717,7 +741,7 @@ class ApiUsageScanner {
     const { method, body } = options;
     const shape = body ? requestShape(body) : { params: [], modelIds: [], dynamic: false };
     const fromUrl = queryNames(url);
-    return {
+    const usage: ApiUsage = {
       provider,
       file: facts.file.path,
       line: call.node.loc?.start.line ?? 0,
@@ -727,6 +751,8 @@ class ApiUsageScanner {
       modelIds: shape.modelIds,
       dynamic: shape.dynamic || options.dynamic || options.queryDynamic || options.headerDynamic || fromUrl.dynamic || !method,
     };
+    this.recordRequest(usage, body);
+    return usage;
   }
 
   private isAxios(facts: FileFacts, expression: NodePath): boolean {
@@ -977,4 +1003,16 @@ function requestShape(argument: NodePath | undefined): Pick<ApiUsage, 'params' |
  */
 export function scanApiUsage(files: SourceFile[]): ApiUsageScan {
   return new ApiUsageScanner(files).scan();
+}
+
+/**
+ * The calls scanApiUsage finds whose request is an object literal: the SDK
+ * argument after any path parameters, or a raw HTTP call's body.
+ */
+export function scanRequestObjects(files: SourceFile[]): RequestObject[] {
+  const scanner = new ApiUsageScanner(files);
+  return scanner.scan().usages.flatMap((usage) => {
+    const request = scanner.requests.get(usage);
+    return request ? [{ usage, ...request }] : [];
+  });
 }

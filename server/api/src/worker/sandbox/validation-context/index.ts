@@ -1,3 +1,4 @@
+import type { PrismaService } from '../../../prisma/prisma.service';
 import type { SandboxMigration } from '../sandbox.types';
 import { rescanContext, type RescanChange } from './rescan';
 import { schemaContext } from './schema';
@@ -14,13 +15,14 @@ export interface ValidationInputs {
  * Each check owns the function in this directory that adds its keys, so the
  * checks do not edit the phase list, the retry loop, or the container options.
  */
-export function buildValidationContext(
+export async function buildValidationContext(
+  prisma: PrismaService,
   migration: SandboxMigration,
   inputs: ValidationInputs,
-): string {
+): Promise<string> {
   return JSON.stringify({
     ...rescanContext(migration, inputs.removedChanges),
-    ...schemaContext(migration),
+    ...(await schemaContext(prisma, migration)),
     ...typecheckContext(migration),
   });
 }

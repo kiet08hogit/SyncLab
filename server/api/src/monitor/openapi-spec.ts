@@ -291,6 +291,31 @@ function parseSurface(content: string): Surface {
   return surface;
 }
 
+export interface RequestSchema {
+  params: string[];
+  required: string[];
+}
+
+/**
+ * Each operation of a surface with the parameter names a caller may send and
+ * the ones it must. Enum values are left out, which keeps the whole spec
+ * small enough to pass to a container in one environment variable.
+ */
+export function requestSchemas(content: string): Record<string, RequestSchema> {
+  const surface = parseSurface(content);
+  const schemas: Record<string, RequestSchema> = {};
+  for (const operation of surface.operations) {
+    schemas[operation] = { params: [], required: [] };
+  }
+  for (const [key, param] of surface.params) {
+    const [operation, name] = key.split('\n');
+    const schema = (schemas[operation] ??= { params: [], required: [] });
+    schema.params.push(name);
+    if (param.required) schema.required.push(name);
+  }
+  return schemas;
+}
+
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }

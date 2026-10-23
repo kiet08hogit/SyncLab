@@ -356,6 +356,14 @@ A dependency job has no change being migrated, so it only gets the second rule a
 The refactor only sends the files the impact record lists (`TARGET_FILES`), and the default branch can move between the scan and the migration.
 So the baseline run fails, before install and any model call, when the clone has a literal match of the change being migrated in a file the impact record does not list, and the job is not retried: every attempt would fail on a file the model never sees.
 
+The `schema` check runs for an OpenAI API change.
+The worker sends every operation of the newest OpenAI spec snapshot, with the parameter names it accepts and requires, and the files the migration rewrites.
+The check scans the whole checkout, so a client imported from another file is still followed, and keeps the requests in those files whose request is an object literal: the SDK argument after any path parameters, or a raw HTTP call's body.
+A request fails when it sends a key the new spec does not accept, which covers a removed parameter, when it leaves out a required field, or when the spec no longer has its operation.
+A path parameter is passed positionally, so it is never required in the object, and an object with a spread is not failed for a missing field the spread may carry.
+A request that is not a literal, or an SDK method missing from the scanner's operation table, is not checked.
+Before the monitor has stored an OpenAI spec, and for every other job, the check has nothing to reject.
+
 #### `publish`
 
 1. Checks `REPO_FULL_NAME` is exactly `owner/repo` before doing anything else, and refuses to publish unless the checkout is a real directory directly inside the workspace, not a symlink, before any credentials are written.

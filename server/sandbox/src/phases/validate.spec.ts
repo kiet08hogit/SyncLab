@@ -28,6 +28,18 @@ describe('validate', () => {
     await fs.rm(workspace, { recursive: true, force: true });
   });
 
+  it('passes when no check is registered, and clears a stale failure', async () => {
+    await writeTestOutput(stateDir, 'all passed');
+
+    const result = await runValidation(stateDir, []);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.steps[0].step, 'VALIDATE');
+    assert.match(result.steps[0].output, /No validation checks registered/);
+    assert.equal(await readValidationFailure(stateDir), undefined);
+    assert.equal(await readTestOutput(stateDir), undefined);
+  });
+
   it('passes when the worker sent nothing to check, and clears a stale failure', async () => {
     await writeTestOutput(stateDir, 'all passed');
 
@@ -38,6 +50,13 @@ describe('validate', () => {
     assert.match(result.steps[0].output, /validation check\(s\) passed/);
     assert.equal(await readValidationFailure(stateDir), undefined);
     assert.equal(await readTestOutput(stateDir), undefined);
+  });
+
+  it('runs the registered checks, which pass when the context gives them nothing to check', async () => {
+    const result = await validate();
+
+    assert.equal(result.ok, true);
+    assert.match(result.steps[0].output, /validation check\(s\) passed/);
   });
 
   it('records each baseline, then hands it to that check on every later run', async () => {
