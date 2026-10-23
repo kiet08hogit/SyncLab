@@ -684,7 +684,7 @@ class ApiUsageScanner {
       return;
     }
     const { params, dynamic } = objectKeys(argument);
-    this.requests.set(usage, { keys: [...params].sort(), complete: !dynamic });
+    this.requests.set(usage, { keys: [...params].sort(), complete: !dynamic && !gainsKeys(argument) });
   }
 
   private httpCall(facts: FileFacts, call: NodePath<t.CallExpression | t.OptionalCallExpression>): ApiUsage | undefined {
@@ -800,6 +800,27 @@ function constObject(value: NodePath): NodePath<t.ObjectExpression> | undefined 
     }
   }
   return object.isObjectExpression() ? object : undefined;
+}
+
+/** Whether a `const` object is given keys after it is declared, by assignment or `Object.assign`. */
+function gainsKeys(value: NodePath): boolean {
+  const object = unwrap(value);
+  if (!object.isIdentifier()) {
+    return false;
+  }
+  const binding = object.scope.getBinding(object.node.name);
+  return (binding?.referencePaths ?? []).some(({ node, parent, parentPath }) => {
+    if (isMember(parent) && parent.object === node) {
+      return parentPath?.parentPath?.isAssignmentExpression({ left: parent }) ?? false;
+    }
+    return (
+      isCall(parent) &&
+      parent.arguments[0] === node &&
+      isMember(parent.callee) &&
+      t.isIdentifier(parent.callee.object, { name: 'Object' }) &&
+      propertyName(parent.callee) === 'assign'
+    );
+  });
 }
 
 interface HttpOptions {

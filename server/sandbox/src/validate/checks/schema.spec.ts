@@ -74,6 +74,27 @@ describe('findSchemaMismatches', () => {
     );
   });
 
+  it('lets fields added to a const request after it is declared carry required fields', () => {
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5' };\nbody.messages = history;\nclient.chat.completions.create(body);",
+      ),
+      [],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', stop: ['\\n'] };\nObject.assign(body, extra);\nclient.chat.completions.create(body);",
+      ),
+      ['src/chat.ts:5 POST /v1/chat/completions: sends stop, which the new spec does not accept'],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { agent: 'a' };\nbody['input'] = 'x';\nfetch('https://api.openai.com/v1/agents/sessions', { method: 'POST', body: JSON.stringify(body) });",
+      ),
+      [],
+    );
+  });
+
   it('checks the object after a positional path parameter, which is not required in it', () => {
     assert.deepEqual(
       mismatches("client.beta.threads.messages.create(threadId, { role: 'user', content: 'hi' });"),
@@ -97,6 +118,22 @@ describe('findSchemaMismatches', () => {
     assert.deepEqual(mismatches("client.embeddings.create({ model: 'e', input: 'x' });"), [
       'src/chat.ts:3 POST /v1/embeddings: the new spec has no such operation',
     ]);
+  });
+
+  it('leaves a raw URL whose runtime part matches no operation unchecked', () => {
+    assert.deepEqual(
+      mismatches(
+        "fetch(`https://api.openai.com/v1/${endpoint}`, { method: 'POST', body: JSON.stringify({ model, input }) });\n" +
+          "fetch(`https://api.openai.com/${version}/chat/completions`, { method: 'POST', body: JSON.stringify({ model }) });",
+      ),
+      [],
+    );
+    assert.deepEqual(
+      mismatches(
+        "fetch(`https://api.openai.com/v1/threads/${id}/messages`, { method: 'POST', body: JSON.stringify({ role: 'user' }) });",
+      ),
+      ['src/chat.ts:3 POST /v1/threads/{param}/messages: leaves out content, which the new spec requires'],
+    );
   });
 
   it('ignores files the migration did not rewrite and requests that are not literals', () => {

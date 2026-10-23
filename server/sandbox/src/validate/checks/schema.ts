@@ -31,6 +31,8 @@ function operationKey(operation: string): string {
  * removed), a required field left out, or an operation the spec no longer
  * has. A path parameter is passed positionally, so it is never required in
  * the object, and an object with a spread may carry the required fields.
+ * A runtime part of a raw URL may span several segments, so such a URL that
+ * matches no operation is left unchecked.
  */
 export function findSchemaMismatches(requests: RequestObject[], schema: OpenaiSchema): string[] {
   const files = new Set(schema.files);
@@ -49,6 +51,9 @@ export function findSchemaMismatches(requests: RequestObject[], schema: OpenaiSc
     const where = `${usage.file}:${usage.line} ${usage.operation}`;
     const spec = operations.get(operationKey(usage.operation));
     if (!spec) {
+      if (usage.operation.includes('{param}')) {
+        continue;
+      }
       mismatches.push(`${where}: the new spec has no such operation`);
       continue;
     }
