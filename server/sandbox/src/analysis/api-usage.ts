@@ -756,7 +756,8 @@ class ApiUsageScanner {
       return undefined;
     }
 
-    const { method, body } = options;
+    const { method } = options;
+    const body = jsonStringifyArgument(options.body);
     const shape = body ? requestShape(body) : { params: [], modelIds: [], dynamic: false };
     const fromUrl = queryNames(url);
     const usage: ApiUsage = {

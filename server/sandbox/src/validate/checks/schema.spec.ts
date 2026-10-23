@@ -25,11 +25,76 @@ const OPERATIONS: OpenaiSchema['operations'] = {
   },
 };
 
-function mismatches(code: string, files = ['src/chat.ts']): string[] {
+/** Static paths and the templates a literal id must not be allowed to steal. */
+const TEMPLATED: OpenaiSchema['operations'] = {
+  ...OPERATIONS,
+  'POST /v1/agents/{agent_id}': {
+    params: ['agent_id', 'name'],
+    required: ['agent_id', 'name'],
+  },
+  'POST /v1/agents/sessions/{session_id}': {
+    params: ['agent', 'session_id'],
+    required: ['agent', 'session_id'],
+  },
+  'POST /v1/threads/runs': {
+    params: ['assistant_id'],
+    required: ['assistant_id'],
+  },
+  'POST /v1/threads/{thread_id}': {
+    params: ['metadata', 'thread_id'],
+    required: ['metadata', 'thread_id'],
+  },
+  'POST /v1/threads/{thread_id}/runs': {
+    params: ['assistant_id', 'thread_id'],
+    required: ['assistant_id', 'thread_id'],
+  },
+  'POST /v1/responses/{response_id}/cancel': {
+    params: ['response_id'],
+    required: ['response_id'],
+  },
+  'POST /v1/organization/certificates/activate': {
+    params: ['certificate_id'],
+    required: [],
+  },
+  'POST /v1/organization/certificates/{certificate_id}': {
+    params: ['certificate_id', 'name'],
+    required: ['certificate_id', 'name'],
+  },
+  'GET /v1/videos/{video_id}/content': {
+    params: ['variant', 'video_id'],
+    required: ['variant', 'video_id'],
+  },
+  'GET /v1/videos/characters/{character_id}': {
+    params: ['character_id', 'name'],
+    required: ['character_id', 'name'],
+  },
+  'PUT /v1/chat/completions': {
+    params: ['messages', 'model', 'temperature', 'max_completion_tokens'],
+    required: ['messages', 'model'],
+  },
+  'PATCH /v1/chat/completions': {
+    params: ['messages', 'model', 'temperature', 'max_completion_tokens'],
+    required: ['messages', 'model'],
+  },
+};
+
+function mismatches(
+  code: string,
+  files = ['src/chat.ts'],
+  operations: OpenaiSchema['operations'] = OPERATIONS,
+): string[] {
   const contents = ["import OpenAI from 'openai';", 'const client = new OpenAI();', code].join('\n');
+  return reported(contents, files, operations);
+}
+
+function reported(
+  contents: string,
+  files = ['src/chat.ts'],
+  operations: OpenaiSchema['operations'] = OPERATIONS,
+): string[] {
   return findSchemaMismatches(scanRequestObjects([{ path: 'src/chat.ts', contents }]), {
     files,
-    operations: OPERATIONS,
+    operations,
   });
 }
 
@@ -131,6 +196,76 @@ describe('findSchemaMismatches', () => {
     ]);
   });
 
+  it('checks a raw URL that fills one spec template with a literal id', () => {
+    const contents = [
+      "import axios from 'axios';",
+      "fetch('https://api.openai.com/v1/threads/thread_abc/messages', { method: 'POST', body: JSON.stringify({ role: 'user', content: 'hi' }) });",
+      "axios.post('https://api.openai.com/v1/threads/thread_abc/messages', { role: 'user', content: 'hi', extra: true });",
+      "fetch('https://api.openai.com/v1/agents/sessions/sess_123', { method: 'POST', body: JSON.stringify({ agent: 'a' }) });",
+      "fetch('https://api.openai.com/v1/agents/agent_123', { method: 'POST', body: JSON.stringify({ name: 'x' }) });",
+      "fetch('https://api.openai.com/v1/threads/thread_abc/runs', { method: 'POST', body: JSON.stringify({ assistant_id: 'asst' }) });",
+      "axios.post('https://api.openai.com/v1/responses/resp_123/cancel', {});",
+      "fetch('https://api.openai.com/v1/threads/thread_abc/messages', { method: 'POST', body: JSON.stringify({ role: 'user' }) });",
+    ].join('\n');
+    assert.deepEqual(reported(contents, ['src/chat.ts'], TEMPLATED), [
+      'src/chat.ts:3 POST /v1/threads/thread_abc/messages: sends extra, which the new spec does not accept',
+      'src/chat.ts:8 POST /v1/threads/thread_abc/messages: leaves out content, which the new spec requires',
+    ]);
+  });
+
+  it('keeps a static operation ahead of a template with the same shape', () => {
+    assert.deepEqual(
+      mismatches(
+        [
+          "fetch('https://api.openai.com/v1/agents/sessions', { method: 'POST', body: JSON.stringify({ agent: 'a' }) });",
+          "fetch('https://api.openai.com/v1/threads/runs', { method: 'POST', body: JSON.stringify({ assistant_id: 'asst' }) });",
+          "fetch('https://api.openai.com/v1/organization/certificates/activate', { method: 'POST', body: JSON.stringify({ certificate_id: 'c' }) });",
+        ].join('\n'),
+        ['src/chat.ts'],
+        TEMPLATED,
+      ),
+      [],
+    );
+  });
+
+  it('does not choose between several templates that fit one raw URL', () => {
+    assert.deepEqual(
+      mismatches(
+        [
+          "fetch('https://api.openai.com/v1/videos/characters/content', { method: 'GET', body: JSON.stringify({ name: 'hero' }) });",
+          "fetch('https://api.openai.com/v1/videos/vid_123/content', { method: 'GET', body: JSON.stringify({}) });",
+        ].join('\n'),
+        ['src/chat.ts'],
+        TEMPLATED,
+      ),
+      [
+        'src/chat.ts:3 GET /v1/videos/characters/content: the new spec has no such operation',
+        'src/chat.ts:4 GET /v1/videos/vid_123/content: leaves out variant, which the new spec requires',
+      ],
+    );
+  });
+
+  it('checks an axios body wrapped in JSON.stringify', () => {
+    const contents = [
+      "import axios from 'axios';",
+      "axios.post('https://api.openai.com/v1/chat/completions', JSON.stringify({ model: 'gpt-5', messages: [] }));",
+      "axios.post('https://api.openai.com/v1/chat/completions', JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 }));",
+      "axios.put('https://api.openai.com/v1/chat/completions', JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 }));",
+      "axios.patch('https://api.openai.com/v1/chat/completions', JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 }));",
+      "axios({ url: 'https://api.openai.com/v1/chat/completions', method: 'post', data: JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 }) });",
+      "axios('https://api.openai.com/v1/chat/completions', { method: 'POST', data: JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 }) });",
+      "axios.request({ url: 'https://api.openai.com/v1/chat/completions', method: 'post', data: JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 }) });",
+    ].join('\n');
+    assert.deepEqual(reported(contents, ['src/chat.ts'], TEMPLATED), [
+      'src/chat.ts:3 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+      'src/chat.ts:4 PUT /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+      'src/chat.ts:5 PATCH /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+      'src/chat.ts:6 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+      'src/chat.ts:7 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+      'src/chat.ts:8 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+    ]);
+  });
+
   it('leaves a raw URL whose runtime part matches no operation unchecked', () => {
     assert.deepEqual(
       mismatches(
@@ -158,13 +293,7 @@ describe('findSchemaMismatches', () => {
       'const client = new Anthropic();',
       "client.messages.create({ model: 'claude-haiku-4-5' });",
     ].join('\n');
-    assert.deepEqual(
-      findSchemaMismatches(scanRequestObjects([{ path: 'src/chat.ts', contents }]), {
-        files: ['src/chat.ts'],
-        operations: OPERATIONS,
-      }),
-      [],
-    );
+    assert.deepEqual(reported(contents), []);
   });
 });
 
