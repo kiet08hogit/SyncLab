@@ -54,6 +54,7 @@ export interface RefactorRequest {
   usage: DependencyUsage;
   breakingChanges?: string;
   previousTestOutput?: string;
+  previousValidation?: string;
 }
 
 export interface RefactorOutcome {
@@ -97,6 +98,16 @@ function buildUserPrompt(config: SandboxConfig, request: RefactorRequest): strin
         'A previous attempt at this migration was rejected by the test suite.',
         'Study the failure and correct the mistake in this attempt:',
         request.previousTestOutput.trim(),
+      ].join('\n'),
+    );
+  }
+
+  if (request.previousValidation?.trim()) {
+    sections.push(
+      [
+        'A previous attempt at this migration passed the test suite and was rejected by validation.',
+        'Correct the mistake this check reported:',
+        request.previousValidation.trim(),
       ].join('\n'),
     );
   }

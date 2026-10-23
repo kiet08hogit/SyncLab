@@ -216,6 +216,7 @@ describe('DockerSandboxService', () => {
         'upgrade',
         'refactor',
         'test',
+        'validate',
         'publish',
       ]);
       for (const container of created) {
@@ -258,6 +259,7 @@ describe('DockerSandboxService', () => {
         'test',
         'refactor',
         'test',
+        'validate',
         'publish',
       ]);
       for (const container of created) {
@@ -291,6 +293,7 @@ describe('DockerSandboxService', () => {
         'test',
         'refactor',
         'test',
+        'validate',
         'publish',
       ]);
       const refactorAttempts = created
@@ -313,7 +316,57 @@ describe('DockerSandboxService', () => {
         error: 'tests still failing after 2 refactor attempt(s): second failure',
       });
       expect(created.map((c) => c.phase)).not.toContain('publish');
+      expect(created.map((c) => c.phase)).not.toContain('validate');
       expect(volume.remove).toHaveBeenCalled();
+    });
+
+    it('refactors again when the suite passes but validation does not', async () => {
+      const { service, created, onSteps } = setup({
+        test: [PASSED, PASSED, PASSED],
+        validate: [
+          { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
+          PASSED,
+        ],
+      });
+
+      await expect(service.run('job-1', params(3), onSteps)).resolves.toMatchObject({ ok: true });
+
+      expect(created.map((c) => c.phase)).toEqual([
+        'prepare',
+        'install',
+        'test',
+        'upgrade',
+        'refactor',
+        'test',
+        'validate',
+        'refactor',
+        'test',
+        'validate',
+        'publish',
+      ]);
+      const validate = created.find((c) => c.phase === 'validate');
+      expect(validate?.network).toBe('none');
+      expect(validate?.env).not.toContain('GITHUB_TOKEN=gh-token');
+      const attempts = created
+        .filter((c) => c.phase === 'refactor')
+        .map((c) => c.env.find((entry) => entry.startsWith('REFACTOR_ATTEMPT=')));
+      expect(attempts).toEqual(['REFACTOR_ATTEMPT=1', 'REFACTOR_ATTEMPT=2']);
+    });
+
+    it('gives up without publishing when validation never passes', async () => {
+      const { service, created, onSteps } = setup({
+        validate: [
+          { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
+          { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
+        ],
+      });
+
+      await expect(service.run('job-1', params(2), onSteps)).resolves.toEqual({
+        ok: false,
+        error:
+          'validation still failing after 2 refactor attempt(s): rescan: still sends claude-3-opus-20240229',
+      });
+      expect(created.map((c) => c.phase)).not.toContain('publish');
     });
 
     it('stops after a failed prepare', async () => {

@@ -3,6 +3,7 @@ import { install } from './phases/install.js';
 import { upgrade } from './phases/upgrade.js';
 import { refactor } from './phases/refactor.js';
 import { test } from './phases/test.js';
+import { validate } from './phases/validate.js';
 import { publish } from './phases/publish.js';
 import { clone } from './phases/clone.js';
 import { scan } from './phases/scan.js';
@@ -15,6 +16,7 @@ const PHASES: Record<PhaseName, () => Promise<PhaseResult>> = {
   upgrade,
   refactor,
   test,
+  validate,
   publish,
   clone,
   scan,

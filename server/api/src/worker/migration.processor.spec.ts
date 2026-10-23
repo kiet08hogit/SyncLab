@@ -147,6 +147,7 @@ describe('MigrationProcessor', () => {
           files: ['src/chat.ts', 'src/summary.ts'],
         },
         branchName: 'synclab/api-anthropic-claude-3-opus-20240229-1b2c3d4e',
+        validationContext: '{}',
       });
       expect(prisma.migrationJob.update).toHaveBeenCalledWith({
         where: { id: 'job-1' },

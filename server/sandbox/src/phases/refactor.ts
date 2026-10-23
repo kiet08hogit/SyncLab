@@ -3,7 +3,7 @@ import path from 'node:path';
 import { loadConfig, type SandboxConfig } from '../config.js';
 import { collectSourceFiles } from '../files.js';
 import { analyzeDependencyUsage, type DependencyUsage } from '../analysis/imports.js';
-import { readBreakingChanges, readTestOutput } from '../state.js';
+import { readBreakingChanges, readTestOutput, readValidationFailure } from '../state.js';
 import { createRefactorChain } from '../llm/refactor-chain.js';
 import { isRetryableModelError } from '../llm/errors.js';
 import type { PhaseResult, StepLog } from '../result.js';
@@ -96,6 +96,8 @@ export async function refactor(): Promise<PhaseResult> {
   // Only a retry has something to learn from.
   const previousTestOutput =
     config.llm.attempt > 1 ? await readTestOutput(config.stateDir) : undefined;
+  const previousValidation =
+    config.llm.attempt > 1 ? await readValidationFailure(config.stateDir) : undefined;
 
   const { candidates, skipped } = await selectCandidates(config);
 
@@ -128,6 +130,7 @@ export async function refactor(): Promise<PhaseResult> {
         usage: candidate.usage,
         breakingChanges,
         previousTestOutput,
+        previousValidation,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

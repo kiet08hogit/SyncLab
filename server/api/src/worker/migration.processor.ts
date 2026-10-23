@@ -17,6 +17,7 @@ import {
 import { configuration, LLM_API_KEY_ENV, type Configuration } from '../config/configuration';
 import { ImpactConfidence } from '../impact/match';
 import type { SandboxJobParams, StepLog } from './sandbox/sandbox.types';
+import { buildValidationContext } from './sandbox/validation-context';
 import { claimMigrationJob, type JobWithRepository } from './claim-job';
 
 function slug(value: string): string {
@@ -77,10 +78,12 @@ export class MigrationProcessor extends WorkerHost {
         );
       }
 
+      const migration = await this.migrationFor(record);
       const params: SandboxJobParams = {
         repoUrl: job.data.repoUrl || `https://github.com/${record.repository.fullName}.git`,
         repoFullName: record.repository.fullName,
-        ...(await this.migrationFor(record)),
+        ...migration,
+        validationContext: buildValidationContext(migration.migration),
         token,
         llm,
       };

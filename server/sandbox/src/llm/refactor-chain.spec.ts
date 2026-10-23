@@ -150,6 +150,19 @@ describe('the Anthropic refactor chain', () => {
     assert.match(prompt, /^Dependency: lodash\n\nTarget version: 4\.17\.21$/m);
   });
 
+  it('hands a validation failure back to the model on a retry', async (t) => {
+    const requests = stubAnthropic(t, 'Nothing to change.\n', 'end_turn');
+
+    await createRefactorChain(anthropicConfig())({
+      ...request(ORIGINAL),
+      previousValidation: 'rescan: still sends claude-3-opus-20240229',
+    });
+
+    const prompt = (requests[0].messages as Array<{ content: string }>)[0].content;
+    assert.match(prompt, /rejected by validation/);
+    assert.match(prompt, /rescan: still sends claude-3-opus-20240229/);
+  });
+
   it('refuses a reply that reached max_tokens', async (t) => {
     stubAnthropic(t, `Updated.\n\`\`\`js\n${MIGRATED}\`\`\``, 'max_tokens');
 
