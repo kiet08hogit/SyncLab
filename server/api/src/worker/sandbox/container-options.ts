@@ -66,11 +66,18 @@ function migrationEnv(migration: SandboxMigration): Record<string, string> {
     };
   }
 
-  return {
+  const env: Record<string, string> = {
     MIGRATION_KIND: 'api_change',
     API_CHANGE: JSON.stringify(migration.change),
     TARGET_FILES: JSON.stringify(migration.files),
   };
+
+  if (migration.sdk) {
+    env.DEPENDENCY_NAME = migration.sdk.name;
+    env.TARGET_VERSION = migration.sdk.version;
+  }
+
+  return env;
 }
 
 export function buildPhaseEnv(

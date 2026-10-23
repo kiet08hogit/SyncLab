@@ -176,9 +176,17 @@ export class MigrationProcessor extends WorkerHost {
     const subject = slug(change.field ?? change.operation ?? change.kind)
       .slice(0, 60)
       .replace(/-+$/, '');
+    const sdkName = record.dependencyName;
+    const sdkVersion = record.targetVersion;
+    if ((sdkName && !sdkVersion) || (!sdkName && sdkVersion)) {
+      throw new UnrecoverableError(
+        'An API change that names an SDK needs both the package and the version.',
+      );
+    }
     return {
       migration: {
         kind: 'api_change',
+        ...(sdkName && sdkVersion ? { sdk: { name: sdkName, version: sdkVersion } } : {}),
         change: {
           provider: change.provider.slug,
           kind: change.kind,

@@ -28,14 +28,22 @@ describe('validate', () => {
     await fs.rm(workspace, { recursive: true, force: true });
   });
 
-  it('passes when no check is registered, and clears a stale failure', async () => {
+  it('passes the registered checks when the job gives them nothing to judge', async () => {
     await writeTestOutput(stateDir, 'all passed');
+    const previousContext = process.env.VALIDATE_CONTEXT;
+    delete process.env.VALIDATE_CONTEXT;
 
     const result = await runValidation(stateDir, []);
 
+    if (previousContext === undefined) {
+      delete process.env.VALIDATE_CONTEXT;
+    } else {
+      process.env.VALIDATE_CONTEXT = previousContext;
+    }
+
     assert.equal(result.ok, true);
     assert.equal(result.steps[0].step, 'VALIDATE');
-    assert.match(result.steps[0].output, /No validation checks registered/);
+    assert.match(result.steps[0].output, /validation check\(s\) passed/);
     assert.equal(await readValidationFailure(stateDir), undefined);
     assert.equal(await readTestOutput(stateDir), undefined);
   });

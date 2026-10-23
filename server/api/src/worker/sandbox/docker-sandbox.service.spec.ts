@@ -276,6 +276,45 @@ describe('DockerSandboxService', () => {
       }
     });
 
+    it('upgrades an API change that names the SDK the change requires', async () => {
+      const { service, created, onSteps } = setup({});
+      const apiChange: SandboxJobParams = {
+        ...params(),
+        migration: {
+          kind: 'api_change',
+          change: {
+            provider: 'anthropic',
+            kind: 'model_retired',
+            operation: null,
+            field: 'claude-3-opus-20240229',
+            replacement: null,
+            effectiveAt: null,
+            evidence: 'Claude 3 Opus is retired.',
+            sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
+          },
+          files: ['src/chat.ts'],
+          sdk: { name: '@anthropic-ai/sdk', version: '0.60.0' },
+        },
+      };
+
+      await expect(service.run('job-1', apiChange, onSteps)).resolves.toMatchObject({ ok: true });
+
+      expect(created.map((c) => c.phase)).toEqual([
+        'prepare',
+        'install',
+        'test',
+        'upgrade',
+        'refactor',
+        'test',
+        'validate',
+        'publish',
+      ]);
+      const upgrade = created.find((c) => c.phase === 'upgrade');
+      expect(upgrade?.env).toEqual(
+        expect.arrayContaining(['DEPENDENCY_NAME=@anthropic-ai/sdk', 'TARGET_VERSION=0.60.0']),
+      );
+    });
+
     it('omits the pull request url when publish does not report one', async () => {
       const { service, onSteps } = setup({});
 

@@ -163,7 +163,8 @@ export class DockerSandboxService {
         };
       }
 
-      if (params.migration.kind === 'dependency') {
+      // An API change keeps the installed SDK unless the job names the one it requires.
+      if (params.migration.kind === 'dependency' || params.migration.sdk) {
         const upgraded = await this.runPhase(
           'upgrade',
           volumeName,

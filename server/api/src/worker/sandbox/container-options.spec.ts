@@ -153,6 +153,35 @@ describe('buildPhaseEnv', () => {
     expect(env.DEPENDENCY_NAME).toBeUndefined();
     expect(env.TARGET_VERSION).toBeUndefined();
   });
+
+  it('passes the SDK an API change requires so upgrade and typecheck see the same version', () => {
+    const env = buildPhaseEnv(
+      'upgrade',
+      {
+        ...PARAMS,
+        migration: {
+          kind: 'api_change',
+          change: {
+            provider: 'anthropic',
+            kind: 'model_retired',
+            operation: null,
+            field: 'claude-3-opus-20240229',
+            replacement: null,
+            effectiveAt: null,
+            evidence: 'Claude 3 Opus is retired.',
+            sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
+          },
+          files: ['src/chat.ts'],
+          sdk: { name: '@anthropic-ai/sdk', version: '0.60.0' },
+        },
+      },
+      1,
+    );
+
+    expect(env.MIGRATION_KIND).toBe('api_change');
+    expect(env.DEPENDENCY_NAME).toBe('@anthropic-ai/sdk');
+    expect(env.TARGET_VERSION).toBe('0.60.0');
+  });
 });
 
 describe('buildScanPhaseEnv', () => {
