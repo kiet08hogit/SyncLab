@@ -102,6 +102,10 @@ const FAILURE_TEXT = {
   upgrade_failed: 'the upgrade to the target version failed',
   no_impact: 'the scan did not confirm the API change affects the case, so no migration would start',
   api_still_broken: "the suite passed, but the provider's post-change contract tests still failed",
+  validate_baseline_failed: 'validate could not record its baseline before the migration',
+  validation_failed: 'the suite passed, but validation was still failing after the last attempt',
+  validation_missed: 'a fix that still uses the change passed validation, so the gate did not reject it',
+  validation_unavailable: 'the sandbox image has no re-scan baseline, so a passing suite cannot be rejected',
   harness_error: 'the benchmark harness itself errored',
 };
 
@@ -180,6 +184,9 @@ ${failures.map((row) => `| \`${row.id}\` | \`${row.failureCategory}\` | ${row.at
 
 **The pipeline under test.** \`benchmarks/run.mjs\` loads the compiled worker's own \`DockerSandboxService\` and configuration and runs each case through the same phases and order as a real job: \`install\` (lifecycle scripts, no token), a baseline \`test\`, \`upgrade\` to the exact target version, then \`refactor\` and \`test\` alternating up to ${meta.maxAttempts} attempts, with each failing test output passed to the next refactor attempt. Each phase is a fresh container from the production sandbox image with the production limits; test phases have no network. Only \`prepare\` (clone) and \`publish\` (push and pull request) are not run: the checkout is seeded from the case instead.${apiCaseText([
   "An API change case mirrors the worker's `api_change` job instead: the target files are the impact the real `scan` phase confirms, there is no `upgrade`, and the change brief travels with the job rather than as release notes.",
+  'It records the validate baseline after that scan and before install.',
+  'A passing suite still has to pass validate, and a failed check is retried the same way a failed suite is.',
+  'A case with `partial/` spends its first attempt on that fix, so the gate is shown a suite that passes while the change is still in use.',
 ])}
 
 **Release notes.** The model receives the release notes production would fetch, not a hand-written hint. \`benchmarks/fetch-notes.mjs\` ran production's \`fetchReleaseNotes\` once per case (npm registry, then the GitHub release for the target tag) and stored the result, or production's fallback sentence when nothing was found, in \`benchmarks/notes/\`. Every run reuses these snapshots.
@@ -189,7 +196,7 @@ ${failures.map((row) => `| \`${row.id}\` | \`${row.failureCategory}\` | ${row.at
 **Rate limits.** A rate-limited model call is retried after 2 and then 4 minutes, as BullMQ retries a rate-limited job in production. The waits are excluded from migration time. Production re-runs the whole job on a retry; the benchmark retries only the refactor attempt that was limited, which leads to the same outcome without repeating the earlier phases.
 
 **Metrics.** Success means the project's existing test suite passes after the migration and no test file changed. First-attempt pass means it passed after the first refactor. Migration time runs from the start of \`upgrade\` to the end of the last test run (install and baseline excluded); it includes container start-up and model latency on this host.${apiCaseText([
-  'For an API change case, success also requires the hidden contract tests, added only after the run, to pass.',
+  'For an API change case, success also requires validate to pass, and the hidden contract tests, added only after the run, to pass.',
   'Its migration time runs from the start of the first `refactor`, since there is no `upgrade`.',
 ])}
 

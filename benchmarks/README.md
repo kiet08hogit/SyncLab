@@ -42,8 +42,13 @@ cases/<id>/
 ```
 
 The run follows the worker's `api_change` job: the `scan` phase and the worker's own impact matching pick the target files, a migration starts only when the impact is confirmed, and there is no `upgrade`.
+Validate records its baseline after that scan and before install.
+A passing suite still has to pass validate, and a failed check is retried.
+A case with `partial/` spends its first attempt on that fix, which must be rejected, and a later attempt has to remove the remaining usage.
+That rejection needs a sandbox image whose validate phase records a re-scan baseline.
+Without one, the run fails closed instead of accepting the partial fix.
 The model gets the change as the job's brief, not release notes.
-The case passes when its own suite passes, no test changed, and the contract tests then pass too.
+The case passes when its own suite passes, validate passes, no test changed, and the contract tests then pass too.
 
 Validation proves the scan confirms exactly `impactFiles`, the suite passes before the migration, the contract tests fail on the original code, and the reference fix passes both and leaves nothing for the scan to match.
 With `partial/`, it also proves that fix passes the project's own suite while the scan still matches the change.
