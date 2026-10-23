@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { readTestOutput, readValidationFailure, writeTestOutput } from '../state.js';
 import { loadChecks } from '../validate/load-checks.js';
-import { runValidation, validate } from './validate.js';
+import { recordBaseline, runValidation, validate } from './validate.js';
 
 describe('validate', () => {
   let workspace: string;
@@ -28,16 +28,37 @@ describe('validate', () => {
     await fs.rm(workspace, { recursive: true, force: true });
   });
 
-  it('passes when no check is registered, and clears a stale failure', async () => {
+  it('passes when the worker sent nothing to check, and clears a stale failure', async () => {
     await writeTestOutput(stateDir, 'all passed');
 
     const result = await validate();
 
     assert.equal(result.ok, true);
     assert.equal(result.steps[0].step, 'VALIDATE');
-    assert.match(result.steps[0].output, /No validation checks registered/);
+    assert.match(result.steps[0].output, /validation check\(s\) passed/);
     assert.equal(await readValidationFailure(stateDir), undefined);
     assert.equal(await readTestOutput(stateDir), undefined);
+  });
+
+  it('records each baseline, then hands it to that check on every later run', async () => {
+    const seen: unknown[] = [];
+    const checks = [
+      { name: 'rescan', baseline: async () => ({ hits: 1 }), run: async (b?: unknown) => { seen.push(b); return undefined; } },
+      { name: 'schema', run: async (b?: unknown) => { seen.push(b); return undefined; } },
+    ];
+
+    const recorded = await recordBaseline(checks);
+    assert.equal(recorded.ok, true);
+    assert.deepEqual(recorded.data, { baselines: { rescan: { hits: 1 } } });
+    assert.match(recorded.steps[0].output, /baseline of rescan/);
+
+    const result = await runValidation(
+      stateDir,
+      checks,
+      JSON.parse(JSON.stringify((recorded.data as { baselines: Record<string, unknown> }).baselines)),
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(seen, [{ hits: 1 }, undefined]);
   });
 
   it('saves each failed check for the next refactor attempt', async () => {

@@ -211,6 +211,7 @@ describe('DockerSandboxService', () => {
       });
       expect(created.map((c) => c.phase)).toEqual([
         'prepare',
+        'validate',
         'install',
         'test',
         'upgrade',
@@ -255,6 +256,7 @@ describe('DockerSandboxService', () => {
 
       expect(created.map((c) => c.phase)).toEqual([
         'prepare',
+        'validate',
         'install',
         'test',
         'refactor',
@@ -286,6 +288,7 @@ describe('DockerSandboxService', () => {
 
       expect(created.map((c) => c.phase)).toEqual([
         'prepare',
+        'validate',
         'install',
         'test',
         'upgrade',
@@ -316,7 +319,8 @@ describe('DockerSandboxService', () => {
         error: 'tests still failing after 2 refactor attempt(s): second failure',
       });
       expect(created.map((c) => c.phase)).not.toContain('publish');
-      expect(created.map((c) => c.phase)).not.toContain('validate');
+      // Only the baseline, recorded before install: a failing suite is never validated.
+      expect(created.filter((c) => c.phase === 'validate')).toHaveLength(1);
       expect(volume.remove).toHaveBeenCalled();
     });
 
@@ -324,6 +328,7 @@ describe('DockerSandboxService', () => {
       const { service, created, onSteps } = setup({
         test: [PASSED, PASSED, PASSED],
         validate: [
+          PASSED,
           { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
           PASSED,
         ],
@@ -333,6 +338,7 @@ describe('DockerSandboxService', () => {
 
       expect(created.map((c) => c.phase)).toEqual([
         'prepare',
+        'validate',
         'install',
         'test',
         'upgrade',
@@ -356,6 +362,7 @@ describe('DockerSandboxService', () => {
     it('gives up without publishing when validation never passes', async () => {
       const { service, created, onSteps } = setup({
         validate: [
+          PASSED,
           { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
           { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
         ],
@@ -367,6 +374,46 @@ describe('DockerSandboxService', () => {
           'validation still failing after 2 refactor attempt(s): rescan: still sends claude-3-opus-20240229',
       });
       expect(created.map((c) => c.phase)).not.toContain('publish');
+    });
+
+    it('records the validate baseline before any repository code runs, and hands it to every validate run', async () => {
+      const baselines = { rescan: { hits: { '["anthropic"]': 1 }, unparsed: [] } };
+      const { service, created, onSteps } = setup({
+        test: [PASSED, PASSED, PASSED],
+        validate: [
+          { result: { ok: true, data: { baselines } } },
+          { result: { ok: false, error: 'rescan: still sends claude-3-opus-20240229' } },
+          PASSED,
+        ],
+      });
+
+      await expect(service.run('job-1', params(2), onSteps)).resolves.toMatchObject({ ok: true });
+
+      const phases = created.map((c) => c.phase);
+      expect(phases.indexOf('validate')).toBeLessThan(phases.indexOf('install'));
+      const [baseline, ...later] = created.filter((c) => c.phase === 'validate');
+      expect(baseline.env).toContain('VALIDATE_BASELINE=true');
+      expect(baseline.network).toBe('none');
+      expect(baseline.env).not.toContain('GITHUB_TOKEN=gh-token');
+      expect(later).toHaveLength(2);
+      for (const run of later) {
+        expect(run.env).not.toContain('VALIDATE_BASELINE=true');
+        expect(run.env).toContain(`VALIDATE_BASELINE_DATA=${JSON.stringify(baselines)}`);
+      }
+    });
+
+    it('stops before install when the validate baseline cannot be recorded', async () => {
+      const { service, created, onSteps } = setup({
+        validate: [
+          { result: { ok: false, error: 'VALIDATE_CONTEXT has a malformed rescan entry' } },
+        ],
+      });
+
+      await expect(service.run('job-1', params(), onSteps)).resolves.toEqual({
+        ok: false,
+        error: 'VALIDATE_CONTEXT has a malformed rescan entry',
+      });
+      expect(created.map((c) => c.phase)).toEqual(['prepare', 'validate']);
     });
 
     it('stops after a failed prepare', async () => {
@@ -396,6 +443,7 @@ describe('DockerSandboxService', () => {
       });
       expect(created.map((c) => c.phase)).toEqual([
         'prepare',
+        'validate',
         'install',
         'test',
         'upgrade',
@@ -426,7 +474,7 @@ describe('DockerSandboxService', () => {
         error:
           'the test suite already fails before the upgrade, so a migration cannot be verified: test suite failed with exit code 1',
       });
-      expect(created.map((c) => c.phase)).toEqual(['prepare', 'install', 'test']);
+      expect(created.map((c) => c.phase)).toEqual(['prepare', 'validate', 'install', 'test']);
     });
 
     it('says a failing baseline stopped an API change before the migration', async () => {
@@ -456,12 +504,12 @@ describe('DockerSandboxService', () => {
         error:
           'the test suite already fails before the migration, so a migration cannot be verified: test suite failed with exit code 1',
       });
-      expect(created.map((c) => c.phase)).toEqual(['prepare', 'install', 'test']);
+      expect(created.map((c) => c.phase)).toEqual(['prepare', 'validate', 'install', 'test']);
     });
 
     it.each([
-      ['install', ['prepare', 'install']],
-      ['upgrade', ['prepare', 'install', 'test', 'upgrade']],
+      ['install', ['prepare', 'validate', 'install']],
+      ['upgrade', ['prepare', 'validate', 'install', 'test', 'upgrade']],
     ] as const)('stops after a failed %s', async (phase, ran) => {
       const { service, created, onSteps } = setup({
         [phase]: [{ result: { ok: false, error: `${phase} broke` } }],

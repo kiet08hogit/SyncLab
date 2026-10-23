@@ -222,7 +222,9 @@ Code: `server/api/src/worker/sandbox/docker-sandbox.service.ts` (orchestration) 
 flowchart TD
     START(["Create volume synclab-job-id"]) --> PREP["prepare"]
     PREP -- failed --> F1["FAILED, not retried"]
-    PREP -- ok --> INST["install"]
+    PREP -- ok --> VBASE["validate (baseline)"]
+    VBASE -- failed --> F1
+    VBASE -- ok --> INST["install"]
     INST -- failed --> F1
     INST -- ok --> BASE["test (baseline)"]
     BASE -- fail --> F0["FAILED: suite already fails before the upgrade"]
@@ -328,10 +330,21 @@ A failing run also drops any validation failure left by the previous attempt, si
 
 Runs after a test attempt passes, and only then, for both dependency jobs and API-change jobs.
 It loads every check module in `server/sandbox/src/validate/checks` and passes when none of them reports a problem.
-No checks are registered yet, so today it passes.
 The worker passes each check the JSON it builds in `server/api/src/worker/sandbox/validation-context/`, and a check adds its own keys in its own file there.
 A failed check is written to the volume and the next `refactor` attempt reads it.
 The container has no network and no token, so a check cannot call a provider.
+
+A check that compares against the tree as cloned also records a baseline.
+The phase runs once with `VALIDATE_BASELINE=true` right after `prepare`, before any repository code can write to the volume.
+The worker keeps what it returns and hands it to every later `validate` run in `VALIDATE_BASELINE_DATA`.
+
+The `rescan` check scans the migrated tree with the same scanner as a repository scan, and matches it with the same rules as impact analysis:
+- The change being migrated must be gone.
+  A literal match always fails, and a match whose value is only known at runtime fails where the tree had none before, since the scan cannot show that call is fixed.
+- No other confirmed retirement or removal (`model_retired`, `endpoint_removed`, `param_removed`, `param_renamed`) may be newly used: a file with more literal matches than before fails.
+- A file that parsed before the migration and no longer does fails, since the scan cannot see its calls.
+
+A dependency job has no change being migrated, so it only gets the second rule and the third.
 
 #### `publish`
 
