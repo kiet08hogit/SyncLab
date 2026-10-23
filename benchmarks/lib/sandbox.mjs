@@ -52,6 +52,26 @@ export function isApiChange(spec) {
   return spec.kind === 'api_change';
 }
 
+/**
+ * What the re-scan check compares the migrated tree against.
+ * The same shape as the worker's rescan context for this one change and no
+ * other confirmed removals. An image with no re-scan check ignores it.
+ */
+function apiValidationContext(spec) {
+  const change = spec.change;
+  return JSON.stringify({
+    rescan: {
+      target: {
+        provider: change.provider,
+        kind: change.kind,
+        operation: change.operation ?? null,
+        field: change.field ?? null,
+      },
+      removed: [],
+    },
+  });
+}
+
 /** `files` is the API change's impact, as impactOf finds it; dependency cases ignore it. */
 export function jobParams(spec, config = benchmarkConfig(), files = []) {
   return {
@@ -60,6 +80,7 @@ export function jobParams(spec, config = benchmarkConfig(), files = []) {
     migration: isApiChange(spec)
       ? { kind: 'api_change', change: spec.change, files }
       : { kind: 'dependency', dependencyName: spec.package, targetVersion: spec.toVersion },
+    ...(isApiChange(spec) ? { validationContext: apiValidationContext(spec) } : {}),
     branchName: `synclab/${spec.id}`,
     token: '',
     llm: config.llm,
