@@ -84,7 +84,7 @@ export class MigrationProcessor extends WorkerHost {
         repoUrl: job.data.repoUrl || `https://github.com/${record.repository.fullName}.git`,
         repoFullName: record.repository.fullName,
         ...migration,
-        validationContext: buildValidationContext(migration.migration, {
+        validationContext: await buildValidationContext(this.prisma, migration.migration, {
           removedChanges: await this.removedChanges(record.breakingChangeId),
         }),
         token,

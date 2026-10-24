@@ -34,6 +34,15 @@ export interface ApiUsageScan {
   unparsed: string[];
 }
 
+/** A request object a call writes as a literal, inline or bound once as a `const`. */
+export interface RequestObject {
+  usage: ApiUsage;
+  /** The keys written in the object, sorted. */
+  keys: string[];
+  /** False when a spread, an unreadable key, or a later write leaves required fields unchecked. */
+  complete: boolean;
+}
+
 interface ExportEntry {
   /** The local binding the export points at. */
   id?: t.Node;
@@ -70,6 +79,21 @@ const COMPILED_EXTENSIONS: Record<string, string[]> = {
   '.cjs': ['.cts'],
 };
 const AXIOS_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'request']);
+export const SDK_REQUEST_OPTIONS: ReadonlySet<string> = new Set([
+  'method',
+  'path',
+  'query',
+  'body',
+  'headers',
+  'maxRetries',
+  'stream',
+  'timeout',
+  'fetchOptions',
+  'httpAgent',
+  'signal',
+  'idempotencyKey',
+  'defaultBaseURL',
+]);
 const MAX_RESOLVE_DEPTH = 10;
 
 function resolveRelative(fromFile: string, specifier: string, known: Set<string>): string | undefined {
@@ -151,6 +175,8 @@ class ApiUsageScanner {
   private readonly facts = new Map<string, FileFacts>();
   private readonly known: Set<string>;
   private readonly unparsed: string[] = [];
+  /** The literal request object of each usage that has one, filled by scan(). */
+  readonly requests = new Map<ApiUsage, Omit<RequestObject, 'usage'>>();
 
   constructor(files: SourceFile[]) {
     this.known = new Set(files.map((file) => file.path));
@@ -652,15 +678,30 @@ class ApiUsageScanner {
     }
 
     const method = names.join('.');
-    return {
+    const operation = lookupOperation(provider, method);
+    const args = call.get('arguments') as NodePath[];
+    const usage: ApiUsage = {
       provider,
       file: facts.file.path,
       line: call.node.loc?.start.line ?? 0,
       style: 'sdk',
       method,
-      operation: lookupOperation(provider, method),
-      ...requestShape((call.get('arguments') as NodePath[])[0]),
+      operation,
+      ...requestShape(args[0]),
     };
+    // The SDKs take path parameters positionally, ahead of the request object.
+    this.recordRequest(usage, args[operation?.match(/\{[^}]+\}/g)?.length ?? 0]);
+    return usage;
+  }
+
+  private recordRequest(usage: ApiUsage, argument: NodePath | undefined): void {
+    if (!argument || !constObject(argument)) {
+      return;
+    }
+    const { params, dynamic } = objectKeys(argument);
+    const writes = constWrites(argument);
+    const keys = [...new Set([...params, ...writes.keys])];
+    this.requests.set(usage, { keys: [...keys].sort(), complete: !dynamic && !writes.gained });
   }
 
   private httpCall(facts: FileFacts, call: NodePath<t.CallExpression | t.OptionalCallExpression>): ApiUsage | undefined {
@@ -714,10 +755,11 @@ class ApiUsageScanner {
       return undefined;
     }
 
-    const { method, body } = options;
+    const { method } = options;
+    const body = jsonStringifyArgument(options.body);
     const shape = body ? requestShape(body) : { params: [], modelIds: [], dynamic: false };
     const fromUrl = queryNames(url);
-    return {
+    const usage: ApiUsage = {
       provider,
       file: facts.file.path,
       line: call.node.loc?.start.line ?? 0,
@@ -727,6 +769,8 @@ class ApiUsageScanner {
       modelIds: shape.modelIds,
       dynamic: shape.dynamic || options.dynamic || options.queryDynamic || options.headerDynamic || fromUrl.dynamic || !method,
     };
+    this.recordRequest(usage, body);
+    return usage;
   }
 
   private isAxios(facts: FileFacts, expression: NodePath): boolean {
@@ -752,16 +796,39 @@ function objectProperty(object: NodePath<t.ObjectExpression>, key: string): Node
 }
 
 function jsonStringifyArgument(value: NodePath | undefined): NodePath | undefined {
+  if (!value) {
+    return value;
+  }
+  const direct = jsonStringifyCall(unwrap(value));
+  if (direct) {
+    return (direct.get('arguments') as NodePath[])[0];
+  }
+  const object = unwrap(value);
+  if (object.isIdentifier()) {
+    const binding = object.scope.getBinding(object.node.name);
+    if (binding?.constant && binding.path.isVariableDeclarator() && binding.path.node.init) {
+      const inner = jsonStringifyCall(unwrap(binding.path.get('init') as NodePath));
+      if (inner) {
+        return (inner.get('arguments') as NodePath[])[0];
+      }
+    }
+  }
+  return value;
+}
+
+/** A `JSON.stringify` call, or undefined when `value` is something else. */
+function jsonStringifyCall(
+  value: NodePath,
+): NodePath<t.CallExpression | t.OptionalCallExpression> | undefined {
   if (
-    value &&
     isCall(value.node) &&
     isMember(value.node.callee) &&
     t.isIdentifier(value.node.callee.object, { name: 'JSON' }) &&
     propertyName(value.node.callee) === 'stringify'
   ) {
-    return (value.get('arguments') as NodePath[])[0];
+    return value as NodePath<t.CallExpression | t.OptionalCallExpression>;
   }
-  return value;
+  return undefined;
 }
 
 /** An object literal an expression is, written inline or bound once as a `const`. */
@@ -774,6 +841,86 @@ function constObject(value: NodePath): NodePath<t.ObjectExpression> | undefined 
     }
   }
   return object.isObjectExpression() ? object : undefined;
+}
+
+/** Keys a `const` object is given after it is declared, by assignment or `Object.assign`. */
+function constWrites(value: NodePath, visited: Set<t.Node> = new Set()): { gained: boolean; keys: string[] } {
+  const object = unwrap(value);
+  if (!object.isIdentifier()) {
+    return { gained: false, keys: [] };
+  }
+  const binding = object.scope.getBinding(object.node.name);
+  if (!binding?.constant || visited.has(binding.identifier)) {
+    return { gained: false, keys: [] };
+  }
+  visited.add(binding.identifier);
+  const keys = new Set<string>();
+  let gained = false;
+  for (const reference of binding.referencePaths) {
+    let current = reference;
+    while (
+      current.parentPath &&
+      (current.parentPath.isTSAsExpression() ||
+        current.parentPath.isTSNonNullExpression() ||
+        current.parentPath.isTSSatisfiesExpression())
+    ) {
+      current = current.parentPath;
+    }
+    const { node, parent, parentPath } = current;
+    if (
+      isMember(parent) &&
+      parent.object === node &&
+      parentPath?.parentPath?.isAssignmentExpression({ left: parent })
+    ) {
+      gained = true;
+      const name = propertyName(parent);
+      if (name) {
+        keys.add(name);
+      }
+      continue;
+    }
+    if (
+      !parentPath ||
+      !isCall(parent) ||
+      parent.arguments[0] !== node ||
+      !isMember(parent.callee) ||
+      !t.isIdentifier(parent.callee.object, { name: 'Object' }) ||
+      propertyName(parent.callee) !== 'assign'
+    ) {
+      continue;
+    }
+    gained = true;
+    const args = parentPath.get('arguments') as NodePath[];
+    for (const source of args.slice(1)) {
+      for (const key of objectLiteralKeys(source)) {
+        keys.add(key);
+      }
+      for (const key of constWrites(source, visited).keys) {
+        keys.add(key);
+      }
+    }
+  }
+  return { gained, keys: [...keys] };
+}
+
+/** Keys an object literal spells out, inline or bound once as a const. A runtime key is left out. */
+function objectLiteralKeys(value: NodePath): string[] {
+  const object = constObject(value);
+  if (!object) {
+    return [];
+  }
+  const keys: string[] = [];
+  for (const property of object.get('properties')) {
+    if (!property.isObjectProperty() && !property.isObjectMethod()) {
+      continue;
+    }
+    const { key, computed } = property.node;
+    const name = !computed && t.isIdentifier(key) ? key.name : stringValue(key);
+    if (name) {
+      keys.push(name);
+    }
+  }
+  return keys;
 }
 
 interface HttpOptions {
@@ -929,7 +1076,7 @@ function objectKeys(argument: NodePath | undefined): { params: string[]; dynamic
     }
 
     const { key, computed } = property.node;
-    const name = computed ? undefined : t.isIdentifier(key) ? key.name : stringValue(key);
+    const name = !computed && t.isIdentifier(key) ? key.name : stringValue(key);
     if (!name) {
       dynamic = true;
       continue;
@@ -977,4 +1124,16 @@ function requestShape(argument: NodePath | undefined): Pick<ApiUsage, 'params' |
  */
 export function scanApiUsage(files: SourceFile[]): ApiUsageScan {
   return new ApiUsageScanner(files).scan();
+}
+
+/**
+ * The calls scanApiUsage finds whose request is an object literal: the SDK
+ * argument after any path parameters, or a raw HTTP call's body.
+ */
+export function scanRequestObjects(files: SourceFile[]): RequestObject[] {
+  const scanner = new ApiUsageScanner(files);
+  return scanner.scan().usages.flatMap((usage) => {
+    const request = scanner.requests.get(usage);
+    return request ? [{ usage, ...request }] : [];
+  });
 }

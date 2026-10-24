@@ -200,15 +200,17 @@ function bodyParams(spec: Schema, operation: Schema): Map<string, Param> {
   const [requestBody] = resolve(spec, operation.requestBody, new Set());
   if (!requestBody || !isObject(requestBody.content)) return params;
   const content = requestBody.content;
-  const media = BODY_TYPES.map((type) => content[type]).find(isObject);
-  if (!media) return params;
-
-  const fields = bodyFields(spec, media.schema, new Set());
-  for (const [name, property] of fields.properties) {
-    params.set(name, {
-      required: fields.required.has(name),
-      enum: enumValues(spec, property, new Set()),
-    });
+  const parts = BODY_TYPES.map((type) => content[type])
+    .filter(isObject)
+    .map((media) => bodyFields(spec, media.schema, new Set()));
+  for (const fields of parts) {
+    for (const [name, property] of fields.properties) {
+      if (params.has(name)) continue;
+      params.set(name, {
+        required: parts.every((part) => part.required.has(name)),
+        enum: enumValues(spec, property, new Set()),
+      });
+    }
   }
   return params;
 }
@@ -289,6 +291,32 @@ function parseSurface(content: string): Surface {
     });
   }
   return surface;
+}
+
+export interface RequestSchema {
+  params: string[];
+  required: string[];
+}
+
+/**
+ * Each operation of a surface with the parameter names a caller may send and
+ * the ones it must. Enum values are left out, which keeps the whole spec
+ * small enough to pass to a container in one environment variable.
+ */
+export function requestSchemas(content: string): Record<string, RequestSchema> {
+  const surface = parseSurface(content);
+  const schemas: Record<string, RequestSchema> = {};
+  for (const operation of surface.operations) {
+    schemas[operation] = { params: [], required: [] };
+  }
+  for (const [key, param] of surface.params) {
+    const [operation, specName] = key.split('\n');
+    const name = specName.replace(/\[\]$/, '');
+    const schema = (schemas[operation] ??= { params: [], required: [] });
+    schema.params.push(name);
+    if (param.required) schema.required.push(name);
+  }
+  return schemas;
 }
 
 function compare(a: string, b: string): number {

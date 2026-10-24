@@ -356,6 +356,21 @@ A dependency job has no change being migrated, so it only gets the second rule a
 The refactor only sends the files the impact record lists (`TARGET_FILES`), and the default branch can move between the scan and the migration.
 So the baseline run fails, before install and any model call, when the clone has a literal match of the change being migrated in a file the impact record does not list, and the job is not retried: every attempt would fail on a file the model never sees.
 
+The `schema` check runs for an OpenAI API change.
+The worker sends every operation of the newest OpenAI spec snapshot, with the parameter names it accepts and requires, and the files the migration rewrites.
+The check scans the whole checkout, so a client imported from another file is still followed, and keeps the requests in those files whose request is an object literal: the SDK argument after any path parameters, or a raw HTTP call's body, including a body passed through `JSON.stringify`.
+A request fails when it sends a key the new spec does not accept, which covers a removed parameter, when it leaves out a required field, or when no spec operation matches an SDK method or a raw URL with no runtime part.
+A raw URL that fills a template with a literal id matches that operation when exactly one template fits, and an exact path is tried first so a static operation wins.
+When several templates fit, none is used, so that call fails as an operation the spec does not have.
+A body field declared by any of an operation's media types is accepted, and a field is required only when every media type requires it.
+An array query parameter the spec names with a trailing `[]`, such as `include[]`, is matched by its name without the brackets.
+A path parameter is passed positionally, so it is never required in the object, and an object with a spread is not failed for a missing field the spread may carry.
+A const request object that later gains keys by assignment or `Object.assign` is likewise not failed for a missing field.
+A request that is not a literal, an SDK method missing from the scanner's operation table, or a raw URL with a runtime part that matches no operation, is not checked.
+An SDK argument whose keys are all per-request options is not checked when it leaves out no required field.
+An incomplete one is still not checked when the operation's only required fields are path parameters, unless the call is a POST, PUT, or PATCH whose path has no template and the spec lists a parameter that is not a path parameter.
+Before the monitor has stored an OpenAI spec, and for every other job, the check has nothing to reject.
+
 #### `publish`
 
 1. Checks `REPO_FULL_NAME` is exactly `owner/repo` before doing anything else, and refuses to publish unless the checkout is a real directory directly inside the workspace, not a symlink, before any credentials are written.
@@ -686,4 +701,5 @@ Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact a
 The sandbox edits a repository for a confirmed API change.
 How that job is prompted and published is in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
 Phase 9 re-scans the migrated tree after the suite passes, and rejects a migration that still uses the change being migrated or newly uses another retired or removed API.
-Detecting when the change needs a newer SDK, the OpenAI request-schema check, the TypeScript typecheck, and Phase 10 are not built yet.
+The OpenAI schema check in Phase 9 is built.
+Detecting when the change needs a newer SDK, typechecking the migrated tree, and Phase 10 are not built yet.

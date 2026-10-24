@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { diffSurfaces, extractSurface } from './openapi-spec';
+import { diffSurfaces, extractSurface, requestSchemas } from './openapi-spec';
 
 /** OpenAI's spec at a commit of github.com/openai/openai-openapi. */
 function recorded(name: string): unknown {
@@ -67,6 +67,56 @@ describe('extractSurface and diffSurfaces on recorded specs', () => {
     expect(diffSurfaces(after, after)).toEqual([]);
     // Re-adding spend_control is an addition, which is never breaking.
     expect(diffSurfaces(after, before)).toEqual([]);
+  });
+});
+
+describe('requestSchemas', () => {
+  it('lists each operation with the parameters it accepts and requires', () => {
+    const surface = extractSurface(
+      spec({
+        '/items/{id}': {
+          post: {
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            ...jsonBody({
+              type: 'object',
+              properties: { name: {}, mode: { enum: ['a', 'b'] } },
+              required: ['name'],
+            }),
+          },
+          get: {},
+        },
+      }),
+    );
+
+    expect(requestSchemas(surface)).toEqual({
+      'GET /v1/items/{id}': { params: [], required: [] },
+      'POST /v1/items/{id}': { params: ['id', 'mode', 'name'], required: ['id', 'name'] },
+    });
+  });
+
+  it('drops a removed parameter from the recorded spec that removed it', () => {
+    const before = requestSchemas(extractSurface(recorded('openai-openapi-35060f5b.json.gz')));
+    const after = requestSchemas(extractSurface(recorded('openai-openapi-6ca9cb2b.json.gz')));
+
+    expect(before['POST /v1/agents/sessions'].params).toContain('spend_control');
+    expect(after['POST /v1/agents/sessions'].params).not.toContain('spend_control');
+  });
+
+  it('names an array query parameter without its brackets, as the SDK does', () => {
+    const schemas = requestSchemas(extractSurface(recorded('openai-openapi-6ca9cb2b.json.gz')));
+
+    expect(schemas['POST /v1/threads/{thread_id}/runs'].params).toContain('include');
+    expect(schemas['POST /v1/threads/{thread_id}/runs'].params).not.toContain('include[]');
+  });
+
+  it('accepts the multipart fields of the recorded image edit body', () => {
+    const schemas = requestSchemas(extractSurface(recorded('openai-openapi-6ca9cb2b.json.gz')));
+    const edit = schemas['POST /v1/images/edits'];
+
+    expect(edit.params).toEqual(expect.arrayContaining(['image', 'images', 'response_format']));
+    expect(edit.required).toContain('prompt');
+    expect(edit.required).not.toContain('image');
+    expect(edit.required).not.toContain('images');
   });
 });
 
@@ -224,6 +274,42 @@ describe('extractSurface', () => {
     );
 
     expect(surface).toBe('POST /v1/files\nPOST /v1/files | param file | required');
+  });
+
+  it('unions every body media type, requiring only what each one requires', () => {
+    const surface = extractSurface(
+      spec({
+        '/edits': {
+          post: {
+            requestBody: {
+              content: {
+                'application/json': {
+                  schema: {
+                    properties: { images: {}, prompt: {}, mode: { enum: ['a'] } },
+                    required: ['images', 'prompt'],
+                  },
+                },
+                'multipart/form-data': {
+                  schema: {
+                    properties: { image: {}, prompt: {}, mode: { enum: ['b'] } },
+                    required: ['image', 'prompt'],
+                  },
+                },
+                'text/plain': { schema: { properties: { ignored: {} } } },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(surface.split('\n')).toEqual([
+      'POST /v1/edits',
+      'POST /v1/edits | param image',
+      'POST /v1/edits | param images',
+      'POST /v1/edits | param mode | enum a',
+      'POST /v1/edits | param prompt | required',
+    ]);
   });
 
   it('reads an enum only when every non-null branch is restricted', () => {
