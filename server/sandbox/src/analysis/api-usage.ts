@@ -39,7 +39,7 @@ export interface RequestObject {
   usage: ApiUsage;
   /** The keys written in the object, sorted. */
   keys: string[];
-  /** False when a spread or a key the code does not spell out may add fields. */
+  /** False when a spread, an unreadable key, or a later write leaves required fields unchecked. */
   complete: boolean;
 }
 

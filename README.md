@@ -358,8 +358,10 @@ So the baseline run fails, before install and any model call, when the clone has
 
 The `schema` check runs for an OpenAI API change.
 The worker sends every operation of the newest OpenAI spec snapshot, with the parameter names it accepts and requires, and the files the migration rewrites.
-The check scans the whole checkout, so a client imported from another file is still followed, and keeps the requests in those files whose request is an object literal: the SDK argument after any path parameters, or a raw HTTP call's body.
-A request fails when it sends a key the new spec does not accept, which covers a removed parameter, when it leaves out a required field, or when the spec no longer has the operation of an SDK method or of a raw URL with no runtime part.
+The check scans the whole checkout, so a client imported from another file is still followed, and keeps the requests in those files whose request is an object literal: the SDK argument after any path parameters, or a raw HTTP call's body, including a body passed through `JSON.stringify`.
+A request fails when it sends a key the new spec does not accept, which covers a removed parameter, when it leaves out a required field, or when no spec operation matches an SDK method or a raw URL with no runtime part.
+A raw URL that fills a template with a literal id matches that operation when exactly one template fits, and an exact path is tried first so a static operation wins.
+When several templates fit, none is used, so that call fails as an operation the spec does not have.
 A body field declared by any of an operation's media types is accepted, and a field is required only when every media type requires it.
 An array query parameter the spec names with a trailing `[]`, such as `include[]`, is matched by its name without the brackets.
 A path parameter is passed positionally, so it is never required in the object, and an object with a spread is not failed for a missing field the spread may carry.
@@ -699,4 +701,5 @@ Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact a
 The sandbox edits a repository for a confirmed API change.
 How that job is prompted and published is in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
 Phase 9 re-scans the migrated tree after the suite passes, and rejects a migration that still uses the change being migrated or newly uses another retired or removed API.
-Detecting when the change needs a newer SDK, the OpenAI request-schema check, the TypeScript typecheck, and Phase 10 are not built yet.
+The OpenAI schema check in Phase 9 is built.
+Detecting when the change needs a newer SDK, typechecking the migrated tree, and Phase 10 are not built yet.
