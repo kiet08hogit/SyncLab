@@ -828,7 +828,17 @@ function gainsKeys(value: NodePath): boolean {
     return false;
   }
   const binding = object.scope.getBinding(object.node.name);
-  return (binding?.referencePaths ?? []).some(({ node, parent, parentPath }) => {
+  return (binding?.referencePaths ?? []).some((reference) => {
+    let current = reference;
+    while (
+      current.parentPath &&
+      (current.parentPath.isTSAsExpression() ||
+        current.parentPath.isTSNonNullExpression() ||
+        current.parentPath.isTSSatisfiesExpression())
+    ) {
+      current = current.parentPath;
+    }
+    const { node, parent, parentPath } = current;
     if (isMember(parent) && parent.object === node) {
       return parentPath?.parentPath?.isAssignmentExpression({ left: parent }) ?? false;
     }

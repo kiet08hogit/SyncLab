@@ -164,6 +164,46 @@ describe('findSchemaMismatches', () => {
     );
   });
 
+  it('lets fields added through a type wrapper carry required fields', () => {
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5' };\n(body as ChatRequest).messages = history;\nclient.chat.completions.create(body);",
+      ),
+      [],
+    );
+    assert.deepEqual(
+      mismatches("const body = { model: 'gpt-5' };\nbody!.messages = history;\nclient.chat.completions.create(body);"),
+      [],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5' };\n(body satisfies object).messages = history;\nclient.chat.completions.create(body);",
+      ),
+      [],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', stop: ['\\n'] };\nObject.assign(body as ChatRequest, { messages });\nclient.chat.completions.create(body);",
+      ),
+      ['src/chat.ts:5 POST /v1/chat/completions: sends stop, which the new spec does not accept'],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', stop: ['\\n'] };\nObject.assign(body!, { messages });\nclient.chat.completions.create(body);",
+      ),
+      ['src/chat.ts:5 POST /v1/chat/completions: sends stop, which the new spec does not accept'],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', stop: ['\\n'] };\nObject.assign(body satisfies object, extra);\nclient.chat.completions.create(body);",
+      ),
+      ['src/chat.ts:5 POST /v1/chat/completions: sends stop, which the new spec does not accept'],
+    );
+    assert.deepEqual(mismatches("const body = { model: 'gpt-5' };\nclient.chat.completions.create(body as ChatRequest);"), [
+      'src/chat.ts:4 POST /v1/chat/completions: leaves out messages, which the new spec requires',
+    ]);
+  });
+
   it('checks the object after a positional path parameter, which is not required in it', () => {
     assert.deepEqual(
       mismatches("client.beta.threads.messages.create(threadId, { role: 'user', content: 'hi' });"),
