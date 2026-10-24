@@ -75,7 +75,7 @@ export interface MigrationJob {
   id: string;
   repositoryId: string;
   kind: MigrationKind;
-  /** Set for a dependency job only. */
+  /** Set for a dependency job, and for an api_change job that names its SDK. Both or neither. */
   dependencyName: string | null;
   targetVersion: string | null;
   breakingChangeId: string | null;

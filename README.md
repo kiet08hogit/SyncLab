@@ -31,7 +31,9 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 A confirmed breaking change queues a job on its own, whenever impacts are recomputed.
 Each affected repository gets one `api_change` job, and only when the impact's confidence is `confirmed` and the change itself is `confirmed`.
 `behavior_changed` is recorded and never queued.
-The job points at the breaking change, stores no dependency name or version, and is left untouched if one already exists for that repository and change, including a job that `FAILED`.
+The job points at the breaking change.
+Both dependency columns stay empty, or both name the SDK the change requires.
+A job that already exists for that repository and change is left untouched, including a job that `FAILED`.
 Sooner effective dates run first.
 A change with no effective date runs last among API-change jobs, and dependency jobs have no queue priority, so they run before any of them.
 The worker skips `upgrade` for an API-change job unless that job names the SDK package and version the change requires.
