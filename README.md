@@ -366,7 +366,7 @@ A path parameter is passed positionally, so it is never required in the object, 
 A const request object that later gains keys by assignment or `Object.assign` is likewise not failed for a missing field.
 A request that is not a literal, an SDK method missing from the scanner's operation table, or a raw URL with a runtime part that matches no operation, is not checked.
 An SDK argument whose keys are all per-request options is not checked when it leaves out no required field.
-An incomplete one is still not checked when the operation's only required fields are path parameters.
+An incomplete one is still not checked when the operation's only required fields are path parameters, unless the call is a POST, PUT, or PATCH whose path has no template and the spec lists a parameter that is not a path parameter.
 Before the monitor has stored an OpenAI spec, and for every other job, the check has nothing to reject.
 
 #### `publish`

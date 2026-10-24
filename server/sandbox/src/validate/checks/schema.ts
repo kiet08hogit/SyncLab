@@ -81,7 +81,9 @@ function templateFits(template: string, concrete: string): boolean {
  * the object, and an object with a spread may carry the required fields.
  * An SDK call whose keys are all per-request options is left unchecked when
  * it leaves out no required field. An incomplete one is still left unchecked
- * when every required field is a path parameter.
+ * when every required field is a path parameter, except a POST, PUT, or PATCH
+ * whose path has no template and whose spec lists a parameter that is not a
+ * path parameter.
  * A raw URL that writes a literal where a template has `{}` uses that
  * operation when exactly one template fits, and an exact operation is tried
  * first so a static path wins. When several templates fit, none is used.
@@ -119,7 +121,13 @@ export function findSchemaMismatches(requests: RequestObject[], schema: OpenaiSc
     const missing = complete ? bodyRequired.filter((name) => !sent.has(name)) : [];
     const optionsOnly =
       usage.style === 'sdk' && keys.length > 0 && keys.every((key) => SDK_REQUEST_OPTIONS.has(key));
-    if (optionsOnly && (complete ? missing.length === 0 : bodyRequired.length === 0)) {
+    const method = usage.operation.split(' ')[0];
+    const untemplatedBody =
+      (method === 'POST' || method === 'PUT' || method === 'PATCH') &&
+      !usage.operation.includes('{') &&
+      spec.params.some((name) => !spec.path.has(name));
+    const skipIncomplete = bodyRequired.length === 0 && !untemplatedBody;
+    if (optionsOnly && (complete ? missing.length === 0 : skipIncomplete)) {
       continue;
     }
 

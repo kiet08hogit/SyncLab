@@ -322,6 +322,116 @@ describe('findSchemaMismatches', () => {
     );
   });
 
+  it('reports an option key on an incomplete body when that POST lists another field', () => {
+    const operations: OpenaiSchema['operations'] = {
+      ...OPERATIONS,
+      'POST /v1/responses': {
+        params: ['input', 'model', 'stream'],
+        required: [],
+      },
+      'POST /v1/threads': {
+        params: ['messages', 'metadata', 'tool_resources'],
+        required: [],
+      },
+      'GET /v1/models': { params: [], required: [] },
+      'GET /v1/files': { params: ['purpose'], required: [] },
+      'GET /v1/responses/{response_id}': {
+        params: ['include', 'response_id'],
+        required: ['response_id'],
+      },
+      'POST /v1/responses/{response_id}/cancel': {
+        params: ['response_id'],
+        required: ['response_id'],
+      },
+      'DELETE /v1/files/{file_id}': {
+        params: ['file_id'],
+        required: ['file_id'],
+      },
+    };
+    const timeout = (operation: string, line = 3) =>
+      `src/chat.ts:${line} ${operation}: sends timeout, which the new spec does not accept`;
+    assert.deepEqual(mismatches('client.responses.create({ timeout: 5000, ...extra });', ['src/chat.ts'], operations), [
+      timeout('POST /v1/responses'),
+    ]);
+    assert.deepEqual(mismatches('client.responses.stream({ timeout: 5000, ...extra });', ['src/chat.ts'], operations), [
+      timeout('POST /v1/responses'),
+    ]);
+    assert.deepEqual(mismatches('client.responses.parse({ timeout: 5000, ...extra });', ['src/chat.ts'], operations), [
+      timeout('POST /v1/responses'),
+    ]);
+    assert.deepEqual(
+      mismatches('client.beta.threads.create({ timeout: 5000, ...extra });', ['src/chat.ts'], operations),
+      [timeout('POST /v1/threads')],
+    );
+    assert.deepEqual(
+      mismatches(
+        'const body = { timeout: 5000 };\nbody.signal = controller.signal;\nclient.responses.create(body);',
+        ['src/chat.ts'],
+        operations,
+      ),
+      ['src/chat.ts:5 POST /v1/responses: sends signal, timeout, which the new spec does not accept'],
+    );
+    assert.deepEqual(
+      mismatches(
+        'const body = { timeout: 5000 };\nObject.assign(body, { signal });\nclient.responses.create(body);',
+        ['src/chat.ts'],
+        operations,
+      ),
+      ['src/chat.ts:5 POST /v1/responses: sends signal, timeout, which the new spec does not accept'],
+    );
+    assert.deepEqual(mismatches('client.responses.create({ timeout: 5000 });', ['src/chat.ts'], operations), []);
+    assert.deepEqual(mismatches('client.models.list({ timeout: 5000, ...options });', ['src/chat.ts'], operations), []);
+    assert.deepEqual(
+      mismatches(
+        'const opts = { timeout: 5000 };\nopts.signal = controller.signal;\nclient.models.list(opts);',
+        ['src/chat.ts'],
+        operations,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      mismatches("client.models.retrieve('gpt-4o', { timeout: 5000, ...options });", ['src/chat.ts'], operations),
+      [],
+    );
+    assert.deepEqual(
+      mismatches('client.responses.retrieve(id, { timeout: 5000, ...options });', ['src/chat.ts'], operations),
+      [],
+    );
+    assert.deepEqual(
+      mismatches(
+        'const opts = { timeout: 5000 };\nObject.assign(opts, { signal });\nclient.responses.retrieve(id, opts);',
+        ['src/chat.ts'],
+        operations,
+      ),
+      [],
+    );
+    assert.deepEqual(mismatches('client.responses.cancel(id, { signal, ...options });', ['src/chat.ts'], operations), []);
+    assert.deepEqual(mismatches('client.files.list({ timeout: 5000, ...options });', ['src/chat.ts'], operations), []);
+    assert.deepEqual(
+      mismatches(
+        'const opts = { timeout: 5000 };\nopts.signal = controller.signal;\nclient.files.list(opts);',
+        ['src/chat.ts'],
+        operations,
+      ),
+      [],
+    );
+    assert.deepEqual(mismatches('client.files.delete(id, { signal, ...options });', ['src/chat.ts'], operations), []);
+    assert.deepEqual(mismatches('client.chat.completions.create({ stream: true });', ['src/chat.ts'], operations), [
+      'src/chat.ts:3 POST /v1/chat/completions: sends stream, which the new spec does not accept; leaves out messages, model, which the new spec requires',
+    ]);
+    assert.deepEqual(mismatches('client.chat.completions.create({ timeout: 5000 });', ['src/chat.ts'], operations), [
+      'src/chat.ts:3 POST /v1/chat/completions: sends timeout, which the new spec does not accept; leaves out messages, model, which the new spec requires',
+    ]);
+    assert.deepEqual(
+      mismatches('client.chat.completions.create({ timeout: 5000, ...extra });', ['src/chat.ts'], operations),
+      ['src/chat.ts:3 POST /v1/chat/completions: sends timeout, which the new spec does not accept'],
+    );
+    assert.deepEqual(
+      mismatches("client.models.retrieve('gpt-4o', { timeout: 5000, verbose: true });", ['src/chat.ts'], operations),
+      ['src/chat.ts:3 GET /v1/models/{model}: sends timeout, verbose, which the new spec does not accept'],
+    );
+  });
+
   it('fails a key written onto a const request after it is declared', () => {
     const removed = 'src/chat.ts:5 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept';
     assert.deepEqual(
