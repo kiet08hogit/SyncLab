@@ -120,6 +120,25 @@ export class DockerSandboxService {
         return { ok: false, error: 'sandbox phase "prepare" did not report the cloned commit' };
       }
 
+      // Repository code can write to the volume from install on, so what
+      // validate compares the migrated tree against is recorded now. Later
+      // validate runs trust that file only while it matches this digest.
+      const validateBaseline = await this.runPhase('validate', volumeName, {
+        ...buildPhaseEnv('validate', params, 1),
+        VALIDATE_BASELINE: 'true',
+      });
+      await onSteps(validateBaseline.steps);
+      if (!validateBaseline.ok) {
+        return {
+          ok: false,
+          error: validateBaseline.error ?? 'sandbox phase "validate" could not record its baseline',
+        };
+      }
+      const validateBaselineDigest = validateBaseline.data?.baselineDigest;
+      if (typeof validateBaselineDigest !== 'string') {
+        return { ok: false, error: 'sandbox phase "validate" did not report its baseline digest' };
+      }
+
       const installed = await this.runPhase(
         'install',
         volumeName,
@@ -191,11 +210,10 @@ export class DockerSandboxService {
 
         // The suite passing is not enough: validate checks the migrated tree
         // and, on failure, leaves its reason where the next refactor reads it.
-        const validated = await this.runPhase(
-          'validate',
-          volumeName,
-          buildPhaseEnv('validate', params, attempt),
-        );
+        const validated = await this.runPhase('validate', volumeName, {
+          ...buildPhaseEnv('validate', params, attempt),
+          VALIDATE_BASELINE_DIGEST: validateBaselineDigest,
+        });
         await onSteps(validated.steps);
         if (validated.ok) {
           accepted = true;

@@ -35,6 +35,7 @@ describe('MigrationProcessor', () => {
     const prisma = {
       migrationJob: { update: jest.fn().mockResolvedValue(undefined) },
       executionLog: { createMany: jest.fn().mockResolvedValue(undefined) },
+      breakingChange: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const sandbox = {
       ensureImage: jest.fn().mockResolvedValue(undefined),
@@ -100,7 +101,17 @@ describe('MigrationProcessor', () => {
       const prisma = {
         migrationJob: { update: jest.fn().mockResolvedValue(undefined) },
         executionLog: { createMany: jest.fn().mockResolvedValue(undefined) },
-        breakingChange: { findUnique: jest.fn().mockResolvedValue(change) },
+        breakingChange: {
+          findUnique: jest.fn().mockResolvedValue(change),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              kind: 'model_retired',
+              operation: null,
+              field: 'claude-3-sonnet-20240229',
+              provider: { slug: 'anthropic' },
+            },
+          ]),
+        },
         apiImpact: { findUnique: jest.fn().mockResolvedValue(impact) },
       };
       const sandbox = {
@@ -147,7 +158,33 @@ describe('MigrationProcessor', () => {
           files: ['src/chat.ts', 'src/summary.ts'],
         },
         branchName: 'synclab/api-anthropic-claude-3-opus-20240229-1b2c3d4e',
-        validationContext: '{}',
+      });
+      expect(prisma.breakingChange.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: 'confirmed',
+            kind: { in: ['model_retired', 'endpoint_removed', 'param_removed', 'param_renamed'] },
+            id: { not: CHANGE.id },
+          },
+        }),
+      );
+      expect(JSON.parse((params as { validationContext: string }).validationContext)).toEqual({
+        rescan: {
+          target: {
+            provider: 'anthropic',
+            kind: 'model_retired',
+            operation: 'POST /v1/messages',
+            field: 'claude-3-opus-20240229',
+          },
+          removed: [
+            {
+              provider: 'anthropic',
+              kind: 'model_retired',
+              operation: null,
+              field: 'claude-3-sonnet-20240229',
+            },
+          ],
+        },
       });
       expect(prisma.migrationJob.update).toHaveBeenCalledWith({
         where: { id: 'job-1' },
@@ -217,6 +254,7 @@ describe('MigrationProcessor', () => {
       const prisma = {
         migrationJob: { update: jest.fn().mockResolvedValue(undefined) },
         executionLog: { createMany: jest.fn().mockResolvedValue(undefined) },
+        breakingChange: { findMany: jest.fn().mockResolvedValue([]) },
       };
       const sandbox = {
         ensureImage: jest.fn().mockResolvedValue(undefined),

@@ -9,13 +9,10 @@ import type { PhaseResult } from '../result.js';
 // code, which would only slow the parse down.
 const MAX_FILE_BYTES = 1_000_000;
 
-/**
- * Records every call the repository makes to the Anthropic or OpenAI API. It
- * only parses files, so it needs no token and no network, and nothing from the
- * repository runs. The usages travel back to the worker in the result.
- */
-export async function scan(): Promise<PhaseResult> {
-  const { repoDir } = loadWorkspace();
+/** The files a scan parses, and the ones too large to parse. */
+export async function readSourceFiles(
+  repoDir: string,
+): Promise<{ files: SourceFile[]; skipped: string[] }> {
   const files: SourceFile[] = [];
   const skipped: string[] = [];
 
@@ -31,6 +28,17 @@ export async function scan(): Promise<PhaseResult> {
     files.push({ path: relativePath, contents: await fs.readFile(absolutePath, 'utf8') });
   }
 
+  return { files, skipped };
+}
+
+/**
+ * Records every call the repository makes to the Anthropic or OpenAI API. It
+ * only parses files, so it needs no token and no network, and nothing from the
+ * repository runs. The usages travel back to the worker in the result.
+ */
+export async function scan(): Promise<PhaseResult> {
+  const { repoDir } = loadWorkspace();
+  const { files, skipped } = await readSourceFiles(repoDir);
   const { usages, unparsed } = scanApiUsage(files);
   const lines = [`Scanned ${files.length} source file(s) and found ${usages.length} API call(s).`];
 

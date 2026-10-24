@@ -18,6 +18,7 @@ import { configuration, LLM_API_KEY_ENV, type Configuration } from '../config/co
 import { ImpactConfidence } from '../impact/match';
 import type { SandboxJobParams, StepLog } from './sandbox/sandbox.types';
 import { buildValidationContext } from './sandbox/validation-context';
+import { REMOVAL_KINDS, type RescanChange } from './sandbox/validation-context/rescan';
 import { claimMigrationJob, type JobWithRepository } from './claim-job';
 
 function slug(value: string): string {
@@ -83,7 +84,9 @@ export class MigrationProcessor extends WorkerHost {
         repoUrl: job.data.repoUrl || `https://github.com/${record.repository.fullName}.git`,
         repoFullName: record.repository.fullName,
         ...migration,
-        validationContext: buildValidationContext(migration.migration),
+        validationContext: buildValidationContext(migration.migration, {
+          removedChanges: await this.removedChanges(record.breakingChangeId),
+        }),
         token,
         llm,
       };
@@ -190,6 +193,25 @@ export class MigrationProcessor extends WorkerHost {
       },
       branchName: `synclab/api-${change.provider.slug}-${subject}-${change.id.slice(0, 8)}`,
     };
+  }
+
+  /** Every confirmed retirement or removal except the change being migrated. */
+  private async removedChanges(migratingChangeId: string | null): Promise<RescanChange[]> {
+    const changes = await this.prisma.breakingChange.findMany({
+      where: {
+        status: BreakingChangeStatus.CONFIRMED,
+        kind: { in: [...REMOVAL_KINDS] },
+        ...(migratingChangeId ? { id: { not: migratingChangeId } } : {}),
+      },
+      orderBy: { id: 'asc' },
+      select: { kind: true, operation: true, field: true, provider: { select: { slug: true } } },
+    });
+    return changes.map((change) => ({
+      provider: change.provider.slug,
+      kind: change.kind,
+      operation: change.operation,
+      field: change.field,
+    }));
   }
 
   private async log(jobId: string, steps: StepLog[]): Promise<void> {

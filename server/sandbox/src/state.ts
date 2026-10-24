@@ -9,6 +9,7 @@ import path from 'node:path';
 const BREAKING_CHANGES_FILE = 'breaking-changes.md';
 const TEST_OUTPUT_FILE = 'test-output.txt';
 const VALIDATION_FAILURE_FILE = 'validation-failure.txt';
+const VALIDATE_BASELINE_FILE = 'validate-baseline.json';
 
 async function write(stateDir: string, name: string, contents: string): Promise<void> {
   await fs.mkdir(stateDir, { recursive: true });
@@ -53,4 +54,16 @@ export function readValidationFailure(stateDir: string): Promise<string | undefi
 
 export function clearValidationFailure(stateDir: string): Promise<void> {
   return fs.rm(path.join(stateDir, VALIDATION_FAILURE_FILE), { force: true });
+}
+
+/**
+ * Repository code can rewrite this file, so a reader must check it against
+ * the digest the worker kept from the run that wrote it.
+ */
+export function writeValidateBaseline(stateDir: string, contents: string): Promise<void> {
+  return write(stateDir, VALIDATE_BASELINE_FILE, contents);
+}
+
+export function readValidateBaseline(stateDir: string): Promise<string | undefined> {
+  return read(stateDir, VALIDATE_BASELINE_FILE);
 }

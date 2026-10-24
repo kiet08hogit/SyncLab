@@ -151,7 +151,7 @@ describe('refactor phase for an API change', () => {
     assert.doesNotMatch(prompts[0], /Dependency:|Target version:/);
   });
 
-  it('never follows a link or leaves the checkout, and sends nothing when no file is left', async (t) => {
+  it('never follows a link or leaves the checkout, and fails before any model call', async (t) => {
     const outside = path.join(workspace, 'outside');
     await fs.mkdir(outside);
     await fs.writeFile(path.join(outside, 'secret.ts'), 'export const key = "secret";\n');
@@ -163,13 +163,14 @@ describe('refactor phase for an API change', () => {
 
     const result = await refactor();
 
-    assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+    assert.equal(result.ok, false);
+    assert.equal(result.data?.retryable, undefined);
     assert.equal(prompts.length, 0);
-    assert.deepEqual(result.data, { changedFiles: [] });
+    assert.equal(result.error, result.steps[0].output);
     assert.equal(
       result.steps[0].output,
       [
-        'None of the impacted files could be sent, so nothing was sent to the model.',
+        '4 impacted file(s) cannot be sent to the model, so the migration could never pass validation:',
         'Skipped src/linked.ts (not a regular file inside the repository)',
         'Skipped lib/secret.ts (not a regular file inside the repository)',
         'Skipped src/missing.ts (not a regular file inside the repository)',
@@ -179,7 +180,7 @@ describe('refactor phase for an API change', () => {
     assert.equal(await fs.readFile(path.join(outside, 'secret.ts'), 'utf8'), 'export const key = "secret";\n');
   });
 
-  it('applies the file size and count limits to impacted files', async (t) => {
+  it('fails before any model call when an impacted file is over the size or count limit', async (t) => {
     await fs.writeFile(path.join(repoDir, 'src', 'big.ts'), `// ${'x'.repeat(200)}\n`);
     await fs.writeFile(path.join(repoDir, 'src', 'b.ts'), CHAT);
     await fs.writeFile(path.join(repoDir, 'src', 'c.ts'), CHAT);
@@ -190,8 +191,11 @@ describe('refactor phase for an API change', () => {
 
     const result = await refactor();
 
-    assert.deepEqual(promptedFiles(prompts), ['src/chat.ts', 'src/b.ts']);
-    assert.match(result.steps[0].output, /Skipped src\/big\.ts \(over the 150 byte limit\)/);
-    assert.match(result.steps[0].output, /Skipped src\/c\.ts \(over the 2 file limit\)/);
+    assert.equal(result.ok, false);
+    assert.equal(prompts.length, 0);
+    assert.match(result.error ?? '', /^2 impacted file\(s\) cannot be sent to the model/);
+    assert.match(result.error ?? '', /Skipped src\/big\.ts \(over the 150 byte limit\)/);
+    assert.match(result.error ?? '', /Skipped src\/c\.ts \(over the 2 file limit\)/);
+    assert.equal(await fs.readFile(path.join(repoDir, 'src', 'chat.ts'), 'utf8'), CHAT);
   });
 });

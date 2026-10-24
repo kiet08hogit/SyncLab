@@ -9,10 +9,15 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
  * or the container options. Read `process.env.VALIDATE_CONTEXT` for the JSON
  * the worker built for this job. Return undefined to pass, or the reason the
  * next refactor attempt must fix.
+ *
+ * A check that compares against the tree as it was cloned also exports
+ * `baseline`. It runs once, before any repository code, and `run` receives
+ * what it returned.
  */
 export interface ValidateCheck {
   name: string;
-  run: () => Promise<string | undefined>;
+  baseline?: () => Promise<unknown>;
+  run: (baseline?: unknown) => Promise<string | undefined>;
 }
 
 const CHECKS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'checks');
