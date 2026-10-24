@@ -219,6 +219,166 @@ describe('findSchemaMismatches', () => {
     assert.deepEqual(mismatches("client.models.retrieve('gpt-4o', { timeout: 5000, verbose: true });"), [
       'src/chat.ts:3 GET /v1/models/{model}: sends timeout, verbose, which the new spec does not accept',
     ]);
+    assert.deepEqual(
+      mismatches("const opts = { timeout: 5000 };\nopts.verbose = true;\nclient.models.retrieve('gpt-4o', opts);"),
+      ['src/chat.ts:5 GET /v1/models/{model}: sends timeout, verbose, which the new spec does not accept'],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const opts = { timeout: 5000 };\nObject.assign(opts, { verbose: true });\nclient.models.retrieve('gpt-4o', opts);",
+      ),
+      ['src/chat.ts:5 GET /v1/models/{model}: sends timeout, verbose, which the new spec does not accept'],
+    );
+  });
+
+  it('fails a key written onto a const request after it is declared', () => {
+    const removed = 'src/chat.ts:5 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept';
+    assert.deepEqual(
+      mismatches("const body = { model: 'gpt-5' };\nbody.max_tokens = 10;\nclient.chat.completions.create(body);"),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\nObject.assign(body, { max_tokens: 10 });\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\nbody['max_tokens'] = 10;\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\nbody[`max_tokens`] = 10;\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\nObject.assign(body, { ['max_tokens']: 10 });\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const extra = { max_tokens: 10 };\nconst body = { model: 'gpt-5', messages: [] };\nObject.assign(body, extra);\nclient.chat.completions.create(body);",
+      ),
+      ['src/chat.ts:6 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept'],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\nbody['stop'] = 'x';\nObject.assign(body, { max_tokens: 10 }, { temperature: 0 });\nclient.chat.completions.create(body);",
+      ),
+      ['src/chat.ts:6 POST /v1/chat/completions: sends max_tokens, stop, which the new spec does not accept'],
+    );
+  });
+
+  it('fails a key written through a type wrapper onto a const request', () => {
+    const removed = 'src/chat.ts:5 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept';
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5' };\n(body as ChatRequest).max_tokens = 10;\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches("const body = { model: 'gpt-5' };\nbody!.max_tokens = 10;\nclient.chat.completions.create(body);"),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5' };\n(body as ChatRequest)!.max_tokens = 10;\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5' };\n(body satisfies object).max_tokens = 10;\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\n(body as ChatRequest)['max_tokens'] = 10;\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\nObject.assign(body as ChatRequest, { max_tokens: 10 });\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\nObject.assign(body!, { max_tokens: 10 });\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const body = { model: 'gpt-5', messages: [] };\nObject.assign(body satisfies object, { max_tokens: 10 } as ChatRequest);\nclient.chat.completions.create(body);",
+      ),
+      [removed],
+    );
+  });
+
+  it('fails a key written onto a const request that a raw call stringifies', () => {
+    assert.deepEqual(
+      reported(
+        [
+          "const body = { model: 'gpt-5' };",
+          'body.max_tokens = 10;',
+          "fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: JSON.stringify(body) });",
+        ].join('\n'),
+      ),
+      ['src/chat.ts:3 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept'],
+    );
+    assert.deepEqual(
+      reported(
+        [
+          "import axios from 'axios';",
+          "const body = { model: 'gpt-5', messages: [] };",
+          '(body as ChatRequest).max_tokens = 10;',
+          "axios.post('https://api.openai.com/v1/chat/completions', JSON.stringify(body));",
+          "axios({ url: 'https://api.openai.com/v1/chat/completions', method: 'post', data: JSON.stringify(body) });",
+        ].join('\n'),
+      ),
+      [
+        'src/chat.ts:4 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+        'src/chat.ts:5 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+      ],
+    );
+  });
+
+  it('checks a const binding of JSON.stringify', () => {
+    assert.deepEqual(
+      reported(
+        [
+          "import axios from 'axios';",
+          "const posted = JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 });",
+          "const fetched = JSON.stringify({ model: 'gpt-5', max_tokens: 1 }) as string;",
+          "const payload = { model: 'gpt-5', messages: [], max_tokens: 1 };",
+          'const encoded = JSON.stringify(payload satisfies Request);',
+          "const nonNull = JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 })!;",
+          "const satisfied = JSON.stringify({ model: 'gpt-5', messages: [], max_tokens: 1 }) satisfies string;",
+          "axios.post('https://api.openai.com/v1/chat/completions', posted);",
+          "fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: fetched });",
+          "axios.post('https://api.openai.com/v1/chat/completions', encoded);",
+          "fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', body: nonNull });",
+          "axios({ url: 'https://api.openai.com/v1/chat/completions', method: 'post', data: satisfied });",
+        ].join('\n'),
+      ),
+      [
+        'src/chat.ts:8 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+        'src/chat.ts:9 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept; leaves out messages, which the new spec requires',
+        'src/chat.ts:10 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+        'src/chat.ts:11 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+        'src/chat.ts:12 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept',
+      ],
+    );
   });
 
   it('checks the body of a raw HTTP call', () => {

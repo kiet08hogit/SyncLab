@@ -699,10 +699,12 @@ class ApiUsageScanner {
       return;
     }
     const { params, dynamic } = objectKeys(argument);
-    if (usage.style === 'sdk' && params.length > 0 && params.every((key) => SDK_REQUEST_OPTIONS.has(key))) {
+    const writes = constWrites(argument);
+    const keys = [...new Set([...params, ...writes.keys])];
+    if (usage.style === 'sdk' && keys.length > 0 && keys.every((key) => SDK_REQUEST_OPTIONS.has(key))) {
       return;
     }
-    this.requests.set(usage, { keys: [...params].sort(), complete: !dynamic && !gainsKeys(argument) });
+    this.requests.set(usage, { keys: [...keys].sort(), complete: !dynamic && !writes.gained });
   }
 
   private httpCall(facts: FileFacts, call: NodePath<t.CallExpression | t.OptionalCallExpression>): ApiUsage | undefined {
@@ -797,16 +799,39 @@ function objectProperty(object: NodePath<t.ObjectExpression>, key: string): Node
 }
 
 function jsonStringifyArgument(value: NodePath | undefined): NodePath | undefined {
+  if (!value) {
+    return value;
+  }
+  const direct = jsonStringifyCall(unwrap(value));
+  if (direct) {
+    return (direct.get('arguments') as NodePath[])[0];
+  }
+  const object = unwrap(value);
+  if (object.isIdentifier()) {
+    const binding = object.scope.getBinding(object.node.name);
+    if (binding?.constant && binding.path.isVariableDeclarator() && binding.path.node.init) {
+      const inner = jsonStringifyCall(unwrap(binding.path.get('init') as NodePath));
+      if (inner) {
+        return (inner.get('arguments') as NodePath[])[0];
+      }
+    }
+  }
+  return value;
+}
+
+/** A `JSON.stringify` call, or undefined when `value` is something else. */
+function jsonStringifyCall(
+  value: NodePath,
+): NodePath<t.CallExpression | t.OptionalCallExpression> | undefined {
   if (
-    value &&
     isCall(value.node) &&
     isMember(value.node.callee) &&
     t.isIdentifier(value.node.callee.object, { name: 'JSON' }) &&
     propertyName(value.node.callee) === 'stringify'
   ) {
-    return (value.get('arguments') as NodePath[])[0];
+    return value as NodePath<t.CallExpression | t.OptionalCallExpression>;
   }
-  return value;
+  return undefined;
 }
 
 /** An object literal an expression is, written inline or bound once as a `const`. */
@@ -821,14 +846,16 @@ function constObject(value: NodePath): NodePath<t.ObjectExpression> | undefined 
   return object.isObjectExpression() ? object : undefined;
 }
 
-/** Whether a `const` object is given keys after it is declared, by assignment or `Object.assign`. */
-function gainsKeys(value: NodePath): boolean {
+/** Keys a `const` object is given after it is declared, by assignment or `Object.assign`. */
+function constWrites(value: NodePath): { gained: boolean; keys: string[] } {
   const object = unwrap(value);
   if (!object.isIdentifier()) {
-    return false;
+    return { gained: false, keys: [] };
   }
   const binding = object.scope.getBinding(object.node.name);
-  return (binding?.referencePaths ?? []).some((reference) => {
+  const keys = new Set<string>();
+  let gained = false;
+  for (const reference of binding?.referencePaths ?? []) {
     let current = reference;
     while (
       current.parentPath &&
@@ -839,17 +866,57 @@ function gainsKeys(value: NodePath): boolean {
       current = current.parentPath;
     }
     const { node, parent, parentPath } = current;
-    if (isMember(parent) && parent.object === node) {
-      return parentPath?.parentPath?.isAssignmentExpression({ left: parent }) ?? false;
+    if (
+      isMember(parent) &&
+      parent.object === node &&
+      parentPath?.parentPath?.isAssignmentExpression({ left: parent })
+    ) {
+      gained = true;
+      const name = propertyName(parent);
+      if (name) {
+        keys.add(name);
+      }
+      continue;
     }
-    return (
-      isCall(parent) &&
-      parent.arguments[0] === node &&
-      isMember(parent.callee) &&
-      t.isIdentifier(parent.callee.object, { name: 'Object' }) &&
-      propertyName(parent.callee) === 'assign'
-    );
-  });
+    if (
+      !parentPath ||
+      !isCall(parent) ||
+      parent.arguments[0] !== node ||
+      !isMember(parent.callee) ||
+      !t.isIdentifier(parent.callee.object, { name: 'Object' }) ||
+      propertyName(parent.callee) !== 'assign'
+    ) {
+      continue;
+    }
+    gained = true;
+    const args = parentPath.get('arguments') as NodePath[];
+    for (const source of args.slice(1)) {
+      for (const key of objectLiteralKeys(source)) {
+        keys.add(key);
+      }
+    }
+  }
+  return { gained, keys: [...keys] };
+}
+
+/** Keys an object literal spells out, inline or bound once as a const. A runtime key is left out. */
+function objectLiteralKeys(value: NodePath): string[] {
+  const object = constObject(value);
+  if (!object) {
+    return [];
+  }
+  const keys: string[] = [];
+  for (const property of object.get('properties')) {
+    if (!property.isObjectProperty() && !property.isObjectMethod()) {
+      continue;
+    }
+    const { key, computed } = property.node;
+    const name = !computed && t.isIdentifier(key) ? key.name : stringValue(key);
+    if (name) {
+      keys.push(name);
+    }
+  }
+  return keys;
 }
 
 interface HttpOptions {
