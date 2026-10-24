@@ -1,7 +1,7 @@
 # SyncLab
 
 SyncLab is an autonomous API migration agent.
-When a dependency ships a breaking release, SyncLab clones the affected repository, upgrades the dependency, rewrites the code that uses it with an LLM, proves the change with the repository's own test suite, and opens a pull request.
+When a dependency ships a breaking release, SyncLab clones the affected repository, upgrades the dependency, rewrites the code that uses it with an LLM, proves the change with the repository's own test suite and a validation pass, and opens a pull request.
 A confirmed breaking change in a watched provider API also queues a migration job for each repository it is confirmed to affect.
 
 The untrusted repository code never runs on the orchestrating server.
@@ -25,8 +25,8 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 1. A trigger arrives: a signed `pull_request` webhook for a Dependabot or Renovate npm update, or an authenticated `POST /migrations` request.
 2. The **gateway** records a `MigrationJob` in PostgreSQL and enqueues it on a BullMQ queue in Redis.
 3. A **worker** claims the job and, for a dependency migration, runs the **sandbox** image as a sequence of containers over one shared Docker volume:
-   `prepare` (clone, fetch release notes), `install`, a baseline `test` on the current version, `upgrade`, then `refactor` and `test` in a loop, then `publish`.
-4. If the tests pass, `publish` pushes a branch and opens a pull request, and the job is marked `COMPLETED` with the PR URL.
+   `prepare` (clone, fetch release notes), a validation baseline, `install`, a baseline `test` on the current version, `upgrade`, then `refactor`, `test` and `validate` in a loop, then `publish`.
+4. If the tests and validation pass, `publish` pushes a branch and opens a pull request, and the job is marked `COMPLETED` with the PR URL.
 
 A confirmed breaking change queues a job on its own, whenever impacts are recomputed.
 Each affected repository gets one `api_change` job, and only when the impact's confidence is `confirmed` and the change itself is `confirmed`.
@@ -114,6 +114,7 @@ sequenceDiagram
     WK->>SB: prepare
     SB->>GH: clone repository
     SB->>GH: fetch release notes for the target version
+    WK->>SB: validate baseline (no network, no secrets)
     WK->>SB: install (no token)
     SB->>SB: npm, pnpm or yarn install, with install scripts
     WK->>SB: test, baseline (no network, no secrets)
@@ -126,13 +127,16 @@ sequenceDiagram
         SB->>LLM: rewrite each file that imports the dependency
         WK->>SB: test (no network, no secrets)
         SB->>SB: run the test script, save output for the next attempt
+        opt suite passed
+            WK->>SB: validate (no network, no secrets)
+        end
     end
 
-    alt tests passed
+    alt tests and validation passed
         WK->>SB: publish
         SB->>GH: fresh clone at the prepared commit, push branch, open pull request
         WK->>DB: COMPLETED + pull_request_url
-    else tests failed, refactor failed, or nothing changed
+    else tests failed, validation failed, refactor failed, or nothing changed
         WK->>DB: error_message, QUEUED if BullMQ will retry, else FAILED
         WK->>Q: retry only if the failure is transient (model rate limit)
     end
@@ -196,7 +200,7 @@ Code: `server/api/src/worker/migration.processor.ts` and `claim-job.ts`.
 stateDiagram-v2
     [*] --> QUEUED: gateway creates job
     QUEUED --> IN_PROGRESS: worker claims row (SELECT ... FOR UPDATE)
-    IN_PROGRESS --> COMPLETED: tests passed, PR opened
+    IN_PROGRESS --> COMPLETED: tests and validation passed, PR opened
     IN_PROGRESS --> QUEUED: transient failure, BullMQ attempts left (error_message recorded)
     IN_PROGRESS --> FAILED: last attempt or unrecoverable failure (error_message recorded)
     FAILED --> QUEUED: trigger received again for same repo, dependency, version
@@ -533,7 +537,7 @@ Only failures that could succeed on a later try are retried; everything else is 
 | Model provider not reachable (connection refused, reset or timed out) | `QUEUED` while retrying, then `FAILED` | yes |
 | Other model errors (bad key, unknown model, malformed output) | `FAILED` | no |
 | `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` missing for the selected provider | `FAILED` | no |
-| Clone, install or dependency upgrade failed | `FAILED` | no |
+| Clone, validation baseline, install or dependency upgrade failed | `FAILED` | no |
 | Test suite already fails before the upgrade (a dependency job) or before the migration (an API-change job) | `FAILED` | no |
 | Tests or validation still failing after `LLM_MAX_ATTEMPTS` | `FAILED` | no |
 | Refactor produced no changes | `FAILED` | no |
@@ -681,4 +685,5 @@ After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs.
 Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact analysis), and the Phase 8 queue and dashboard are built.
 The sandbox edits a repository for a confirmed API change.
 How that job is prompted and published is in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
-Detecting when the change needs a newer SDK, and Phases 9 and 10, are not built yet.
+Phase 9 re-scans the migrated tree after the suite passes, and rejects a migration that still uses the change being migrated or newly uses another retired or removed API.
+Detecting when the change needs a newer SDK, the OpenAI request-schema check, the TypeScript typecheck, and Phase 10 are not built yet.

@@ -298,7 +298,8 @@ The worker tells the sandbox phases which kind of job they are running through t
 | `DEPENDENCY_NAME`, `TARGET_VERSION` | Required for a dependency job. For an API change, set both only when a newer SDK is required. `upgrade` throws unless both are set. |
 | `BRANCH_NAME` | The branch `publish` pushes. An API-change job uses the name in the root README. |
 
-`refactor` sends only the listed files that are regular files inside the checkout, so a link planted by repository code is skipped rather than followed.
+`refactor` sends only the listed files that are regular files inside the checkout, and never follows a link repository code planted.
+A listed file that cannot be sent fails the job before any model call, as the root README describes.
 `publish` titles the commit `chore: adapt to <provider> <kind>` and the pull request `Adapt to <provider> <kind>`.
 The kind is written with spaces, and the field or the operation follows it when the change has one.
 Each title is a single line capped as in the root README, with newlines flattened, and the body keeps the full values.
@@ -311,6 +312,6 @@ So a migration is also validated before `publish`:
 2. For OpenAI, literal request objects are checked against the request schema of the new spec.
 3. For a TypeScript repository, the typecheck runs against the SDK version the change requires.
 
-A failed check goes back into the retry loop with its reason, like a failing test.
+A check that fails after the suite passes goes back into the retry loop with its reason, like a failing test.
 A live call to the provider is deliberately not part of validation.
 It would mean running repository code with a network connection and an API key, which breaks the isolation model in [[03 - Security & Isolation]].
