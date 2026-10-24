@@ -39,7 +39,7 @@ export interface RequestObject {
   usage: ApiUsage;
   /** The keys written in the object, sorted. */
   keys: string[];
-  /** False when a spread or a computed key may add keys the code does not spell out. */
+  /** False when a spread or a key the code does not spell out may add fields. */
   complete: boolean;
 }
 
@@ -79,7 +79,7 @@ const COMPILED_EXTENSIONS: Record<string, string[]> = {
   '.cjs': ['.cts'],
 };
 const AXIOS_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'request']);
-const SDK_REQUEST_OPTIONS = new Set([
+export const SDK_REQUEST_OPTIONS: ReadonlySet<string> = new Set([
   'method',
   'path',
   'query',
@@ -701,9 +701,6 @@ class ApiUsageScanner {
     const { params, dynamic } = objectKeys(argument);
     const writes = constWrites(argument);
     const keys = [...new Set([...params, ...writes.keys])];
-    if (usage.style === 'sdk' && keys.length > 0 && keys.every((key) => SDK_REQUEST_OPTIONS.has(key))) {
-      return;
-    }
     this.requests.set(usage, { keys: [...keys].sort(), complete: !dynamic && !writes.gained });
   }
 
@@ -847,15 +844,19 @@ function constObject(value: NodePath): NodePath<t.ObjectExpression> | undefined 
 }
 
 /** Keys a `const` object is given after it is declared, by assignment or `Object.assign`. */
-function constWrites(value: NodePath): { gained: boolean; keys: string[] } {
+function constWrites(value: NodePath, visited: Set<t.Node> = new Set()): { gained: boolean; keys: string[] } {
   const object = unwrap(value);
   if (!object.isIdentifier()) {
     return { gained: false, keys: [] };
   }
   const binding = object.scope.getBinding(object.node.name);
+  if (!binding?.constant || visited.has(binding.identifier)) {
+    return { gained: false, keys: [] };
+  }
+  visited.add(binding.identifier);
   const keys = new Set<string>();
   let gained = false;
-  for (const reference of binding?.referencePaths ?? []) {
+  for (const reference of binding.referencePaths) {
     let current = reference;
     while (
       current.parentPath &&
@@ -892,6 +893,9 @@ function constWrites(value: NodePath): { gained: boolean; keys: string[] } {
     const args = parentPath.get('arguments') as NodePath[];
     for (const source of args.slice(1)) {
       for (const key of objectLiteralKeys(source)) {
+        keys.add(key);
+      }
+      for (const key of constWrites(source, visited).keys) {
         keys.add(key);
       }
     }
@@ -1072,7 +1076,7 @@ function objectKeys(argument: NodePath | undefined): { params: string[]; dynamic
     }
 
     const { key, computed } = property.node;
-    const name = computed ? undefined : t.isIdentifier(key) ? key.name : stringValue(key);
+    const name = !computed && t.isIdentifier(key) ? key.name : stringValue(key);
     if (!name) {
       dynamic = true;
       continue;

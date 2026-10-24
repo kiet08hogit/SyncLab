@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { scanRequestObjects, type RequestObject } from '../../analysis/api-usage.js';
+import { SDK_REQUEST_OPTIONS, scanRequestObjects, type RequestObject } from '../../analysis/api-usage.js';
 import { loadWorkspace } from '../../config.js';
 import { readSourceFiles } from '../../phases/scan.js';
 import type { ValidateCheck } from '../load-checks.js';
@@ -79,6 +79,8 @@ function templateFits(template: string, concrete: string): boolean {
  * removed), a required field left out, or an operation the spec no longer
  * has. A path parameter is passed positionally, so it is never required in
  * the object, and an object with a spread may carry the required fields.
+ * An SDK call whose keys are all per-request options is left unchecked when
+ * the object is complete and it leaves out no required field.
  * A raw URL that writes a literal where a template has `{}` uses that
  * operation when exactly one template fits, and an exact operation is tried
  * first so a static path wins. When several templates fit, none is used.
@@ -115,6 +117,15 @@ export function findSchemaMismatches(requests: RequestObject[], schema: OpenaiSc
     const missing = complete
       ? spec.required.filter((name) => !sent.has(name) && !spec.path.has(name))
       : [];
+    if (
+      usage.style === 'sdk' &&
+      complete &&
+      keys.length > 0 &&
+      keys.every((key) => SDK_REQUEST_OPTIONS.has(key)) &&
+      missing.length === 0
+    ) {
+      continue;
+    }
 
     const problems: string[] = [];
     if (unknown.length > 0) {
