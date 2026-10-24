@@ -365,7 +365,8 @@ An array query parameter the spec names with a trailing `[]`, such as `include[]
 A path parameter is passed positionally, so it is never required in the object, and an object with a spread is not failed for a missing field the spread may carry.
 A const request object that later gains keys by assignment or `Object.assign` is likewise not failed for a missing field.
 A request that is not a literal, an SDK method missing from the scanner's operation table, or a raw URL with a runtime part that matches no operation, is not checked.
-An SDK argument whose keys are all per-request options is not checked when that object is complete and leaves out no required field.
+An SDK argument whose keys are all per-request options is not checked when it leaves out no required field.
+An incomplete one is still not checked when the operation's only required fields are path parameters.
 Before the monitor has stored an OpenAI spec, and for every other job, the check has nothing to reject.
 
 #### `publish`

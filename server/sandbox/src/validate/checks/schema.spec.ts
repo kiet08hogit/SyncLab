@@ -272,6 +272,56 @@ describe('findSchemaMismatches', () => {
     assert.deepEqual(mismatches('client.chat.completions.create({ stream: true, ...extra });', ['src/chat.ts'], operations), []);
   });
 
+  it('leaves an incomplete per-request options object unchecked when only path parameters are required', () => {
+    const operations: OpenaiSchema['operations'] = {
+      ...OPERATIONS,
+      'POST /v1/responses/{response_id}/cancel': {
+        params: ['response_id'],
+        required: ['response_id'],
+      },
+      'DELETE /v1/files/{file_id}': {
+        params: ['file_id'],
+        required: ['file_id'],
+      },
+    };
+    assert.deepEqual(
+      mismatches(
+        "const opts = { timeout: 5000 };\nopts.signal = controller.signal;\nclient.models.retrieve('gpt-4o', opts);",
+        ['src/chat.ts'],
+        operations,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      mismatches("client.models.retrieve('gpt-4o', { timeout: 5000, ...options });", ['src/chat.ts'], operations),
+      [],
+    );
+    assert.deepEqual(
+      mismatches(
+        "const opts = { timeout: 5000 };\nObject.assign(opts, { signal });\nclient.models.retrieve('gpt-4o', opts);",
+        ['src/chat.ts'],
+        operations,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      mismatches(
+        'const opts = { timeout: 5000 };\nObject.assign(opts, { signal });\nclient.responses.cancel(id, opts);',
+        ['src/chat.ts'],
+        operations,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      mismatches('client.files.delete(id, { signal, ...options });', ['src/chat.ts'], operations),
+      [],
+    );
+    assert.deepEqual(
+      mismatches('client.chat.completions.create({ timeout: 5000, ...extra });', ['src/chat.ts'], operations),
+      ['src/chat.ts:3 POST /v1/chat/completions: sends timeout, which the new spec does not accept'],
+    );
+  });
+
   it('fails a key written onto a const request after it is declared', () => {
     const removed = 'src/chat.ts:5 POST /v1/chat/completions: sends max_tokens, which the new spec does not accept';
     assert.deepEqual(
