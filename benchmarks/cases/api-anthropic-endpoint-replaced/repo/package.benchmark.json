@@ -1,0 +1,11 @@
+{
+  "name": "api-anthropic-endpoint-replaced",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.65.0"
+  }
+}

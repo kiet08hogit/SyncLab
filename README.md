@@ -660,6 +660,7 @@ It runs 60 validated cases across 33 npm packages through the worker's own sandb
 Every case is proven valid first: its suite passes on the old version, fails after the upgrade alone, and passes with a reference fix.
 The model sees only what production gives it, each case runs in a fresh Docker volume, and editing a test counts as a failure.
 It calls a live model, so it is not part of CI.
+It also has 7 API change cases (a retired model, a removed parameter and a replaced endpoint for each SDK, plus the Phase 9 case), which the run below predates; see [`benchmarks/README.md`](benchmarks/README.md#api-change-cases).
 
 Latest run (2026-10-16 to 2026-10-17), success meaning the project's own test suite passes after the migration:
 

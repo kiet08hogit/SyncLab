@@ -1,0 +1,22 @@
+{
+  "id": "api-anthropic-endpoint-replaced",
+  "kind": "api_change",
+  "package": "@anthropic-ai/sdk",
+  "fromVersion": "0.65.0",
+  "category": "endpoint_removed",
+  "difficulty": "hard",
+  "change": {
+    "provider": "anthropic",
+    "kind": "endpoint_removed",
+    "operation": "POST /v1/complete",
+    "field": null,
+    "replacement": "POST /v1/messages",
+    "effectiveAt": null,
+    "evidence": "The legacy Text Completions API (POST /v1/complete) is retired. Send the conversation to the Messages API (POST /v1/messages) instead.",
+    "sourceUrl": "https://platform.claude.com/docs/en/api/migrating-from-text-completions-to-messages"
+  },
+  "impactFiles": ["src/classify.js", "src/tags.js"],
+  "source": "Hand-written: no recorded snapshot has an Anthropic endpoint replacement. The recorded release notes only say the Python SDK 1.0 removes the legacy Text Completions API, and TypeScript SDK 1.0 no longer ships client.completions.",
+  "breakingChange": "The Text Completions endpoint is gone, so client.completions.create returns a not_found_error. Two modules build Human/Assistant prompts and read .completion; both must move to client.messages.create with a messages array, max_tokens instead of max_tokens_to_sample, and the text read from the content blocks. stop_sequences keeps working on Messages.",
+  "reference": "https://platform.claude.com/docs/en/api/migrating-from-text-completions-to-messages"
+}

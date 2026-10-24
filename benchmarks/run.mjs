@@ -8,6 +8,12 @@
 // Success means the project's own test suite passes after the migration and
 // no test file was modified. Results are appended after every case, so an
 // interrupted run continues with --resume.
+//
+// An API change case runs as the worker runs an api_change job: its target
+// files are the impact the scan confirms, and there is no upgrade. Its own
+// suite passes before the migration too, so success also needs the case's
+// contract tests, which play the provider after the change, to pass on the
+// migrated tree. They are added only after the run, so the model never sees them.
 import { execFileSync } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -18,9 +24,12 @@ import {
   createDriver,
   extract,
   hashFiles,
+  impactOf,
+  isApiChange,
   jobParams,
   listFiles,
   loadCases,
+  overlay,
   readNotes,
   removeVolume,
   resultsDir,
@@ -74,8 +83,9 @@ async function compareTrees(originalDir, finalDir) {
 
 async function runCase(spec) {
   const volume = `synclab-bench-run-${spec.id}`;
-  const params = jobParams(spec, config);
-  const notes = await readNotes(spec.id);
+  const apiChange = isApiChange(spec);
+  let params = jobParams(spec, config);
+  const notes = apiChange ? undefined : await readNotes(spec.id);
   const record = {
     id: spec.id,
     package: spec.package,
@@ -84,7 +94,7 @@ async function runCase(spec) {
     category: spec.category,
     difficulty: spec.difficulty,
     model: `${config.llm.provider}/${config.llm.model}`,
-    releaseNotesFound: !notes.startsWith('No release notes were found'),
+    releaseNotesFound: apiChange ? null : !notes.startsWith('No release notes were found'),
     success: false,
     firstAttemptPassed: false,
     attemptsUsed: 0,
@@ -100,6 +110,16 @@ async function runCase(spec) {
   try {
     await seedVolume(volume, path.join(spec.dir, 'repo'), notes);
 
+    if (apiChange) {
+      const impact = await timed(() => impactOf(driver, volume, spec));
+      record.timings.scanMs = impact.ms;
+      record.impactFiles = impact.value.files;
+      if (impact.value.files.length === 0) {
+        return fail(record, 'no_impact', `the scan does not confirm the change affects the case (impact: ${impact.value.confidence ?? 'none'})`);
+      }
+      params = jobParams(spec, config, impact.value.files);
+    }
+
     const install = await timed(() => driver.runPhase('install', volume, params, 1));
     record.timings.installMs = install.ms;
     if (!install.value.ok) {
@@ -114,13 +134,16 @@ async function runCase(spec) {
       return fail(record, 'baseline_failed', tail(stepsText(baseline.value)));
     }
 
-    // Migration time: from the upgrade to the last test run, which is the
-    // part of the job SyncLab is responsible for.
+    // Migration time: from the upgrade (or, for an API change, the first
+    // refactor) to the last test run, which is the part of the job SyncLab is
+    // responsible for.
     const migrationStarted = Date.now();
-    const upgrade = await timed(() => driver.runPhase('upgrade', volume, params, 1));
-    record.timings.upgradeMs = upgrade.ms;
-    if (!upgrade.value.ok) {
-      return fail(record, 'upgrade_failed', tail(stepsText(upgrade.value)));
+    if (!apiChange) {
+      const upgrade = await timed(() => driver.runPhase('upgrade', volume, params, 1));
+      record.timings.upgradeMs = upgrade.ms;
+      if (!upgrade.value.ok) {
+        return fail(record, 'upgrade_failed', tail(stepsText(upgrade.value)));
+      }
     }
 
     let passed = false;
@@ -176,6 +199,16 @@ async function runCase(spec) {
         diff.changedFiles.length === 0 ? 'no_changes' : 'tests_failed',
         tail(lastTestOutput, 25),
       );
+    }
+
+    if (apiChange) {
+      await overlay(volume, path.join(spec.dir, 'contract'));
+      const contract = await timed(() => driver.runPhase('test', volume, params, record.attemptsUsed));
+      record.timings.contractMs = contract.ms;
+      record.contractPassed = contract.value.ok;
+      if (!contract.value.ok) {
+        return fail(record, 'api_still_broken', tail(stepsText(contract.value), 25));
+      }
     }
 
     record.success = true;

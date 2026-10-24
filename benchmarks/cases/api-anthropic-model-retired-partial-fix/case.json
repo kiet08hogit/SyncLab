@@ -1,0 +1,22 @@
+{
+  "id": "api-anthropic-model-retired-partial-fix",
+  "kind": "api_change",
+  "package": "@anthropic-ai/sdk",
+  "fromVersion": "0.65.0",
+  "category": "model_retired",
+  "difficulty": "medium",
+  "change": {
+    "provider": "anthropic",
+    "kind": "model_retired",
+    "operation": null,
+    "field": "claude-3-7-sonnet-20250219",
+    "replacement": "claude-sonnet-4-6",
+    "effectiveAt": "2026-02-19",
+    "evidence": "February 19, 2026 | claude-3-7-sonnet-20250219 | claude-sonnet-4-6",
+    "sourceUrl": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+  },
+  "impactFiles": ["src/chat.js", "src/titles.js"],
+  "source": "Recorded: the deprecations parser reads this row from server/api/src/monitor/fixtures/anthropic-deprecations-2026-10-01.html.gz.",
+  "breakingChange": "Claude Sonnet 3.7 was retired, so every request naming claude-3-7-sonnet-20250219 returns a not_found_error. Both src/chat.js and src/titles.js send it. partial/ fixes only src/chat.js: the repository's own suite still passes, because it never checks the model, but the title request still sends the retired ID. This is the Phase 9 case: validation must reject that attempt and the retry must fix the second file.",
+  "reference": "https://platform.claude.com/docs/en/about-claude/model-deprecations"
+}

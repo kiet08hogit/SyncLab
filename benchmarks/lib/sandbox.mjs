@@ -17,6 +17,9 @@ export const resultsDir = path.join(root, 'benchmarks', 'results');
 const apiRequire = createRequire(path.join(root, 'server', 'api', 'package.json'));
 apiRequire('reflect-metadata');
 const { DockerSandboxService } = apiRequire('./dist/worker/sandbox/docker-sandbox.service.js');
+const { buildPhaseEnv, buildScanPhaseEnv } = apiRequire('./dist/worker/sandbox/container-options.js');
+const { parseScannedUsages } = apiRequire('./dist/worker/sandbox/sandbox.types.js');
+const { collectImpacts } = apiRequire('./dist/impact/match.js');
 const { configuration } = apiRequire('./dist/config/configuration.js');
 
 /** The image every phase runs in; built from server/sandbox by the scripts. */
@@ -36,21 +39,52 @@ export function benchmarkConfig() {
 export function createDriver(config = benchmarkConfig()) {
   const service = new DockerSandboxService({ get: (key) => config[key] });
   return {
-    /** The worker's private runPhase, used exactly as its run() loop uses it. */
+    /** The worker's private runPhase, with the env its run() loop builds for the phase. */
     runPhase: (phase, volumeName, params, attempt, extraEnv = {}) =>
-      service.runPhase(phase, volumeName, params, attempt, extraEnv),
+      service.runPhase(phase, volumeName, { ...buildPhaseEnv(phase, params, attempt), ...extraEnv }),
+    /** The scan phase as the worker's scan() runs it, on a checkout that is already seeded. */
+    scan: (volumeName) =>
+      service.runPhase('scan', volumeName, buildScanPhaseEnv('scan', { repoUrl: '', token: '' })),
   };
 }
 
-export function jobParams(spec, config = benchmarkConfig()) {
+export function isApiChange(spec) {
+  return spec.kind === 'api_change';
+}
+
+/** `files` is the API change's impact, as impactOf finds it; dependency cases ignore it. */
+export function jobParams(spec, config = benchmarkConfig(), files = []) {
   return {
     repoUrl: `https://example.invalid/synclab-benchmark/${spec.id}.git`,
     repoFullName: `synclab-benchmark/${spec.id}`,
-    dependencyName: spec.package,
-    targetVersion: spec.toVersion,
+    migration: isApiChange(spec)
+      ? { kind: 'api_change', change: spec.change, files }
+      : { kind: 'dependency', dependencyName: spec.package, targetVersion: spec.toVersion },
     branchName: `synclab/${spec.id}`,
     token: '',
     llm: config.llm,
+  };
+}
+
+/**
+ * The impact production records for the case's change: the scan phase's
+ * usages, matched by the worker's own collectImpacts. A migration only starts
+ * from a confirmed impact, so anything else returns no files.
+ */
+export async function impactOf(driver, volumeName, spec) {
+  const scanned = await driver.scan(volumeName);
+  if (!scanned.ok) {
+    throw new Error(`scan failed: ${scanned.error ?? 'no result'}`);
+  }
+  const usages = parseScannedUsages(scanned.data?.usages).map((usage) => ({
+    ...usage,
+    providerId: usage.provider,
+  }));
+  const change = { ...spec.change, id: spec.id, providerId: spec.change.provider };
+  const [draft] = collectImpacts([change], [{ repositoryId: spec.id, usages }]);
+  return {
+    confidence: draft?.confidence ?? null,
+    files: draft?.confidence === 'confirmed' ? draft.files : [],
   };
 }
 
@@ -76,13 +110,15 @@ async function shOrThrow(command, args, options) {
 /**
  * A fresh volume holding only the case's repository files and the release
  * notes snapshot. The case description, reference fix and expected answers
- * stay on the host, so the model cannot see them.
+ * stay on the host, so the model cannot see them. An API change has no
+ * release notes (its brief travels with the job), so `notes` is then
+ * undefined and prepare's state file is left out, as prepare leaves it out.
  */
 export async function seedVolume(volumeName, repoDir, notes) {
   await shOrThrow('docker', ['volume', 'rm', '-f', volumeName]);
   await shOrThrow('docker', ['volume', 'create', '--label', 'com.synclab.benchmark=true', volumeName]);
   const notesFile = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'synclab-notes-')), 'notes.md');
-  await fs.writeFile(notesFile, notes);
+  await fs.writeFile(notesFile, notes ?? '');
   await shOrThrow('docker', [
     'run', '--rm', '--network', 'none',
     '-v', `${volumeName}:/workspace`,
@@ -95,7 +131,7 @@ export async function seedVolume(volumeName, repoDir, notes) {
       // versions; the sandbox sees a normal package.json and package-lock.json.
       'mv /workspace/repo/package.benchmark.json /workspace/repo/package.json && ' +
       'mv /workspace/repo/package-lock.benchmark.json /workspace/repo/package-lock.json && ' +
-      'cp /notes.md /workspace/state/breaking-changes.md && chown -R node:node /workspace',
+      `${notes === undefined ? '' : 'cp /notes.md /workspace/state/breaking-changes.md && '}chown -R node:node /workspace`,
   ]);
   await fs.rm(path.dirname(notesFile), { recursive: true, force: true });
 }

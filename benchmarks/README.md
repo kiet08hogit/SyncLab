@@ -27,6 +27,30 @@ To create a case, write `repo/package.json` pinned to the old version, generate 
 
 To refresh an existing case's lockfile, rename `package.benchmark.json` back to `package.json` first and run the same command.
 
+### API change cases
+
+A case with `"kind": "api_change"` measures a migration off a breaking change in the Anthropic or OpenAI API, as Phase 8 runs it.
+Its SDK stays pinned and nothing in `repo/` changes when the provider does, so the case adds what the provider does after the change:
+
+```
+cases/<id>/
+  case.json   kind, the pinned SDK, the change as the monitor records it (provider, kind, operation, field, replacement, effectiveAt, evidence, sourceUrl), impactFiles, and where the change came from
+  repo/       the project; its suite talks to a local stand-in for the provider in test/provider.js, so it needs no network or key
+  contract/   test files that play the provider after the change, overlaid only by validation and after a run, never during one
+  solution/   a reference fix
+  partial/    optional: a fix whose own suite passes while it still uses the change, for the Phase 9 validation gate
+```
+
+The run follows the worker's `api_change` job: the `scan` phase and the worker's own impact matching pick the target files, a migration starts only when the impact is confirmed, and there is no `upgrade`.
+The model gets the change as the job's brief, not release notes.
+The case passes when its own suite passes, no test changed, and the contract tests then pass too.
+
+Validation proves the scan confirms exactly `impactFiles`, the suite passes before the migration, the contract tests fail on the original code, and the reference fix passes both and leaves nothing for the scan to match.
+With `partial/`, it also proves that fix passes the project's own suite while the scan still matches the change.
+
+Six cases cover a retired model, a removed parameter and a replaced endpoint for each SDK, and `api-anthropic-model-retired-partial-fix` is the Phase 9 case.
+Every change except the Anthropic endpoint replacement is replayed from a snapshot recorded in `server/api/src/monitor/fixtures/`; each `case.json` says which.
+
 ## Running it
 
 Prerequisites: Docker, the API and sandbox built, and a key for the model the worker is configured for (by default `GEMINI_API_KEY` for Gemini).
