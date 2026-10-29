@@ -4,8 +4,10 @@ import { useLayoutEffect } from "react";
 import Lenis from "lenis";
 import "lenis/dist/lenis.css";
 import { registerLandingScroll } from "@/lib/landing-scroll";
+import { workspaceCamera } from "@/lib/workspace-camera";
 
 const BACKGROUND = "#07090c";
+const HERO_MOTION = "(min-width: 760px) and (min-height: 700px) and (prefers-reduced-motion: no-preference)";
 
 /**
  * Paints the whole document dark while the landing page shows, so overscroll
@@ -42,7 +44,14 @@ export function LandingChrome() {
       const box = paper?.getBoundingClientRect();
       if (header) {
         const onPaper = !!box && box.top <= 80 && box.bottom > 80;
-        const heroLight = hero && hero.getBoundingClientRect().bottom > 80 ? Number(landing?.style.getPropertyValue("--hero-light") || 0) : 0;
+        // The hero writes --hero-light in a later frame. Reading it here stays
+        // behind an instant jump and leaves white type on the white gleam.
+        const heroBox = hero?.getBoundingClientRect();
+        const heroCoversHeader = !!heroBox && heroBox.bottom > 80;
+        const motion = window.matchMedia(HERO_MOTION).matches;
+        const distance = Math.max(1, (heroBox?.height ?? 0) - window.innerHeight);
+        const progress = heroBox && heroCoversHeader && motion ? Math.max(0, Math.min(1, -heroBox.top / distance)) : 0;
+        const heroLight = heroCoversHeader && motion ? workspaceCamera(progress).paper : 0;
         const light = onPaper ? Math.max(0, Math.min(1, (box!.bottom - 20) / 60)) : heroLight;
         header.dataset.surface = onPaper ? "paper" : "dark";
         header.style.setProperty("--nav-light", String(light));

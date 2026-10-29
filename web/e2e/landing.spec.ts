@@ -8,6 +8,31 @@ async function scrollHeroProgress(page: Page, progress: number) {
   }, progress);
 }
 
+/** sRGB channel sum. Settled header ink (#252a31) is about 128; white is 765. */
+async function headerInkSum(page: Page) {
+  return page.evaluate(() => {
+    const header = document.querySelector("header");
+    if (!header) return 765;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d");
+    if (!context) return 765;
+    context.fillStyle = getComputedStyle(header).color;
+    context.fillRect(0, 0, 1, 1);
+    const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
+    return red + green + blue;
+  });
+}
+
+/** Names exposed to assistive tech. Playwright's role engine does not treat `inert` as hidden. */
+async function accessibilityNames(page: Page, pattern: RegExp) {
+  const session = await page.context().newCDPSession(page);
+  const tree = await session.send("Accessibility.getFullAXTree");
+  return tree.nodes
+    .filter((node) => pattern.test(node.name?.value ?? "") && node.ignored !== true)
+    .map((node) => node.name?.value ?? "");
+}
+
 async function scrollProof(page: Page, progress: number) {
   const proof = page.getByRole("region", { name: "A verified fix" });
   await proof.evaluate((element, value) => {
@@ -23,7 +48,7 @@ test("shows visitors the landing page, and signing in opens the dashboard", asyn
   page.on("pageerror", (error) => errors.push(error.message));
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("APIs change. Keep building.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Code breaks. You keep shipping.");
   await expect(page.getByRole("navigation", { name: "Main" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Detect" })).toHaveAttribute("aria-selected", "true");
 
@@ -44,7 +69,7 @@ test("lets a signed-in user open the home page and return there from the dashboa
   await expect(page.getByRole("link", { name: "octo-e2e" })).toBeVisible();
   await page.getByRole("link", { name: "Previous" }).click();
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("APIs change. Keep building.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Code breaks. You keep shipping.");
   const account = page.getByRole("banner").getByRole("button", { name: "octo-e2e" });
   await expect(account).toBeVisible();
   await expect(page.getByRole("banner").getByRole("link", { name: /Log in/ })).toHaveCount(0);
@@ -84,7 +109,7 @@ test("explores the five stages through the same architectural illustration", asy
 
   const hero = page.locator("[data-workspace-hero]");
   await expect(hero.locator("img")).toHaveAttribute("src", /hero-office-start/);
-  const heroSection = page.getByRole("region", { name: "APIs change. Keep building." });
+  const heroSection = page.getByRole("region", { name: "Code breaks. You keep shipping." });
   await expect(heroSection.getByRole("link")).toHaveCount(0);
   await expect(heroSection).not.toContainText("Dependency and API migrations");
   await expect(heroSection).not.toContainText("From failed check to reviewed fix");
@@ -155,7 +180,7 @@ test("arrow keys leave the stage scroll selected, even when focus is still on an
 test("hides faded hero copy only while it still covers the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  const heading = page.getByRole("heading", { level: 1, name: "APIs change. Keep building." });
+  const heading = page.getByRole("heading", { level: 1, name: "Code breaks. You keep shipping." });
   const copy = page.locator("[data-hero-copy]");
   const description = page.locator("[data-hero-description]");
   await expect(heading).toBeVisible();
@@ -173,7 +198,7 @@ test("hides faded hero copy only while it still covers the viewport", async ({ p
     const box = element.getBoundingClientRect();
     return box.bottom > 0 && box.top < window.innerHeight;
   })).toBe(true);
-  await expect(heading).toHaveCount(0);
+  await expect.poll(() => accessibilityNames(page, /Code breaks\. You keep shipping\.|When a model retires/)).toEqual([]);
 
   const how = page.getByRole("region", { name: "How it works", exact: true });
   await how.evaluate((element) => {
@@ -185,7 +210,7 @@ test("hides faded hero copy only while it still covers the viewport", async ({ p
   await expect.poll(() => description.evaluate((element) => element.getBoundingClientRect().bottom <= 0)).toBe(true);
   await expect.poll(() => copy.evaluate((element) => (element as HTMLElement).inert)).toBe(false);
   await expect.poll(() => description.evaluate((element) => (element as HTMLElement).inert)).toBe(false);
-  await expect(heading).toHaveText("APIs change. Keep building.");
+  await expect(heading).toHaveText("Code breaks. You keep shipping.");
 });
 
 test("keeps filled header actions light and text links on the dark ink", async ({ page }) => {
@@ -198,19 +223,36 @@ test("keeps filled header actions light and text links on the dark ink", async (
   await scrollHeroProgress(page, 0.98);
   await expect.poll(() => header.evaluate((element) => Number(element.style.getPropertyValue("--nav-light")))).toBeGreaterThan(0.8);
   await expect.poll(() => header.evaluate((element) => Number(element.style.getPropertyValue("--nav-fill")))).toBe(0);
-  const gleam = await header.evaluate((element) => getComputedStyle(element).color);
-  expect(gleam).not.toBe("rgb(255, 255, 255)");
-  expect(await how.evaluate((element) => getComputedStyle(element).color)).toBe(gleam);
-  expect(await github.evaluate((element) => getComputedStyle(element).color)).toBe("rgb(255, 255, 255)");
+  // The header color transitions for 200ms. Wait until the ink is actually dark, and read the link with the button in one turn.
+  await expect.poll(async () => {
+    const sum = await headerInkSum(page);
+    const matched = await page.evaluate(() => {
+      const header = document.querySelector("header");
+      const how = header?.querySelector("nav a[href='#how']");
+      const github = header?.querySelector("nav a[href^='/auth/github']");
+      if (!header || !how || !github) return false;
+      const ink = getComputedStyle(header).color;
+      return getComputedStyle(how).color === ink && getComputedStyle(github).color === "rgb(255, 255, 255)";
+    });
+    return matched && sum < 320;
+  }).toBe(true);
 
   await page.getByRole("region", { name: "How it works", exact: true }).evaluate((element) => {
     window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - 80, behavior: "instant" });
   });
   await expect(header).toHaveAttribute("data-surface", "paper");
-  const paper = await header.evaluate((element) => getComputedStyle(element).color);
-  expect(paper).not.toBe("rgb(255, 255, 255)");
-  expect(await how.evaluate((element) => getComputedStyle(element).color)).toBe(paper);
-  expect(await github.evaluate((element) => getComputedStyle(element).color)).toBe("rgb(255, 255, 255)");
+  await expect.poll(async () => {
+    const sum = await headerInkSum(page);
+    const matched = await page.evaluate(() => {
+      const header = document.querySelector("header");
+      const how = header?.querySelector("nav a[href='#how']");
+      const github = header?.querySelector("nav a[href^='/auth/github']");
+      if (!header || !how || !github) return false;
+      const ink = getComputedStyle(header).color;
+      return getComputedStyle(how).color === ink && getComputedStyle(github).color === "rgb(255, 255, 255)";
+    });
+    return matched && sum < 320;
+  }).toBe(true);
 });
 
 test("keeps the signed-in account label on the header ink", async ({ page }) => {
@@ -220,9 +262,17 @@ test("keeps the signed-in account label on the header ink", async ({ page }) => 
   const account = header.getByRole("button", { name: "octo-e2e" });
   await scrollHeroProgress(page, 0.98);
   await expect.poll(() => header.evaluate((element) => Number(element.style.getPropertyValue("--nav-light")))).toBeGreaterThan(0.8);
-  await expect.poll(() => account.evaluate((element) => getComputedStyle(element).color)).toBe(
-    await header.evaluate((element) => getComputedStyle(element).color),
-  );
+  // The header color transitions for 200ms. Wait until that ink is dark, and compare the account in the same turn.
+  await expect.poll(async () => {
+    const sum = await headerInkSum(page);
+    const matched = await page.evaluate(() => {
+      const header = document.querySelector("header");
+      const account = header?.querySelector("button[aria-haspopup='menu']");
+      if (!header || !account) return false;
+      return getComputedStyle(account).color === getComputedStyle(header).color;
+    });
+    return matched && sum < 320;
+  }).toBe(true);
   const ink = await header.evaluate((element) => getComputedStyle(element).color);
   expect(ink).not.toBe("rgb(255, 255, 255)");
   expect(await account.evaluate((element) => getComputedStyle(element).color)).toBe(ink);
@@ -463,7 +513,7 @@ test("leaves the dashboard intact after a client-side visit, and Back returns to
 
   await page.goBack();
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("APIs change. Keep building.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Code breaks. You keep shipping.");
 });
 
 test("plays the intro once, and not again on Back", async ({ page }) => {

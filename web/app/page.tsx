@@ -67,9 +67,9 @@ async function Footer() {
   return <FooterFrame action={action} />;
 }
 
-const HEADLINE = "APIs change. Keep building.";
+const HEADLINE = "Code breaks. You keep shipping.";
 
-const NAV_LINK = "label-mono hidden text-white/60 transition-colors hover:text-white md:block";
+const NAV_LINK = "label-mono hidden text-white/60 hover:text-white md:block";
 
 export default function LandingPage() {
   return (
