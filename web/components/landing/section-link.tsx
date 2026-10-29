@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
+import { scrollLandingTo } from "@/lib/landing-scroll";
 
 /**
  * A link to a section of the landing page that scrolls there without adding
@@ -17,7 +18,7 @@ export function SectionLink({ section, ...props }: { section: string } & Omit<Co
         if (!target || event.metaKey || event.ctrlKey || event.shiftKey) return;
         event.preventDefault();
         const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        target.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+        scrollLandingTo(window.scrollY + target.getBoundingClientRect().top - 80, smooth);
       }}
     />
   );

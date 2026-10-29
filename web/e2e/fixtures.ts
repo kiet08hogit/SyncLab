@@ -95,7 +95,13 @@ export const test = base.extend<{ cleanSlate: void }>({
       );
       execFileSync("docker", ["exec", process.env.E2E_REDIS_CONTAINER!, "redis-cli", "FLUSHALL"], { stdio: "ignore" });
       // Avatars come from GitHub through Next's image optimizer; keep the suite offline.
-      await page.route("**/_next/image**", (route) => route.fulfill({ contentType: "image/png", body: PIXEL }));
+      await page.route("**/_next/image**", (route) => {
+        const source = new URL(route.request().url()).searchParams.get("url");
+        if (source?.startsWith("https://avatars.githubusercontent.com/")) {
+          return route.fulfill({ contentType: "image/png", body: PIXEL });
+        }
+        return route.continue();
+      });
       await use();
     },
     { auto: true },

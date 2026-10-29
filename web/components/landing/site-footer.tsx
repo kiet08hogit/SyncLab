@@ -19,7 +19,6 @@ const COLUMNS = [
     title: "Learn",
     links: [
       { label: "How it works", section: "how" },
-      { label: "FAQ", section: "faq" },
     ],
   },
   {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, 
 
 import { cellPart, depth, DUST, GLYPHS, hash, pick, pupPart, RIPPLE_GLYPHS, rippleEnergy, scramble, type PupPart } from "@/lib/ascii";
 import { mascotSvg } from "@/lib/mascot";
+import { PIPELINE_STAGES, type PipelineStage } from "@/lib/types";
 
 const DIGITS = "0123456789.";
 const IDENTIFIER = "abcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -121,6 +122,47 @@ async function sampleMascot(cols: number, rows: number, cellW: number, cellH: nu
     }
   }
   return out;
+}
+
+/** Sandbox stages, in order, for the hero's run trace. Refactor is where the line of code changes. */
+const SPAN_LABEL: Record<PipelineStage, string> = {
+  CLONE: "Clone",
+  CHANGELOG: "Changelog",
+  INSTALL: "Install",
+  BASELINE: "Baseline",
+  UPGRADE: "Upgrade",
+  REFACTOR: "Refactor",
+  TEST: "Test",
+  PR: "Pull request",
+};
+
+const REFACTOR_INDEX = PIPELINE_STAGES.indexOf("REFACTOR");
+
+function spanClass(index: number, phase: "idle" | "migrating" | "done") {
+  if (phase === "done" || index < REFACTOR_INDEX) return "h-1.5 flex-1 bg-[#6f93ff]/85";
+  if (index === REFACTOR_INDEX) {
+    return phase === "migrating" ? "h-1.5 flex-1 bg-[#6f93ff] motion-safe:animate-pulse" : "h-1.5 flex-1 bg-white/35";
+  }
+  return "h-1.5 flex-1 bg-white/10";
+}
+
+/** A horizontal trace of the sandbox stages, filled through the rewrite, then the pull request. */
+function RunSpans({ phase }: { phase: "idle" | "migrating" | "done" }) {
+  const active = phase === "done" ? "PR" : "REFACTOR";
+  return (
+    <div aria-hidden className="border-b border-white/10 px-4 py-3">
+      <div className="flex gap-1">
+        {PIPELINE_STAGES.map((stage, index) => (
+          <span key={stage} className={spanClass(index, phase)} />
+        ))}
+      </div>
+      <div className="mt-2 flex justify-between gap-3 text-[10px] text-white/40">
+        <span>Clone</span>
+        <span className="text-white/70">{SPAN_LABEL[active]}</span>
+        <span>Pull request</span>
+      </div>
+    </div>
+  );
 }
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
@@ -384,13 +426,32 @@ export function HeroField({ children }: { children: ReactNode }) {
       <div className="grid min-h-[calc(100dvh-12rem)] min-[900px]:grid-cols-[minmax(0,56%)_minmax(0,1fr)]">
         {/* Empty: the canvas draws the pup into this box. */}
         <div ref={slotRef} data-pup-slot aria-hidden className="h-[38svh] min-[900px]:order-last min-[900px]:h-auto" />
-        <div className="flex flex-col justify-end gap-10 px-5 pb-14 sm:px-10 min-[900px]:justify-center min-[900px]:py-16">
+        <div className="flex min-w-0 flex-col justify-end gap-10 px-5 pb-14 sm:px-10 min-[900px]:justify-center min-[900px]:py-16">
           {children}
-          <figure style={{ "--delay": "950ms" } as CSSProperties} className="intro-fade relative w-full max-w-sm border border-white/10 bg-[#07090c]/80 font-mono text-[13px] leading-relaxed backdrop-blur-sm">
+          <figure style={{ "--delay": "950ms" } as CSSProperties} className="intro-fade relative w-full min-w-0 max-w-lg border border-white/10 bg-[#07090c]/80 font-mono text-[13px] leading-relaxed backdrop-blur-sm">
+            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-2 text-[11px] text-white/45">
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className={
+                    shown.phase === "migrating"
+                      ? "size-1.5 bg-[#6f93ff] motion-safe:animate-pulse"
+                      : shown.phase === "done"
+                        ? "size-1.5 bg-[#6f93ff]"
+                        : "size-1.5 bg-white/30"
+                  }
+                />
+                <span>Run</span>
+              </span>
+              <span className={shown.phase === "done" ? "text-[#6f93ff]" : undefined}>
+                {shown.phase === "idle" ? migration.found : shown.phase === "migrating" ? "migrating…" : "pull request opened"}
+              </span>
+            </div>
+            <RunSpans phase={shown.phase} />
             <figcaption className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-2 text-[11px] text-white/45">
               <span>{migration.file}</span>
-              <span aria-hidden className={shown.phase === "done" ? "text-[#6f93ff]" : undefined}>
-                {shown.phase === "idle" ? migration.found : shown.phase === "migrating" ? "migrating…" : "pull request opened"}
+              <span>
+                {shown.phase === "done" ? "published" : shown.phase === "migrating" ? "rewriting" : "queued"}
               </span>
             </figcaption>
             <pre aria-hidden className="overflow-hidden px-4 py-3 text-white/55">
