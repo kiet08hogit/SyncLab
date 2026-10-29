@@ -217,8 +217,6 @@ test("keeps filled header actions light and text links on the dark ink", async (
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   const header = page.getByRole("banner");
-  const github = header.getByRole("link", { name: "Continue with GitHub" });
-  const how = header.getByRole("link", { name: "How it works" });
 
   await scrollHeroProgress(page, 0.98);
   await expect.poll(() => header.evaluate((element) => Number(element.style.getPropertyValue("--nav-light")))).toBeGreaterThan(0.8);

@@ -10,7 +10,6 @@ import type { JobWithRepository } from "@/lib/types";
 
 /**
  * Jobs a worker holds right now. The beam is the page's one moving moment.
- * `stacked` is for the landing preview, whose column is too narrow for two.
  */
 export function RunningJobs({ jobs, stacked = false }: { jobs: JobWithRepository[]; stacked?: boolean }) {
   return (

@@ -1,7 +1,6 @@
 import { MASCOT_COLORS } from "@/lib/mascot";
 
-// The landing hero redraws the mascot as a field of characters. These helpers
-// are the parts that do not need a canvas, so they can be tested on their own.
+// These helpers do not need a canvas, so they can be tested on their own.
 
 export type PupPart = "fur" | "patch" | "ear" | "face" | "tag" | "arrow" | "collar";
 

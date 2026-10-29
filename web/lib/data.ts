@@ -82,7 +82,6 @@ const seeds: JobSeed[] = [
     dependencyName: "claude-sonnet-4-5-20250929",
     targetVersion: "claude-sonnet-5-5",
     status: "IN_PROGRESS",
-    // Recent enough that the landing preview's two cards are one of each kind.
     createdAgo: 4 * MINUTE,
     logs: [
       ["STARTED", "Starting migration for northwind/storefront"],

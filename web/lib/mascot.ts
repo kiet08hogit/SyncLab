@@ -53,7 +53,7 @@ export const MASCOT_TILT = "rotate(-8 32 34)";
 
 /**
  * The same artwork as a standalone SVG document, for the favicon. Without the
- * tile it is the pup alone, which the landing page redraws in ASCII.
+ * tile it is the pup alone.
  */
 export function mascotSvg({ tile = true }: { tile?: boolean } = {}): string {
   const render = (shape: MascotShape) => {
