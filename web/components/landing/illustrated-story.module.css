@@ -64,37 +64,7 @@
 .intro p + p {
   margin-top: 12px;
 }
-.integrations {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin: 0 0 40px auto;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-  max-width: 525px;
-  color: var(--muted);
-  font:
-    11px/1.5 var(--font-jetbrains),
-    monospace;
-}
-.integrations span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.integrations svg {
-  width: 16px;
-  height: 16px;
-}
-.integrations > span:last-child {
-  margin-left: auto;
-  font-size: 9px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
 .workflow,
-.repositories,
 .beforeAfter {
   min-width: 0;
 }
@@ -270,147 +240,9 @@
   fill: #717a89;
   letter-spacing: 0.6px;
 }
-.landscapeFrame {
-  background: #fff;
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-.city {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-.selectedBuilding {
-  transition: opacity 0.2s;
-}
-.repositoryChoices {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid var(--line);
-  border-top: 0;
-}
-.repositoryChoices button {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 24px;
-  border-right: 1px solid var(--line);
-  text-align: left;
-  cursor: pointer;
-  min-width: 0;
-  border-top: 2px solid transparent;
-  transition: background 0.2s;
-}
-.repositoryChoices button:last-child {
-  border-right: 0;
-}
-.repositoryChoices button:hover {
-  background: #f2f4f8;
-}
-.repositoryChoices button[aria-pressed="true"] {
-  border-top-color: var(--blue);
-  background: #f1f4ff;
-}
-.repositoryChoices strong {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 15px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
-.repositoryChoices strong svg {
-  color: var(--blue);
-  flex-shrink: 0;
-}
-.repositoryChoices button > span:last-child {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  color: var(--muted);
-  font-size: 12px;
-}
-.repositoryChoices button[aria-pressed="true"] > span:last-child {
-  color: var(--blue);
-}
-.repositoryDetail {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  padding: 23px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-  color: var(--muted);
-}
-.repoDetailTitle {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: var(--ink);
-  font-weight: 500;
-}
-.repoDetailTitle svg {
-  color: var(--blue);
-}
-.repositoryFoot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-top: 16px;
-}
-.repositoryFoot a {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--blue);
-  min-height: 44px;
-  font-size: 12px;
-}
-.scenarioControls {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 20px;
-}
-.scenarioControls button {
-  padding: 11px 20px;
-  border: 1px solid var(--line);
-  font-size: 12px;
-  cursor: pointer;
-  background: var(--paper);
-  text-align: left;
-  min-height: 61px;
-}
-.scenarioControls button + button {
-  border-left: 0;
-}
-.scenarioControls button span {
-  display: block;
-  color: var(--muted);
-  font:
-    9px/1.6 var(--font-jetbrains),
-    monospace;
-  margin-top: 3px;
-}
-.scenarioControls button[aria-pressed="true"] {
-  background: var(--ink);
-  color: white;
-  border-color: var(--ink);
-}
-.scenarioControls button[aria-pressed="true"] span {
-  color: #c8ced8;
-}
 .benchFrame {
   border: 1px solid var(--line);
   background: #fff;
-}
-.workbench {
-  display: block;
-  width: 100%;
-  height: auto;
 }
 .proofStrip {
   display: grid;
@@ -487,22 +319,29 @@
 .scrollHeader[data-surface="paper"] {
   backdrop-filter: blur(12px);
 }
-.scrollHeader nav a {
+.scrollHeader nav a,
+.scrollHeader nav button[aria-haspopup="menu"] {
   color: inherit;
 }
 .scrollHeader nav a:hover {
   color: #365eff;
 }
+.scrollHeader nav a[href^="/auth/github"],
+.scrollHeader nav a:global(.bg-primary) {
+  color: #fff;
+}
 .scrollHeader nav a[href^="/auth/github"] {
-  color: white;
   background: #365eff;
+}
+.scrollHeader nav a[href^="/auth/github"]:hover,
+.scrollHeader nav a:global(.bg-primary):hover {
+  color: #fff;
 }
 .chapterSticky {
   position: relative;
   min-width: 0;
 }
-.scrollHint,
-.sceneProgress {
+.scrollHint {
   display: none;
 }
 .stationVolume {
@@ -620,100 +459,15 @@
   align-items: center;
   gap: 8px;
 }
-.scrollChapter[data-pinned="true"] .sceneProgress {
-  display: block;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--line);
-}
-.sceneProgress > span {
-  display: block;
-  height: 100%;
-  width: 100%;
-  background: var(--blue);
-  transform: scaleX(var(--chapter-progress, 0));
-  transform-origin: left;
-}
-.scrollChapter[data-pinned="true"] .repositories {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto auto;
-}
-.scrollChapter[data-pinned="true"] .landscapeFrame {
-  grid-column: 2;
-  grid-row: 1;
-  min-height: 0;
-}
-.scrollChapter[data-pinned="true"] .city {
-  width: 100%;
-  height: 100%;
-}
-.scrollChapter[data-pinned="true"] .repositoryChoices {
-  grid-column: 1;
-  grid-row: 1;
-  border: 1px solid var(--line);
-  border-right: 0;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-}
-.scrollChapter[data-pinned="true"] .repositoryChoices button {
-  padding: 15px 19px;
-  border-right: 0;
-  border-top: 0;
-  border-left: 2px solid transparent;
-  border-bottom: 1px solid var(--line);
-  gap: 10px;
-  justify-content: center;
-}
-.scrollChapter[data-pinned="true"] .repositoryChoices button:last-child {
-  border-bottom: 0;
-}
-.scrollChapter[data-pinned="true"]
-  .repositoryChoices
-  button[aria-pressed="true"] {
-  border-left-color: var(--blue);
-}
-.scrollChapter[data-pinned="true"] .repositoryChoices strong {
-  font-size: 13px;
-}
-.scrollChapter[data-pinned="true"] .repositoryChoices button > span:last-child {
-  font-size: 11px;
-}
-.scrollChapter[data-pinned="true"] .repositoryDetail {
-  grid-column: 1/-1;
-  grid-row: 2;
-  padding: 18px 0;
-}
-.scrollChapter[data-pinned="true"] .repositoryFoot {
-  grid-column: 1/-1;
-  grid-row: 3;
-  margin-top: 4px;
-}
 .scrollChapter[data-pinned="true"] .beforeAfter {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
-.scrollChapter[data-pinned="true"] .scenarioControls {
-  margin-bottom: 14px;
-  flex-shrink: 0;
-}
-.scrollChapter[data-pinned="true"] .scenarioControls button {
-  min-height: 54px;
-}
 .scrollChapter[data-pinned="true"] .benchFrame {
   flex: 1;
   min-height: 0;
-}
-.scrollChapter[data-pinned="true"] .workbench {
-  width: 100%;
-  height: 100%;
 }
 .scrollChapter[data-pinned="true"] .proofStrip {
   margin-top: 18px;
@@ -783,12 +537,6 @@
   .capability > .label {
     font-size: 9px;
   }
-  .repositoryChoices button {
-    padding: 21px;
-  }
-  .repositoryChoices strong {
-    font-size: 13px;
-  }
 }
 @media (max-width: 760px) {
   .section {
@@ -845,15 +593,6 @@
     border-top: 1px solid var(--line);
     padding: 18px 0 0;
   }
-  .integrations {
-    margin-bottom: 25px;
-    gap: 12px;
-  }
-  .integrations > span:last-child {
-    width: 100%;
-    margin-left: 0;
-    margin-top: 2px;
-  }
   .capabilityGrid {
     --mini-height: clamp(115px, 33vw, 200px);
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -879,64 +618,6 @@
   }
   .miniature {
     margin-top: 13px;
-  }
-  .city {
-    min-height: 270px;
-    object-fit: contain;
-  }
-  .repositoryChoices {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .repositoryChoices button {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
-    padding: 19px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .repositoryChoices button:last-child {
-    border-bottom: 0;
-  }
-  .repositoryChoices .label {
-    grid-column: 1/-1;
-    font-size: 9px;
-  }
-  .repositoryChoices strong {
-    font-size: 13px;
-  }
-  .repositoryChoices button > span:last-child {
-    gap: 8px;
-    font-size: 11px;
-  }
-  .repositoryChoices button > span:last-child > svg {
-    display: none;
-  }
-  .repositoryDetail {
-    gap: 13px;
-    padding: 20px 0;
-    font-size: 11px;
-  }
-  .repoDetailTitle {
-    width: 100%;
-  }
-  .repositoryFoot {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 5px;
-  }
-  .scenarioControls {
-    justify-content: flex-start;
-  }
-  .scenarioControls button {
-    padding: 11px 14px;
-    font-size: 11px;
-  }
-  .scenarioControls button span {
-    font-size: 8px;
-  }
-  .workbench {
-    min-height: 220px;
   }
   .proofStrip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -969,13 +650,6 @@
   }
   .stageTabs button {
     font-size: 10px;
-  }
-  .repositoryChoices button {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .repositoryChoices button > span:last-child {
-    margin-left: 26px;
-    width: auto;
   }
   .capability h3 {
     font-size: 15px;
@@ -1071,81 +745,6 @@
   }
   .scrollChapter[data-pinned="true"] .stageEvidence .example {
     display: none;
-  }
-  .scrollChapter[data-pinned="true"] .repositories {
-    display: flex;
-    flex-direction: column;
-  }
-  .scrollChapter[data-pinned="true"] .landscapeFrame {
-    flex: 1;
-    min-height: 0;
-  }
-  .scrollChapter[data-pinned="true"] .city {
-    min-height: 0;
-  }
-  .scrollChapter[data-pinned="true"] .repositoryChoices {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: auto;
-    flex-shrink: 0;
-    border: 1px solid var(--line);
-    border-top: 0;
-  }
-  .scrollChapter[data-pinned="true"] .repositoryChoices button {
-    display: flex;
-    gap: 8px;
-    padding: 12px 10px;
-    border-left: 0;
-    border-right: 1px solid var(--line);
-    border-bottom: 2px solid transparent;
-  }
-  .scrollChapter[data-pinned="true"] .repositoryChoices button:last-child {
-    border-right: 0;
-    border-bottom: 2px solid transparent;
-  }
-  .scrollChapter[data-pinned="true"]
-    .repositoryChoices
-    button[aria-pressed="true"] {
-    border-bottom-color: var(--blue);
-  }
-  .scrollChapter[data-pinned="true"] .repositoryChoices strong {
-    font-size: 10px;
-    gap: 5px;
-  }
-  .scrollChapter[data-pinned="true"] .repositoryChoices strong svg {
-    width: 12px;
-  }
-  .scrollChapter[data-pinned="true"]
-    .repositoryChoices
-    button
-    > span:last-child {
-    font-size: 10px;
-  }
-  .scrollChapter[data-pinned="true"] .repositoryDetail {
-    padding: 12px 0;
-    gap: 8px;
-    font-size: 10px;
-    flex-shrink: 0;
-  }
-  .scrollChapter[data-pinned="true"] .repoDetailTitle {
-    width: auto;
-  }
-  .scrollChapter[data-pinned="true"] .repositoryFoot {
-    flex-direction: row;
-    gap: 10px;
-    align-items: center;
-    flex-shrink: 0;
-  }
-  .scrollChapter[data-pinned="true"] .repositoryFoot a {
-    font-size: 10px;
-  }
-  .scrollChapter[data-pinned="true"] .repositoryFoot .example {
-    font-size: 8px;
-  }
-  .scrollChapter[data-pinned="true"] .workbench {
-    min-height: 0;
-  }
-  .scrollChapter[data-pinned="true"] .scenarioControls {
-    justify-content: flex-end;
   }
   .scrollChapter[data-pinned="true"] .proofStrip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1285,12 +884,6 @@
   mask-image: none;
   transition: none;
 }
-.scrollChapter[data-pinned="true"][data-scroll-chapter="capabilities"]
-  .integrations {
-  margin-bottom: 15px;
-  padding-top: 8px;
-  flex-shrink: 0;
-}
 .scrollChapter[data-pinned="true"] .capabilitySequence {
   flex: 1;
   min-height: 0;
@@ -1389,13 +982,6 @@
     margin-top: 8px;
     font-size: 11px;
     line-height: 1.6;
-  }
-  .scrollChapter[data-pinned="true"][data-scroll-chapter="capabilities"]
-    .integrations {
-    padding-top: 0;
-    margin-bottom: 8px;
-    font-size: 9px;
-    gap: 9px;
   }
 }
 

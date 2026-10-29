@@ -1,6 +1,13 @@
 import type { Page } from "@playwright/test";
 import { expect, signIn, test } from "./fixtures";
 
+async function scrollHeroProgress(page: Page, progress: number) {
+  await page.locator("[data-hero-chapter]").evaluate((element, value) => {
+    const distance = element.getBoundingClientRect().height - window.innerHeight;
+    window.scrollTo({ top: distance * value, behavior: "instant" });
+  }, progress);
+}
+
 async function scrollProof(page: Page, progress: number) {
   const proof = page.getByRole("region", { name: "A verified fix" });
   await proof.evaluate((element, value) => {
@@ -113,6 +120,116 @@ test("supports keyboard navigation through the walkthrough", async ({ page }) =>
   await expect(how.getByRole("tab", { name: "Review" })).toBeFocused();
   await page.keyboard.press("Home");
   await expect(how.getByRole("tab", { name: "Detect" })).toBeFocused();
+});
+
+test("arrow keys leave the stage scroll selected, even when focus is still on an earlier tab", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#how");
+  const how = page.getByRole("region", { name: "How it works", exact: true });
+  const detect = how.getByRole("tab", { name: "Detect", exact: true });
+  const review = how.getByRole("tab", { name: "Review", exact: true });
+  const verify = how.getByRole("tab", { name: "Verify", exact: true });
+  await detect.focus();
+  await how.evaluate((element) => {
+    const surface = element.firstElementChild as HTMLElement;
+    const distance = element.getBoundingClientRect().height - surface.offsetHeight;
+    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - 80 + distance * 0.92, behavior: "instant" });
+  });
+  await expect(review).toHaveAttribute("aria-selected", "true");
+  await expect(detect).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(detect).toHaveAttribute("aria-selected", "true");
+  await expect(detect).toBeFocused();
+  await how.evaluate((element) => {
+    const surface = element.firstElementChild as HTMLElement;
+    const distance = element.getBoundingClientRect().height - surface.offsetHeight;
+    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - 80 + distance * 0.92, behavior: "instant" });
+  });
+  await expect(review).toHaveAttribute("aria-selected", "true");
+  await expect(detect).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(verify).toHaveAttribute("aria-selected", "true");
+  await expect(verify).toBeFocused();
+});
+
+test("hides faded hero copy only while it still covers the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const heading = page.getByRole("heading", { level: 1, name: "APIs change. Keep building." });
+  const copy = page.locator("[data-hero-copy]");
+  const description = page.locator("[data-hero-description]");
+  await expect(heading).toBeVisible();
+  expect(await copy.evaluate((element) => (element as HTMLElement).inert)).toBe(false);
+  expect(await description.evaluate((element) => (element as HTMLElement).inert)).toBe(false);
+
+  await scrollHeroProgress(page, 0.45);
+  await expect.poll(() => copy.evaluate((element) => (element as HTMLElement).inert)).toBe(true);
+  await expect.poll(() => description.evaluate((element) => (element as HTMLElement).inert)).toBe(true);
+  expect(await copy.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return box.bottom > 0 && box.top < window.innerHeight;
+  })).toBe(true);
+  expect(await description.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return box.bottom > 0 && box.top < window.innerHeight;
+  })).toBe(true);
+  await expect(heading).toHaveCount(0);
+
+  const how = page.getByRole("region", { name: "How it works", exact: true });
+  await how.evaluate((element) => {
+    const surface = element.firstElementChild as HTMLElement;
+    const distance = element.getBoundingClientRect().height - surface.offsetHeight;
+    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - 80 + distance * 0.5, behavior: "instant" });
+  });
+  await expect.poll(() => copy.evaluate((element) => element.getBoundingClientRect().bottom <= 0)).toBe(true);
+  await expect.poll(() => description.evaluate((element) => element.getBoundingClientRect().bottom <= 0)).toBe(true);
+  await expect.poll(() => copy.evaluate((element) => (element as HTMLElement).inert)).toBe(false);
+  await expect.poll(() => description.evaluate((element) => (element as HTMLElement).inert)).toBe(false);
+  await expect(heading).toHaveText("APIs change. Keep building.");
+});
+
+test("keeps filled header actions light and text links on the dark ink", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  const header = page.getByRole("banner");
+  const github = header.getByRole("link", { name: "Continue with GitHub" });
+  const how = header.getByRole("link", { name: "How it works" });
+
+  await scrollHeroProgress(page, 0.98);
+  await expect.poll(() => header.evaluate((element) => Number(element.style.getPropertyValue("--nav-light")))).toBeGreaterThan(0.8);
+  await expect.poll(() => header.evaluate((element) => Number(element.style.getPropertyValue("--nav-fill")))).toBe(0);
+  const gleam = await header.evaluate((element) => getComputedStyle(element).color);
+  expect(gleam).not.toBe("rgb(255, 255, 255)");
+  expect(await how.evaluate((element) => getComputedStyle(element).color)).toBe(gleam);
+  expect(await github.evaluate((element) => getComputedStyle(element).color)).toBe("rgb(255, 255, 255)");
+
+  await page.getByRole("region", { name: "How it works", exact: true }).evaluate((element) => {
+    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - 80, behavior: "instant" });
+  });
+  await expect(header).toHaveAttribute("data-surface", "paper");
+  const paper = await header.evaluate((element) => getComputedStyle(element).color);
+  expect(paper).not.toBe("rgb(255, 255, 255)");
+  expect(await how.evaluate((element) => getComputedStyle(element).color)).toBe(paper);
+  expect(await github.evaluate((element) => getComputedStyle(element).color)).toBe("rgb(255, 255, 255)");
+});
+
+test("keeps the signed-in account label on the header ink", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, "/");
+  const header = page.getByRole("banner");
+  const account = header.getByRole("button", { name: "octo-e2e" });
+  await scrollHeroProgress(page, 0.98);
+  await expect.poll(() => header.evaluate((element) => Number(element.style.getPropertyValue("--nav-light")))).toBeGreaterThan(0.8);
+  await expect.poll(() => account.evaluate((element) => getComputedStyle(element).color)).toBe(
+    await header.evaluate((element) => getComputedStyle(element).color),
+  );
+  const ink = await header.evaluate((element) => getComputedStyle(element).color);
+  expect(ink).not.toBe("rgb(255, 255, 255)");
+  expect(await account.evaluate((element) => getComputedStyle(element).color)).toBe(ink);
+  await account.click();
+  const signOut = page.getByRole("menuitem", { name: "Sign out" });
+  await expect(signOut).toBeVisible();
+  expect(await signOut.evaluate((element) => getComputedStyle(element).color)).toBe("rgb(255, 255, 255)");
 });
 
 test("holds still for reduced motion", async ({ page }) => {

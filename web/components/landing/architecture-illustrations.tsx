@@ -26,6 +26,12 @@ const project = (x: number, y: number, z = 0): Point => [
 ];
 const points = (vertices: Point[]) =>
   vertices.map((point) => point.join(",")).join(" ");
+const lineProps = (start: Point, end: Point) => ({
+  x1: start[0],
+  y1: start[1],
+  x2: end[0],
+  y2: end[1],
+});
 
 function useInk(): Ink {
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -228,13 +234,11 @@ function TestBank({
   x,
   y,
   active = false,
-  fixed = true,
 }: {
   ink: Ink;
   x: number;
   y: number;
   active?: boolean;
-  fixed?: boolean;
 }) {
   return (
     <g>
@@ -252,17 +256,10 @@ function TestBank({
             d={20}
             h={9}
             z={28}
-            active={active && (fixed || index < 10)}
+            active={active}
           />
         );
       })}
-      {!fixed && (
-        <g stroke="#ba6d55" strokeWidth={2.2}>
-          <path
-            d={`M${project(x + 120, y + 72, 40).join(" ")}l12 -1m-6 -6v12`}
-          />
-        </g>
-      )}
     </g>
   );
 }
@@ -549,150 +546,6 @@ export function CodebaseArchitecture({ stage }: { stage: number }) {
   );
 }
 
-function lineProps(start: Point, end: Point) {
-  return { x1: start[0], y1: start[1], x2: end[0], y2: end[1] };
-}
-
-const CITY = [
-  { x: 60, y: 20, w: 65, d: 65, h: 80 },
-  { x: 150, y: 15, w: 58, d: 72, h: 130 },
-  { x: 245, y: 15, w: 65, d: 65, h: 75 },
-  { x: 340, y: 10, w: 72, d: 80, h: 115 },
-  { x: 455, y: 15, w: 65, d: 70, h: 95 },
-  { x: 560, y: 20, w: 60, d: 65, h: 150 },
-  { x: 30, y: 155, w: 70, d: 75, h: 125 },
-  { x: 142, y: 152, w: 85, d: 85, h: 105 },
-  { x: 268, y: 150, w: 64, d: 65, h: 65 },
-  { x: 377, y: 154, w: 75, d: 80, h: 145 },
-  { x: 503, y: 150, w: 84, d: 85, h: 100 },
-  { x: 35, y: 310, w: 70, d: 70, h: 75 },
-  { x: 155, y: 304, w: 65, d: 80, h: 140 },
-  { x: 272, y: 307, w: 82, d: 77, h: 95 },
-  { x: 395, y: 300, w: 68, d: 85, h: 110 },
-  { x: 510, y: 310, w: 80, d: 70, h: 70 },
-];
-
-export function RepositoryLandscape({ selected }: { selected: number }) {
-  const ink = useInk();
-  const selectedBuilding = [7, 9, 13][selected];
-  return (
-    <svg
-      viewBox="0 0 1200 620"
-      role="img"
-      aria-label={`A dotted architectural landscape of connected repositories. ${["Checkout service", "Support agent", "Analytics worker"][selected]} is highlighted in blue.`}
-      className={styles.city}
-    >
-      <InkDefinitions ink={ink} />
-      <g transform="translate(5 74)">
-        <polygon
-          points={points([
-            project(-80, -50),
-            project(760, -50),
-            project(760, 510),
-            project(-80, 510),
-          ])}
-          fill={`url(#${ink.floor})`}
-          stroke="#d0d5dc"
-          strokeWidth={0.6}
-        />
-        {[-15, 122, 269, 420].map((y) => (
-          <g key={y} opacity={0.7}>
-            <Wire
-              route={[
-                [-65, y],
-                [730, y],
-              ]}
-            />
-            <Wire
-              route={[
-                [-65, y + 6],
-                [730, y + 6],
-              ]}
-            />
-          </g>
-        ))}
-        {[120, 240, 365, 490, 650].map((x) => (
-          <g key={x} opacity={0.7}>
-            <Wire
-              route={[
-                [x, -45],
-                [x, 490],
-              ]}
-            />
-            <Wire
-              route={[
-                [x + 6, -45],
-                [x + 6, 490],
-              ]}
-            />
-          </g>
-        ))}
-        <Wire
-          active
-          route={[
-            [187, 195],
-            [240, 195],
-            [240, 122],
-            [413, 122],
-            [413, 195],
-            [490, 195],
-            [490, 269],
-            [312, 269],
-            [312, 345],
-          ]}
-        />
-        {[...CITY.map((b, i) => ({ ...b, i }))]
-          .sort((a, b) => a.x + a.y - (b.x + b.y))
-          .map(({ i, ...building }) => (
-            <g
-              key={i}
-              className={
-                i === selectedBuilding ? styles.selectedBuilding : undefined
-              }
-            >
-              <Block {...building} ink={ink} active={i === selectedBuilding} />
-              {Array.from({ length: 4 }, (_, row) => (
-                <line
-                  key={row}
-                  {...lineProps(
-                    project(
-                      building.x + 10,
-                      building.y + building.d,
-                      16 + row * 15,
-                    ),
-                    project(
-                      building.x + building.w - 10,
-                      building.y + building.d,
-                      16 + row * 15,
-                    ),
-                  )}
-                  stroke={i === selectedBuilding ? BLUE : "#8892a0"}
-                  strokeWidth={1}
-                />
-              ))}
-              <Block
-                x={building.x + building.w - 19}
-                y={building.y + building.d - 1}
-                w={12}
-                d={2}
-                h={29}
-                ink={ink}
-                active={
-                  i === selectedBuilding || i === 7 || i === 9 || i === 13
-                }
-              />
-            </g>
-          ))}
-      </g>
-      <text x={35} y={37} className={styles.svgFine}>
-        CONNECTED REPOSITORIES / SHARED SIGNALS
-      </text>
-      <text x={1165} y={37} textAnchor="end" className={styles.svgFine}>
-        ONE CHANGE. THE WHOLE PICTURE.
-      </text>
-    </svg>
-  );
-}
 
 export function CapabilityDiagram({
   kind,
@@ -904,119 +757,3 @@ export function CapabilityDiagram({
   );
 }
 
-export function MigrationWorkbench({ fixed }: { fixed: boolean }) {
-  const ink = useInk();
-  return (
-    <svg
-      viewBox="0 0 1200 430"
-      className={styles.workbench}
-      role="img"
-      aria-label={
-        fixed
-          ? "The same codebase after a proposed migration: updated API calls, passing example tests, and a pull request for review"
-          : "The codebase before a proposed migration: a provider update reaches two unchanged API calls and the example test suite fails"
-      }
-    >
-      <InkDefinitions ink={ink} />
-      <path d="M30 365h1140M30 70h1140" stroke="#d7dbe3" strokeWidth={0.8} />
-      <g transform="matrix(1.12 0 0 .73 -30 20)">
-        <Block ink={ink} x={-160} y={80} w={770} d={270} h={12} z={-12} />
-        <Wire
-          active={fixed}
-          route={[
-            [-80, 220],
-            [80, 220],
-            [80, 155],
-            [240, 155],
-            [240, 255],
-            [440, 255],
-          ]}
-        />
-        <Server ink={ink} x={-130} y={115} w={78} d={65} h={100} />
-        <FileStack ink={ink} x={-20} y={180} w={100} d={75} active={fixed} />
-        <FileStack ink={ink} x={20} y={290} w={100} d={54} active={fixed} />
-        <Block
-          ink={ink}
-          x={175}
-          y={100}
-          w={145}
-          d={150}
-          h={60}
-          active={fixed}
-        />
-        <Block
-          ink={ink}
-          x={203}
-          y={129}
-          w={90}
-          d={90}
-          h={25}
-          z={61}
-          active={fixed}
-        />
-        <TestBank ink={ink} x={385} y={90} active={fixed} fixed={fixed} />
-        <Block ink={ink} x={437} y={270} w={83} d={48} h={78} active={fixed} />
-        {[0, 1, 2].map((i) => (
-          <line
-            key={i}
-            {...lineProps(
-              project(446, 318, 23 + i * 17),
-              project(505, 318, 23 + i * 17),
-            )}
-            stroke={fixed ? BLUE : "#8e97a5"}
-            strokeWidth={2}
-          />
-        ))}
-      </g>
-      <text x={40} y={39} className={styles.svgFine}>
-        NORTHWIND / CHECKOUT-SERVICE
-      </text>
-      <text x={1160} y={39} textAnchor="end" className={styles.svgFine}>
-        ILLUSTRATIVE MIGRATION
-      </text>
-      <g>
-        <rect
-          x={70}
-          y={301}
-          width={242}
-          height={47}
-          fill="#fcfcfa"
-          stroke={fixed ? BLUE : "#bd8f7e"}
-        />
-        <rect
-          x={82}
-          y={313}
-          width={5}
-          height={5}
-          fill={fixed ? BLUE : "#b87459"}
-        />
-        <text
-          x={98}
-          y={327}
-          className={fixed ? styles.miniBlue : styles.miniLabel}
-        >
-          {fixed ? "MODEL REFERENCES UPDATED" : "2 CALLS NEED ATTENTION"}
-        </text>
-      </g>
-      <g>
-        <rect
-          x={884}
-          y={94}
-          width={244}
-          height={47}
-          fill="#fcfcfa"
-          stroke={fixed ? BLUE : "#bd8f7e"}
-        />
-        <text
-          x={901}
-          y={122}
-          className={fixed ? styles.miniBlue : styles.miniLabel}
-        >
-          {fixed
-            ? "CHECKS PASSED / REVIEW NEXT"
-            : "CI FAILED / MODEL UNAVAILABLE"}
-        </text>
-      </g>
-    </svg>
-  );
-}

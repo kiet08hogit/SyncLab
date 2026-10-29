@@ -1,20 +1,12 @@
 "use client";
 
 import { useId, useState } from "react";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Check,
-  GitBranch,
-  GitPullRequest,
-  ShieldCheck,
-} from "lucide-react";
-import Link from "next/link";
+import { ArrowRight, Check, GitPullRequest } from "lucide-react";
 import Image from "next/image";
+import { nextWorkflowStage } from "@/lib/workflow-stage";
 import {
   CapabilityDiagram,
   CodebaseArchitecture,
-  RepositoryLandscape,
 } from "./architecture-illustrations";
 import styles from "./illustrated-story.module.css";
 import { useScrollChapter } from "./scroll-chapter";
@@ -93,19 +85,11 @@ export function IllustratedWorkflow() {
               )
                 return;
               event.preventDefault();
-              const next =
-                event.key === "Home"
-                  ? 0
-                  : event.key === "End"
-                    ? STAGES.length - 1
-                    : (index +
-                        (event.key === "ArrowRight" ? 1 : -1) +
-                        STAGES.length) %
-                      STAGES.length;
+              const next = nextWorkflowStage(stage, event.key, STAGES.length);
               setStage(next);
               event.currentTarget.parentElement
-                ?.querySelectorAll<HTMLButtonElement>("button")
-                [next].focus();
+                ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+                [next]?.focus();
             }}
           >
             <span aria-hidden>0{index + 1}</span>
@@ -198,91 +182,6 @@ export function IllustratedCapabilities() {
       <p className={styles.capabilitySummary} aria-live="polite">
         {CAPABILITIES[step].body}
       </p>
-    </div>
-  );
-}
-
-const REPOS = [
-  {
-    name: "checkout-service",
-    group: "commerce",
-    status: "Review ready",
-    detail: "Model replacement",
-    usage: "2 affected calls",
-    result: "13 example checks passed",
-    icon: GitPullRequest,
-  },
-  {
-    name: "support-agent",
-    group: "platform",
-    status: "Verifying",
-    detail: "Request parameter rename",
-    usage: "3 affected calls",
-    result: "Example verification in progress",
-    icon: ShieldCheck,
-  },
-  {
-    name: "analytics-worker",
-    group: "data",
-    status: "Needs attention",
-    detail: "SDK import update",
-    usage: "1 affected import",
-    result: "Example baseline failed; run stopped",
-    icon: GitBranch,
-  },
-];
-
-export function IllustratedRepositories() {
-  const [localSelected, setLocalSelected] = useState(0);
-  const chapter = useScrollChapter();
-  const selected = chapter?.step ?? localSelected;
-  const setSelected = chapter?.selectStep ?? setLocalSelected;
-  const repository = REPOS[selected];
-  const Icon = repository.icon;
-  return (
-    <div className={styles.repositories}>
-      <div className={styles.landscapeFrame}>
-        <RepositoryLandscape selected={selected} />
-      </div>
-      <div
-        className={styles.repositoryChoices}
-        aria-label="Example repositories"
-      >
-        {REPOS.map((repo, index) => (
-          <button
-            key={repo.name}
-            type="button"
-            aria-pressed={selected === index}
-            onClick={() => setSelected(index)}
-          >
-            <span className={styles.label}>{repo.group}</span>
-            <strong>
-              <GitBranch size={17} aria-hidden />
-              {repo.name}
-            </strong>
-            <span>
-              {repo.status}
-              <ArrowUpRight size={15} aria-hidden />
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className={styles.repositoryDetail} aria-live="polite">
-        <span className={styles.repoDetailTitle}>
-          <Icon size={18} aria-hidden />
-          {repository.detail}
-        </span>
-        <span>{repository.usage}</span>
-        <span>{repository.result}</span>
-      </div>
-      <div className={styles.repositoryFoot}>
-        <span className={styles.example}>
-          Illustrative repositories · Select one to explore
-        </span>
-        <Link href="/dashboard">
-          Open your dashboard <ArrowUpRight size={15} aria-hidden />
-        </Link>
-      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef } from "react";
-import { WORKSPACE_FPS, WORKSPACE_FRAMES, workspaceCamera } from "@/lib/workspace-camera";
+import { heroCopyHidden, WORKSPACE_FPS, WORKSPACE_FRAMES, workspaceCamera } from "@/lib/workspace-camera";
 import styles from "./workspace-hero.module.css";
 
 const CAMERA_QUERY = "(min-width: 760px) and (min-height: 700px) and (prefers-reduced-motion: no-preference)";
@@ -44,8 +44,10 @@ export function WorkspaceHero() {
       if (capable.matches && !video.getAttribute("src")) { video.src = "/videos/hero-office-gleam-v2.mp4"; video.load(); }
       desiredTime = progress * (WORKSPACE_FRAMES - 1) / WORKSPACE_FPS;
       seek();
-      const copy = chapter.querySelector<HTMLElement>("[data-hero-copy]");
-      if (copy) copy.inert = capable.matches && state.copy < .02;
+      for (const copy of chapter.querySelectorAll<HTMLElement>("[data-hero-copy], [data-hero-description]")) {
+        const copyBox = copy.getBoundingClientRect();
+        copy.inert = heroCopyHidden(capable.matches, state.copy, copyBox.top, copyBox.bottom, window.innerHeight);
+      }
     };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
     const resize = new ResizeObserver(schedule);

@@ -4,30 +4,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* A soft, angled code surface behind the hero copy. The source video is ours. */
-.landing-hero-video {
-  position: absolute;
-  top: -38%;
-  left: -20%;
-  width: 140%;
-  height: 135%;
-  max-width: none;
-  object-fit: cover;
-  transform: perspective(1100px) rotateX(22deg) rotateZ(-17deg) scale(1.08);
-  filter: blur(1.4px) brightness(.77) saturate(1.08);
-  mask-image: radial-gradient(ellipse at 34% 34%, #000 0%, #000 30%, transparent 72%);
-}
-
-@media (max-width: 640px) {
-  .landing-hero-video {
-    top: -18%;
-    left: -55%;
-    width: 190%;
-    height: 115%;
-    opacity: .65;
-  }
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -215,69 +191,6 @@
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-/*
- * The landing pipeline: a pulse travels the vertical stage rail in 6.3s, then
- * rests, on a 9s loop. Each stop lights as the pulse reaches it, 0.9s apart,
- * through an animation-delay set inline.
- */
-.landing-pulse {
-  animation: landing-pulse-down 9s linear infinite;
-}
-@keyframes landing-pulse-down {
-  0% { top: 0; left: 50%; opacity: 1; }
-  70% { top: 100%; left: 50%; opacity: 1; }
-  71%, 100% { top: 100%; left: 50%; opacity: 0; }
-}
-.landing-stop {
-  animation: landing-stop 9s ease-out infinite;
-}
-@keyframes landing-stop {
-  0%, 8% {
-    border-color: #6f93ff;
-    background: #0e1a3d;
-    color: #ffffff;
-    box-shadow: 0 0 22px rgba(90, 131, 255, 0.5);
-  }
-  18%, 100% {
-    border-color: rgba(255, 255, 255, 0.15);
-    background: #07090c;
-    color: rgba(255, 255, 255, 0.5);
-    box-shadow: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .landing-pulse {
-    display: none;
-  }
-  .landing-stop {
-    animation: none;
-  }
-}
-
-@keyframes landing-release-arrive {
-  0%, 8% { opacity: .35; transform: translateY(-6px); }
-  16%, 86% { opacity: 1; transform: translateY(0); }
-  100% { opacity: .35; transform: translateY(-6px); }
-}
-@keyframes landing-release-retire {
-  0%, 12% { border-color: rgba(255,255,255,.14); }
-  24%, 86% { border-color: rgba(255,147,158,.55); }
-  100% { border-color: rgba(255,255,255,.14); }
-}
-@keyframes landing-queue-move {
-  to { transform: translateY(-50%); }
-}
-@keyframes landing-release-pulse {
-  50% { opacity: .35; box-shadow: 0 0 10px rgba(121,160,255,.7); }
-}
-.landing-release-new { animation: landing-release-arrive 8s ease-in-out infinite; }
-.landing-release-old { animation: landing-release-retire 8s ease-in-out infinite; }
-.landing-release-dot { animation: landing-release-pulse 3s ease-in-out infinite; }
-.landing-queue-scroll { animation: landing-queue-move 18s linear infinite; }
-@media (prefers-reduced-motion: reduce) {
-  .landing-release-new, .landing-release-old, .landing-release-dot, .landing-queue-scroll { animation: none; }
 }
 
 /*

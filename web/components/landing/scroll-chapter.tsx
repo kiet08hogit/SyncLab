@@ -49,7 +49,7 @@ export function ScrollChapter({
   label: string;
   steps: number;
   length: number;
-  kind: "workflow" | "capabilities" | "repositories" | "proof";
+  kind: "workflow" | "capabilities" | "proof";
   children: ReactNode;
 }) {
   const root = useRef<HTMLElement>(null);

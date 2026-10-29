@@ -73,8 +73,8 @@ The pipeline track in `lib/pipeline.ts` reads a job's `execution_logs` the way t
 - Light and dark themes follow the system setting and can be switched from the sidebar.
   Tokens live in `app/globals.css`.
 - The landing page (`app/page.tsx`, `components/landing/`) is always dark, whatever the theme.
-  Its hero canvas (`components/landing/hero-field.tsx`) samples the mascot into characters with the helpers in `lib/ascii.ts`, pauses when off screen, and draws one still frame for reduced motion.
-- The mascot (`lib/mascot.ts`) is the single source for the sidebar logo, the landing hero, and `app/icon.svg`.
+  Its hero is the supplied office walk-in video.
+- The mascot (`lib/mascot.ts`) is the single source for the sidebar logo, the landing header, and `app/icon.svg`.
   After changing it, regenerate the favicon:
 
 ```bash
