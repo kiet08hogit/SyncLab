@@ -41,7 +41,7 @@
 .label {
   color: var(--muted);
   font:
-    10px/1.6 var(--font-jetbrains),
+    11px/1.6 var(--font-jetbrains),
     monospace;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -80,7 +80,7 @@
 }
 .svgFine {
   font:
-    9px var(--font-jetbrains),
+    12px var(--font-jetbrains),
     monospace;
   letter-spacing: 1.2px;
   fill: #717c8c;
@@ -113,7 +113,7 @@
 .stageTabs button > span {
   color: #7b8391;
   font:
-    10px var(--font-jetbrains),
+    11px var(--font-jetbrains),
     monospace;
 }
 .stageTabs button > svg {
@@ -154,7 +154,7 @@
 }
 .stageExplanation p {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
   margin-top: 9px;
   max-width: 610px;
@@ -174,7 +174,7 @@
 }
 .stageEvidence code {
   font:
-    11px/1.8 var(--font-jetbrains),
+    12px/1.8 var(--font-jetbrains),
     monospace;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -182,7 +182,7 @@
 .example {
   color: #7a8290;
   font:
-    9px/1.7 var(--font-jetbrains),
+    10px/1.7 var(--font-jetbrains),
     monospace;
 }
 .capabilityGrid {
@@ -235,7 +235,7 @@
 }
 .miniLabel {
   font:
-    9px var(--font-jetbrains),
+    10px var(--font-jetbrains),
     monospace;
   fill: #717a89;
   letter-spacing: 0.6px;
@@ -296,9 +296,105 @@
 .minus {
   color: #818a99;
 }
-.signalWire {
-  stroke-dasharray: 5 4;
-  animation: trace 16s linear infinite;
+.wireBase {
+  stroke: #a7afbb;
+  stroke-width: 1.2;
+  transition: stroke 0.35s ease, stroke-width 0.35s ease;
+}
+.systemWire[data-state="complete"] .wireBase {
+  stroke: #88a0d7;
+}
+.systemWire[data-state="active"] .wireBase {
+  stroke: var(--blue);
+  stroke-width: 2.5;
+}
+.wireFlow {
+  stroke: var(--blue);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 2 27;
+  opacity: 0;
+  animation: signalTravel 1.5s linear infinite;
+  transition: opacity 0.35s ease;
+}
+.systemWire[data-state="active"] .wireFlow {
+  opacity: 0.9;
+}
+.flowGuide {
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 3 10;
+  opacity: 0.8;
+  animation: flowGuideTravel 1.5s linear infinite;
+}
+.packetHalo {
+  fill: var(--blue);
+  opacity: 0.16;
+}
+.packetTile {
+  fill: #fff;
+  stroke: var(--blue);
+  stroke-width: 2;
+}
+.packetCore {
+  fill: var(--blue);
+}
+.activityBeacon {
+  opacity: 0.22;
+  transition: opacity 0.4s ease;
+}
+.activityBeacon[data-active="true"] {
+  opacity: 1;
+}
+.beaconRing,
+.beaconInner {
+  fill: #fcfcfa;
+  stroke: var(--blue);
+  stroke-width: 1.7;
+}
+.beaconRing {
+  fill: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.activityBeacon[data-active="true"] .beaconRing {
+  animation: beaconBroadcast 2.3s ease-out infinite;
+}
+.beaconCore {
+  fill: var(--blue);
+}
+.architecture[data-stage="0"] .serverLed {
+  animation: ledBlink 1.4s ease-in-out infinite;
+}
+.architecture[data-stage="1"] .fileLine {
+  animation: fileRead 1.7s ease-in-out infinite;
+}
+.sandboxProcess {
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.sandboxProcess[data-active="true"] {
+  opacity: 1;
+}
+.sandboxLine {
+  stroke: var(--blue);
+  stroke-width: 3;
+  stroke-linecap: round;
+  animation: sandboxCompile 1.35s ease-in-out infinite;
+}
+.architecture[data-stage="3"] .testCell {
+  animation: testSweep 1.65s ease-in-out infinite;
+}
+.reviewTrace {
+  stroke: var(--blue);
+  stroke-dasharray: 5 18;
+  stroke-width: 3;
+  opacity: 0;
+}
+.architecture[data-stage="4"] .reviewTrace {
+  opacity: 1;
+  animation: reviewTravel 1.5s linear infinite;
 }
 .srOnly {
   position: absolute;
@@ -376,7 +472,7 @@
   margin-top: 12px;
 }
 .scrollChapter[data-pinned="true"] .intro p {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
 }
 .scrollChapter[data-pinned="true"] .workflow {
@@ -430,7 +526,7 @@
   font-size: 16px;
 }
 .scrollChapter[data-pinned="true"] .stageExplanation p {
-  font-size: 12px;
+  font-size: 14px;
   margin-top: 6px;
 }
 .scrollChapter[data-pinned="true"] .stageEvidence {
@@ -438,7 +534,7 @@
   padding-left: 24px;
 }
 .scrollChapter[data-pinned="true"] .stageEvidence .example {
-  font-size: 8px;
+  font-size: 10px;
 }
 .scrollChapter[data-pinned="true"] .scrollHint {
   display: flex;
@@ -446,7 +542,7 @@
   justify-content: space-between;
   color: var(--muted);
   font:
-    9px/1.5 var(--font-jetbrains),
+    10px/1.5 var(--font-jetbrains),
     monospace;
   text-transform: uppercase;
   letter-spacing: 0.09em;
@@ -501,10 +597,34 @@
     transform: translateY(0);
   }
 }
-@keyframes trace {
-  to {
-    stroke-dashoffset: -180;
-  }
+@keyframes signalTravel {
+  to { stroke-dashoffset: -29; }
+}
+@keyframes flowGuideTravel {
+  to { stroke-dashoffset: -13; }
+}
+@keyframes reviewTravel {
+  to { stroke-dashoffset: -23; }
+}
+@keyframes beaconBroadcast {
+  0% { opacity: 0.85; transform: scale(0.6); }
+  70%, 100% { opacity: 0; transform: scale(1.8); }
+}
+@keyframes ledBlink {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes fileRead {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes sandboxCompile {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+@keyframes testSweep {
+  0%, 70%, 100% { opacity: 0.46; }
+  35% { opacity: 1; }
 }
 @media (max-width: 1050px) {
   .section {
@@ -789,7 +909,9 @@
 }
 .scrollChapter .intro {
   padding-bottom: 20px;
-  border-bottom: 1px solid var(--line);
+}
+.scrollChapter[data-scroll-chapter="capabilities"] .intro p {
+  align-self: center;
 }
 .scrollChapter[data-pinned="true"] .chapterFrame {
   inset: 24px 28px 18px;
@@ -1004,6 +1126,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .activeFlowTrace { display: none; }
   .scrollHeader {
     transition: none;
   }

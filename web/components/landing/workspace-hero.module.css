@@ -81,7 +81,7 @@
   translate: 0 calc((1 - var(--hero-copy, 1)) * 16px);
 }
 @media (min-width: 760px) and (min-height: 700px) and (prefers-reduced-motion: no-preference) {
-  .chapter { height: 300svh; }
+  .chapter { height: 250svh; }
   .stage {
     position: sticky;
     top: 0;

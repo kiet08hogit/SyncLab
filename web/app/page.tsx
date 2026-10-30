@@ -121,7 +121,7 @@ export default function LandingPage() {
           </section>
 
           <div className={`${story.paper} ${hero.story} mx-auto max-w-[1440px] border-x border-[#dfe1e6]`} data-story-paper>
-            <ScrollChapter id="how" label="How it works" steps={5} length={320} kind="workflow">
+            <ScrollChapter id="how" label="How it works" steps={5} length={230} kind="workflow">
               <div className={story.intro}>
                 <div><span className={story.label}>How it works</span><h2>Understand the change.<br />Keep the code working.</h2></div>
                 <p>SyncLab connects what changed outside your repository to the code inside it. Follow the evidence through a focused migration, your test suite, and a pull request for review.</p>
@@ -129,15 +129,15 @@ export default function LandingPage() {
               <IllustratedWorkflow />
             </ScrollChapter>
 
-            <ScrollChapter label="Find and fix" steps={4} length={270} kind="capabilities">
+            <ScrollChapter label="Find and fix" steps={4} length={205} kind="capabilities">
               <div className={story.intro}>
                 <div><span className={story.label}>Every step, connected</span><h2>From the first signal<br />to the final review.</h2></div>
-                <p>Keep working in the tools you already use. SyncLab brings the provider evidence, affected code, and verification together around the change.</p>
+                <p>Follow one change from signal to review. See the provider notice, affected calls, proposed edit, and test result together, right where your team works.</p>
               </div>
               <IllustratedCapabilities />
             </ScrollChapter>
 
-            <ScrollChapter id="fix" label="A verified fix" steps={2} length={240} kind="proof">
+            <ScrollChapter id="fix" label="A verified fix" steps={2} length={185} kind="proof">
               <div className={story.intro}>
                 <div><span className={story.label}>The code stays. The API changes.</span><h2>The change arrives.<br />The fix has a path.</h2></div>
                 <p>A breaking API can turn a quiet afternoon into hours of manual debugging. Follow the same engineer from chasing failed calls to calmly reviewing a focused, tested proposal from SyncLab.</p>

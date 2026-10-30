@@ -32,7 +32,15 @@ export function LandingChrome() {
     let smooth: Lenis | null = null;
     const configureScroll = () => {
       smooth?.destroy();
-      smooth = motion.matches ? new Lenis({ autoRaf: true, lerp: .12, smoothWheel: true, syncTouch: false, stopInertiaOnNavigate: true }) : null;
+      smooth = motion.matches ? new Lenis({
+        autoRaf: true,
+        duration: .82,
+        easing: (progress) => 1 - Math.pow(1 - progress, 3),
+        smoothWheel: true,
+        wheelMultiplier: .9,
+        syncTouch: false,
+        stopInertiaOnNavigate: true,
+      }) : null;
       registerLandingScroll(smooth);
       if (landing) landing.dataset.smoothScroll = smooth ? "true" : "false";
     };

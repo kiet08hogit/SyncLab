@@ -20,6 +20,13 @@ type Ink = {
   floor: string;
 };
 const BLUE = "#365eff";
+const FLOW_ROUTES: [number, number][][] = [
+  [[120, 70], [190, 70], [190, 145], [147, 145], [147, 295]],
+  [[147, 295], [270, 295], [270, 232], [377, 232]],
+  [[377, 232], [550, 232], [550, 65], [455, 65]],
+  [[455, 65], [580, 65], [580, 360], [485, 360]],
+  [[485, 360], [550, 360], [580, 405]],
+];
 const project = (x: number, y: number, z = 0): Point => [
   520 + (x - y) * 0.84,
   110 + (x + y) * 0.42 - z,
@@ -120,22 +127,58 @@ function Block({
 
 function Wire({
   route,
-  active = false,
-  dashed = false,
+  state,
+  index,
 }: {
   route: [number, number][];
-  active?: boolean;
-  dashed?: boolean;
+  state: "active" | "complete" | "pending";
+  index: number;
 }) {
+  const projected = route.map(([x, y]) => project(x, y, 2));
   return (
-    <polyline
-      points={points(route.map(([x, y]) => project(x, y, 2)))}
-      fill="none"
-      stroke={active ? BLUE : "#8d96a4"}
-      strokeWidth={active ? 2 : 1}
-      strokeDasharray={dashed ? "3 6" : undefined}
-      className={active ? styles.signalWire : undefined}
-    />
+    <g className={styles.systemWire} data-state={state} data-route={index}>
+      <polyline points={points(projected)} fill="none" className={styles.wireBase} />
+      <polyline points={points(projected)} fill="none" className={styles.wireFlow} />
+    </g>
+  );
+}
+
+function ActiveFlowTrace({ route, stage }: { route: [number, number][]; stage: number }) {
+  const projected = route.map(([x, y]) => project(x, y, 43));
+  const motionPath = projected.map(([x, y], position) => `${position === 0 ? "M" : "L"}${x} ${y}`).join(" ");
+  return (
+    <g className={styles.activeFlowTrace} data-active-flow={stage}>
+      <polyline points={points(projected)} fill="none" className={styles.flowGuide} />
+      <g className={styles.wirePacket}>
+        <circle r={12} className={styles.packetHalo} />
+        <rect x={-7} y={-7} width={14} height={14} transform="rotate(45)" className={styles.packetTile} />
+        <circle r={2} className={styles.packetCore} />
+        <animateMotion path={motionPath} dur="2.4s" repeatCount="indefinite" />
+      </g>
+    </g>
+  );
+}
+
+function ActivityBeacon({
+  x,
+  y,
+  z,
+  active,
+  index,
+}: {
+  x: number;
+  y: number;
+  z: number;
+  active: boolean;
+  index: number;
+}) {
+  const [left, top] = project(x, y, z);
+  return (
+    <g className={styles.activityBeacon} data-active={active} data-beacon={index} transform={`translate(${left} ${top})`}>
+      <ellipse rx={24} ry={11} className={styles.beaconRing} />
+      <ellipse rx={13} ry={6} className={styles.beaconInner} />
+      <circle r={4} className={styles.beaconCore} />
+    </g>
   );
 }
 
@@ -178,6 +221,8 @@ function FileStack({
           y2={project(x + 14 + (line % 2 ? 57 : 75), y + 18 + line * 8, 43)[1]}
           stroke={active && line === 2 ? BLUE : "#929aa6"}
           strokeWidth={line === 2 ? 3 : 1.5}
+          className={styles.fileLine}
+          style={{ animationDelay: `${line * 0.14}s` }}
         />
       ))}
     </g>
@@ -211,6 +256,8 @@ function Server({
             cy={project(x + w - 18, y + d + 0.2, 26 + row * 22)[1]}
             r={1.8}
             fill={active ? BLUE : "#737c89"}
+            className={styles.serverLed}
+            style={{ animationDelay: `${row * 0.24}s` }}
           />
         </g>
       ))}
@@ -247,17 +294,18 @@ function TestBank({
         const column = index % 4,
           row = Math.floor(index / 4);
         return (
-          <Block
-            key={index}
-            ink={ink}
-            x={x + 11 + column * 35}
-            y={y + 10 + row * 29}
-            w={25}
-            d={20}
-            h={9}
-            z={28}
-            active={active}
-          />
+          <g key={index} className={styles.testCell} style={{ animationDelay: `${index * 0.11}s` }}>
+            <Block
+              ink={ink}
+              x={x + 11 + column * 35}
+              y={y + 10 + row * 29}
+              w={25}
+              d={20}
+              h={9}
+              z={28}
+              active={active}
+            />
+          </g>
         );
       })}
     </g>
@@ -302,7 +350,7 @@ function Callout({
         y={y + 16}
         textAnchor="middle"
         fill={active ? "white" : "#606b7d"}
-        fontSize={10}
+        fontSize={12}
         fontFamily="monospace"
       >
         {number}
@@ -311,7 +359,7 @@ function Callout({
         x={x + 39}
         y={y + 16}
         fill={active ? BLUE : "#606b7d"}
-        fontSize={12}
+        fontSize={15}
         fontFamily="monospace"
         letterSpacing={0.8}
       >
@@ -327,6 +375,7 @@ export function CodebaseArchitecture({ stage }: { stage: number }) {
     <svg
       viewBox="0 0 1200 660"
       className={styles.architecture}
+      data-stage={stage}
       role="img"
       aria-label={`Illustrated codebase, with ${["provider monitoring", "affected source files", "an isolated migration sandbox", "repository verification", "a pull request for review"][stage]} highlighted in blue`}
     >
@@ -365,43 +414,14 @@ export function CodebaseArchitecture({ stage }: { stage: number }) {
           />
         </g>
       ))}
-      <Wire
-        route={[
-          [120, 70],
-          [190, 70],
-          [190, 145],
-          [147, 145],
-          [147, 295],
-        ]}
-        active={stage > 0}
-      />
-      <Wire
-        route={[
-          [147, 295],
-          [270, 295],
-          [270, 232],
-          [377, 232],
-        ]}
-        active={stage > 1}
-      />
-      <Wire
-        route={[
-          [377, 232],
-          [550, 232],
-          [550, 65],
-          [455, 65],
-        ]}
-        active={stage > 2}
-      />
-      <Wire
-        route={[
-          [455, 65],
-          [580, 65],
-          [580, 360],
-          [485, 360],
-        ]}
-        active={stage > 3}
-      />
+      {FLOW_ROUTES.map((route, index) => (
+        <Wire
+          key={index}
+          index={index}
+          route={route}
+          state={stage === index ? "active" : stage > index ? "complete" : "pending"}
+        />
+      ))}
       <g opacity={0.65}>
         <Block ink={ink} x={285} y={28} w={36} d={45} h={55} />
         <Block ink={ink} x={330} y={28} w={36} d={45} h={71} />
@@ -455,6 +475,19 @@ export function CodebaseArchitecture({ stage }: { stage: number }) {
         z={97}
         active={stage === 2}
       />
+      <g className={styles.sandboxProcess} data-active={stage === 2}>
+        {[0, 1, 2, 3].map((line) => (
+          <line
+            key={line}
+            {...lineProps(
+              project(353, 210 + line * 13, 117),
+              project(394 - (line % 2) * 12, 210 + line * 13, 117),
+            )}
+            className={styles.sandboxLine}
+            style={{ animationDelay: `${line * 0.2}s` }}
+          />
+        ))}
+      </g>
       {Array.from({ length: 8 }, (_, i) => (
         <line
           key={i}
@@ -478,6 +511,10 @@ export function CodebaseArchitecture({ stage }: { stage: number }) {
       />
       <g stroke={stage === 4 ? BLUE : "#8993a2"} strokeWidth={2} fill="none">
         <path d={`M${project(448, 400, 86).join(" ")}v43m0 -30l35 17v25`} />
+        <path
+          d={`M${project(448, 400, 86).join(" ")}v43m0 -30l35 17v25`}
+          className={styles.reviewTrace}
+        />
         <circle
           cx={project(448, 400, 86)[0]}
           cy={project(448, 400, 86)[1]}
@@ -496,6 +533,12 @@ export function CodebaseArchitecture({ stage }: { stage: number }) {
         <Block ink={ink} x={584} y={325} w={26} d={28} h={55} />
         <Block ink={ink} x={584} y={362} w={26} d={28} h={32} />
       </g>
+      <ActiveFlowTrace key={stage} route={FLOW_ROUTES[stage]} stage={stage} />
+      <ActivityBeacon x={120} y={70} z={123} active={stage === 0} index={0} />
+      <ActivityBeacon x={145} y={285} z={108} active={stage === 1} index={1} />
+      <ActivityBeacon x={377} y={232} z={130} active={stage === 2} index={2} />
+      <ActivityBeacon x={455} y={65} z={49} active={stage === 3} index={3} />
+      <ActivityBeacon x={485} y={360} z={115} active={stage === 4} index={4} />
       <Callout
         x={150}
         y={67}
