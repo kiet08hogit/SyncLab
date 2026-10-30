@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Hourglass } from "lucide-react";
 
 import { LogOutput } from "@/components/log-output";
@@ -17,11 +17,22 @@ export function ExecutionLogView({
   logs: ExecutionLog[];
   initiallyTerminal: boolean;
 }) {
-  const [view, setView] = useState<"terminal" | "timeline">(initiallyTerminal ? "terminal" : "timeline");
+  const [chosen, setChosen] = useState<"terminal" | "timeline" | null>(null);
+  const view = chosen ?? (initiallyTerminal ? "terminal" : "timeline");
+  const pane = useRef<HTMLElement>(null);
   const recent = logs.slice(-5);
+  const recentSignature = recent.map((log) => `${log.id}:${log.output ?? ""}`).join("\n");
+
+  useLayoutEffect(() => {
+    const root = pane.current;
+    if (!root || view !== "terminal") return;
+    for (const port of root.querySelectorAll<HTMLElement>("pre, code")) {
+      port.scrollTop = port.scrollHeight;
+    }
+  }, [recentSignature, view]);
 
   return (
-    <section aria-labelledby="log-heading" className="flex flex-col gap-3">
+    <section ref={pane} aria-labelledby="log-heading" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="log-heading" className="label-mono text-muted-foreground">Execution log</h2>
         {logs.length > 0 && (
@@ -29,7 +40,7 @@ export function ExecutionLogView({
             <button
               type="button"
               aria-pressed={view === "terminal"}
-              onClick={() => setView("terminal")}
+              onClick={() => setChosen("terminal")}
               className="px-3 py-1.5 text-muted-foreground hover:text-foreground focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary aria-pressed:bg-accent aria-pressed:text-foreground"
             >
               Recent output
@@ -37,7 +48,7 @@ export function ExecutionLogView({
             <button
               type="button"
               aria-pressed={view === "timeline"}
-              onClick={() => setView("timeline")}
+              onClick={() => setChosen("timeline")}
               className="border-l border-border px-3 py-1.5 text-muted-foreground hover:text-foreground focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary aria-pressed:bg-accent aria-pressed:text-foreground"
             >
               Full timeline
@@ -52,11 +63,7 @@ export function ExecutionLogView({
           Waiting for a worker to claim this job. Log entries appear here as each stage starts.
         </div>
       ) : view === "terminal" ? (
-        <Terminal
-          sequence={false}
-          startOnView={false}
-          className="max-w-none rounded-none border-[#293348] bg-[#111827] text-[#e8eef9] shadow-sm [&>div:first-child]:border-[#293348] [&>pre]:max-h-80 [&>pre]:overflow-auto [&>pre]:font-mono"
-        >
+        <Terminal className="max-w-none rounded-none border-[#293348] bg-[#111827] text-[#e8eef9] shadow-sm [&>div:first-child]:border-[#293348] [&>pre]:max-h-80 [&>pre]:overflow-auto [&>pre]:font-mono">
           {recent.map((log) => {
             const { exitCode, body } = splitExitCode(log.output);
             const { hidden, text } = tailLines(body, 6);

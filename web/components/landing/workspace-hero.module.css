@@ -19,6 +19,16 @@
   background: #07090c;
   pointer-events: none;
 }
+@keyframes hero-reveal {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
 .fallback {
   position: absolute;
   inset: 0;
@@ -39,6 +49,17 @@
 }
 .background[data-video-ready="true"][data-motion="scroll"] .film { opacity: 1; }
 .background[data-video-ready="true"][data-motion="scroll"] .fallback { opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-intro="playing"] .fallback img {
+    animation: hero-reveal 1.15s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  }
+  .film {
+    transition: opacity 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .background[data-video-ready="true"][data-motion="scroll"] .fallback {
+    transition: opacity 0s linear 0.9s;
+  }
+}
 .shade {
   position: absolute;
   inset: 0;
