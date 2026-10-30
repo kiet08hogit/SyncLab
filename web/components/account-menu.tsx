@@ -35,7 +35,7 @@ export function AccountMenu({ viewer }: { viewer: Viewer }) {
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-9 max-w-48 min-w-0 items-center gap-2 px-1 text-sm text-white"
+        className="inline-flex h-9 max-w-48 min-w-0 items-center gap-2 px-1 text-sm"
       >
         <Image src={viewer.avatarUrl} alt="" width={28} height={28} className="size-7 shrink-0 border border-white/20" />
         <span className="truncate">{viewer.login}</span>

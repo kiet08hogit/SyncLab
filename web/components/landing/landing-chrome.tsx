@@ -37,7 +37,7 @@ export function LandingChrome() {
         duration: .82,
         easing: (progress) => 1 - Math.pow(1 - progress, 3),
         smoothWheel: true,
-        wheelMultiplier: .9,
+        wheelMultiplier: 1,
         syncTouch: false,
         stopInertiaOnNavigate: true,
       }) : null;
