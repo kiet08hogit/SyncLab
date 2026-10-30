@@ -62,7 +62,7 @@ export function StatusFilter({
             )}
           >
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground group-aria-[current]:text-foreground">
-              {Icon && <Icon aria-hidden className={cn("size-3.5", item.tone)} />}
+              {Icon && <Icon aria-hidden className={cn("size-3.5", item.tone, item.key === "IN_PROGRESS" && item.count > 0 && "motion-safe:animate-spin")} />}
               {item.label}
             </span>
             <NumberTicker

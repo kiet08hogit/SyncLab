@@ -2,20 +2,19 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CircleX, ExternalLink, GitBranch, Hourglass } from "lucide-react";
+import { ArrowLeft, CircleX, ExternalLink, GitBranch } from "lucide-react";
 
+import { ExecutionLogView } from "@/components/execution-log-view";
 import { PipelineTrack } from "@/components/pipeline-track";
 import { LiveRefresh } from "@/components/live-refresh";
-import { LogOutput } from "@/components/log-output";
 import { RetryButton } from "@/components/retry-button";
 import { JobSkeleton } from "@/components/skeletons";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { getJob, isLive, isSampleJob } from "@/lib/data";
-import { formatClock, formatDate, formatDuration, splitExitCode, timeAgo } from "@/lib/format";
+import { formatDate, formatDuration, timeAgo } from "@/lib/format";
 import { jobBranch, jobTitle } from "@/lib/jobs";
 import { latestRunDuration } from "@/lib/pipeline";
-import { cn } from "@/lib/utils";
 
 export async function generateMetadata({ params }: PageProps<"/jobs/[id]">): Promise<Metadata> {
   const job = await getJob((await params).id);
@@ -152,53 +151,7 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
         <PipelineTrack steps={job.steps} status={job.status} kind={job.kind} />
       </section>
 
-      <section aria-labelledby="log-heading" className="flex flex-col gap-3">
-        <h2 id="log-heading" className="label-mono text-muted-foreground">
-          Execution log
-        </h2>
-        {job.executionLogs.length === 0 ? (
-          <div className="flex items-center gap-3 border border-dashed px-5 py-8 text-sm text-muted-foreground">
-            <Hourglass aria-hidden className="size-5 shrink-0" />
-            Waiting for a worker to claim this job. Log entries appear here as each stage starts.
-          </div>
-        ) : (
-          <ol className="corner-mark flex flex-col border bg-card">
-            {job.executionLogs.map((log) => {
-              const { exitCode, body } = splitExitCode(log.output);
-              const failed = log.step === "FAILED" || (exitCode !== null && exitCode !== 0);
-              return (
-                <li key={log.id} className="flex flex-col gap-2 border-b px-4 py-3.5 last:border-b-0 sm:px-5">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className={cn("text-sm font-semibold", failed ? "text-status-failed" : "text-foreground")}>
-                      {log.step}
-                    </span>
-                    <time
-                      dateTime={log.createdAt}
-                      title={formatDate(log.createdAt)}
-                      className="font-mono text-xs text-muted-foreground"
-                    >
-                      {formatClock(log.createdAt)}
-                    </time>
-                    {exitCode !== null && (
-                      <span
-                        className={cn(
-                          "px-1.5 py-0.5 font-mono text-xs",
-                          exitCode === 0
-                            ? "bg-status-completed/12 text-status-completed"
-                            : "bg-status-failed/12 text-status-failed",
-                        )}
-                      >
-                        exit {exitCode}
-                      </span>
-                    )}
-                  </div>
-                  {body && <LogOutput body={body} failed={failed} />}
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </section>
+      <ExecutionLogView logs={job.executionLogs} initiallyTerminal={job.status === "IN_PROGRESS"} />
     </>
   );
 }

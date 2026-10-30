@@ -200,11 +200,9 @@ test("hides faded hero copy only while it still covers the viewport", async ({ p
   })).toBe(true);
   await expect.poll(() => accessibilityNames(page, /Code breaks\. You keep shipping\.|When a model retires/)).toEqual([]);
 
-  const how = page.getByRole("region", { name: "How it works", exact: true });
-  await how.evaluate((element) => {
-    const surface = element.firstElementChild as HTMLElement;
-    const distance = element.getBoundingClientRect().height - surface.offsetHeight;
-    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - 80 + distance * 0.5, behavior: "instant" });
+  const hero = page.locator("[data-hero-chapter]");
+  await hero.evaluate((element) => {
+    window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().bottom + 40, behavior: "instant" });
   });
   await expect.poll(() => copy.evaluate((element) => element.getBoundingClientRect().bottom <= 0)).toBe(true);
   await expect.poll(() => description.evaluate((element) => element.getBoundingClientRect().bottom <= 0)).toBe(true);

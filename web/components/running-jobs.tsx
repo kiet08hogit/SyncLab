@@ -2,15 +2,12 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { PipelineTrack } from "@/components/pipeline-track";
-import { BorderBeam } from "@/components/ui/border-beam";
 import { timeAgo } from "@/lib/format";
 import { jobTitle } from "@/lib/jobs";
 import { cn } from "@/lib/utils";
 import type { JobWithRepository } from "@/lib/types";
 
-/**
- * Jobs a worker holds right now. The beam is the page's one moving moment.
- */
+/** Jobs a worker holds right now. */
 export function RunningJobs({ jobs, stacked = false }: { jobs: JobWithRepository[]; stacked?: boolean }) {
   return (
     <section aria-labelledby="running-heading" className="flex flex-col gap-3">
@@ -19,7 +16,7 @@ export function RunningJobs({ jobs, stacked = false }: { jobs: JobWithRepository
       </h2>
       <ul className={cn("grid gap-3", !stacked && "lg:grid-cols-2")}>
         {jobs.map((job) => (
-          <li key={job.id} className="corner-mark border bg-card">
+          <li key={job.id} className="corner-mark border border-l-[3px] border-l-status-running/70 bg-card">
             <Link
               href={`/jobs/${job.id}`}
               className="group flex flex-col gap-5 p-4 sm:p-5 transition-colors hover:bg-accent/40 focus-visible:-outline-offset-2"
@@ -44,13 +41,6 @@ export function RunningJobs({ jobs, stacked = false }: { jobs: JobWithRepository
               </div>
               <PipelineTrack steps={job.steps} status={job.status} kind={job.kind} />
             </Link>
-            <BorderBeam
-              size={80}
-              duration={7}
-              colorFrom="var(--primary)"
-              colorTo="#58cdff"
-              className="motion-reduce:hidden"
-            />
           </li>
         ))}
       </ul>
