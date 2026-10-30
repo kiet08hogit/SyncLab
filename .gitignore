@@ -16,3 +16,7 @@ node_modules/
 # OS and tooling noise
 .DS_Store
 *.profraw
+
+# Local design drafts, review exports, and captured editing experiments.
+/output/
+/.lavish/assets/

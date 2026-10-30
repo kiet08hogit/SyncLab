@@ -14,7 +14,7 @@ npm run dev
 Then open http://localhost:3001.
 The dashboard uses port 3001 because the API in `server/api` listens on 3000.
 
-`npm test` runs the Vitest unit tests (`lib/*.test.ts`) for the pipeline, formatting, sign-in redirect, and landing ASCII helpers.
+`npm test` runs the Vitest unit tests (`lib/*.test.ts`) for the pipeline, formatting, sign-in redirect, and ASCII helpers.
 
 `npm run test:e2e` runs the Playwright suite in `e2e/` in Chromium.
 It needs Docker and the API's dependencies (`npm install && npm run db:generate` in `server/api`); install the browser once with `npx playwright install chromium`.
@@ -25,7 +25,7 @@ Tests sign in through the real OAuth redirect, seed jobs straight into the datab
 
 | Route | Shows |
 | --- | --- |
-| `/` | The landing page: the mascot redrawn in ASCII beside a line of code that keeps getting migrated (a dependency bump, then an API change), how both kinds of break run through the pipeline, the live Running now cards, an FAQ, and sign-in. Routing for `/` is in the [Dashboard](../README.md#dashboard) table |
+| `/` | The landing page: a dark office walk-in hero titled "Code breaks. You keep shipping.", illustrated steps for Detect, Locate, Refactor, Verify, and Review, connected capability drawings, and a closing engineer crossfade. The header carries the mascot and sign-in. Routing for `/` is in the [Dashboard](../README.md#dashboard) table |
 | `/dashboard` | Job counts per status, the jobs a worker is running now, and a searchable, filterable job table; refreshes every 5 seconds while any job is queued or running and no filter is set |
 | `/jobs/[id]` | One job's pipeline track, failure reason, branch name, how long the latest run took, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running. A dependency job's track is clone, changelog, install, baseline, upgrade, refactor, test, and pull request. An API-change job is titled by the changed field, then the operation, then the kind with underscores shown as spaces, and its track omits changelog and upgrade. It also shows the replacement when the change has one, the deadline, and the branch the worker pushes. A failed dependency job has a **Retry migration** button when you are signed in. An API-change job does not. Output longer than 24 lines folds to its last 12, except on a failed step, and each step's output has a copy button |
 | `/repositories` | Installed repositories with job totals and last activity |
@@ -72,9 +72,9 @@ The pipeline track in `lib/pipeline.ts` reads a job's `execution_logs` the way t
 
 - Light and dark themes follow the system setting and can be switched from the sidebar.
   Tokens live in `app/globals.css`.
-- The landing page (`app/page.tsx`, `components/landing/`) is always dark, whatever the theme.
-  Its hero canvas (`components/landing/hero-field.tsx`) samples the mascot into characters with the helpers in `lib/ascii.ts`, pauses when off screen, and draws one still frame for reduced motion.
-- The mascot (`lib/mascot.ts`) is the single source for the sidebar logo, the landing hero, and `app/icon.svg`.
+- The landing page (`app/page.tsx`, `components/landing/`) does not follow the sidebar theme.
+  Its hero is the supplied office walk-in video on a dark field, and the illustrated sections sit on light paper.
+- The mascot (`lib/mascot.ts`) is the single source for the sidebar logo, the landing header, and `app/icon.svg`.
   After changing it, regenerate the favicon:
 
 ```bash

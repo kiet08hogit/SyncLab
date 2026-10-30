@@ -1,0 +1,1017 @@
+.paper {
+  --paper: #fcfcfa;
+  --ink: #252a31;
+  --muted: #68707d;
+  --line: #dfe1e6;
+  --blue: #365eff;
+  color: var(--ink);
+  background: var(--paper);
+  color-scheme: light;
+  box-shadow: 0 0 0 100vmax var(--paper);
+  clip-path: inset(0 -100vmax);
+}
+.section {
+  position: relative;
+  padding: 100px 52px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 80px;
+}
+.section::before,
+.section::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  background: var(--ink);
+}
+.section::before {
+  left: -4px;
+}
+.section::after {
+  right: -4px;
+}
+.intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 80px;
+  align-items: end;
+  margin-bottom: 48px;
+}
+.label {
+  color: var(--muted);
+  font:
+    10px/1.6 var(--font-jetbrains),
+    monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.intro h2 {
+  font-family: var(--font-lora), serif;
+  font-size: clamp(32px, 3.8vw, 49px);
+  line-height: 1.18;
+  letter-spacing: -0.045em;
+  font-weight: 400;
+  margin-top: 21px;
+  max-width: 560px;
+}
+.intro p {
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--muted);
+  max-width: 500px;
+}
+.intro p + p {
+  margin-top: 12px;
+}
+.workflow,
+.beforeAfter {
+  min-width: 0;
+}
+.architectureFrame {
+  border: 1px solid var(--line);
+  background: #fff;
+  overflow: hidden;
+}
+.architecture {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.svgFine {
+  font:
+    9px var(--font-jetbrains),
+    monospace;
+  letter-spacing: 1.2px;
+  fill: #717c8c;
+}
+.stageTabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-top: 0;
+}
+.stageTabs button {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 73px;
+  padding: 17px 21px;
+  border-right: 1px solid var(--line);
+  border-bottom: 2px solid transparent;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.stageTabs button:last-child {
+  border-right: 0;
+}
+.stageTabs button > span {
+  color: #7b8391;
+  font:
+    10px var(--font-jetbrains),
+    monospace;
+}
+.stageTabs button > svg {
+  margin-left: auto;
+  color: #8a92a0;
+  width: 13px;
+}
+.stageTabs button:hover {
+  background: #f3f5fa;
+}
+.stageTabs button[aria-selected="true"] {
+  background: #f1f4ff;
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+.stageTabs button[aria-selected="true"] > span,
+.stageTabs button[aria-selected="true"] > svg {
+  color: var(--blue);
+}
+.paper button:focus-visible,
+.paper a:focus-visible,
+.paper [tabindex="0"]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -5px;
+}
+.stageExplanation {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 55px;
+  padding: 30px 0 0;
+  min-height: 170px;
+}
+.stageExplanation h3 {
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.stageExplanation p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+  margin-top: 9px;
+  max-width: 610px;
+}
+.stageEvidence {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  border-left: 1px solid var(--line);
+  padding: 0 0 0 30px;
+  gap: 9px;
+}
+.stageEvidence > .label {
+  color: var(--blue);
+  letter-spacing: 0.025em;
+}
+.stageEvidence code {
+  font:
+    11px/1.8 var(--font-jetbrains),
+    monospace;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.example {
+  color: #7a8290;
+  font:
+    9px/1.7 var(--font-jetbrains),
+    monospace;
+}
+.capabilityGrid {
+  --mini-height: clamp(150px, 17vw, 235px);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+}
+.capability {
+  padding: 25px 23px 0;
+  border-left: 1px solid var(--line);
+  min-width: 0;
+}
+.capability:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.capability:last-child {
+  padding-right: 0;
+}
+.capability h3 {
+  font-size: 18px;
+  line-height: 1.5;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+  margin: 20px 0 10px;
+}
+.capability > p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.85;
+}
+.miniature {
+  height: var(--mini-height);
+  background: #f6f6f8;
+  border: 1px solid #e2e4eb;
+  margin-top: 17px;
+}
+.miniature svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.miniBlue {
+  font:
+    10px var(--font-jetbrains),
+    monospace;
+  fill: var(--blue);
+  letter-spacing: 0.5px;
+}
+.miniLabel {
+  font:
+    9px var(--font-jetbrains),
+    monospace;
+  fill: #717a89;
+  letter-spacing: 0.6px;
+}
+.benchFrame {
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.proofStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 22px;
+}
+.proofStrip > div {
+  display: flex;
+  flex-direction: column;
+  gap: 19px;
+  border-left: 1px solid var(--line);
+  padding: 0 24px 6px;
+}
+.proofStrip > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.proofStrip strong {
+  height: 37px;
+  display: flex;
+  align-items: center;
+  font-size: 29px;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+.proofStrip strong > svg {
+  color: var(--blue);
+}
+.proofStrip > div > span {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--muted);
+  font:
+    9px/1.7 var(--font-jetbrains),
+    monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.proofStrip > div > span::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-top: 5px;
+  flex-shrink: 0;
+  background: var(--blue);
+}
+.beforeAfter > .example {
+  margin-top: 21px;
+}
+.minus {
+  color: #818a99;
+}
+.signalWire {
+  stroke-dasharray: 5 4;
+  animation: trace 16s linear infinite;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.scrollHeader {
+  background: color-mix(in srgb, #fcfcfa calc(var(--nav-fill, 0) * 100%), transparent);
+  color: color-mix(in srgb, #252a31 calc(var(--nav-light, 0) * 100%), #fff);
+  transition:
+    background-color 0.2s linear,
+    color 0.2s linear;
+}
+.scrollHeader[data-surface="paper"] {
+  backdrop-filter: blur(12px);
+}
+.scrollHeader nav a,
+.scrollHeader nav button[aria-haspopup="menu"] {
+  color: inherit;
+}
+.scrollHeader nav a:hover {
+  color: #365eff;
+}
+.scrollHeader nav a[href^="/auth/github"],
+.scrollHeader nav a:global(.bg-primary) {
+  color: #fff;
+}
+.scrollHeader nav a[href^="/auth/github"] {
+  background: #365eff;
+}
+.scrollHeader nav a[href^="/auth/github"]:hover,
+.scrollHeader nav a:global(.bg-primary):hover {
+  color: #fff;
+}
+.chapterSticky {
+  position: relative;
+  min-width: 0;
+}
+.scrollHint {
+  display: none;
+}
+.stationVolume {
+  transition: stroke 0.4s ease;
+}
+.stationFace {
+  transition: opacity 0.45s ease;
+}
+
+.scrollChapter[data-pinned="true"] {
+  height: var(--chapter-length);
+  padding: 0;
+}
+.scrollChapter[data-pinned="true"] .chapterSticky {
+  position: sticky;
+  top: 80px;
+  height: calc(100svh - 80px);
+  padding: clamp(22px, 4vh, 38px) 52px 18px;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  transform: translateY(var(--chapter-entry, 0px));
+}
+.scrollChapter[data-pinned="true"] .intro {
+  gap: 50px;
+  margin-bottom: 24px;
+  flex-shrink: 0;
+}
+.scrollChapter[data-pinned="true"] .intro h2 {
+  font-size: clamp(31px, 3vw, 40px);
+  line-height: 1.14;
+  margin-top: 12px;
+}
+.scrollChapter[data-pinned="true"] .intro p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.scrollChapter[data-pinned="true"] .workflow {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 205px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.scrollChapter[data-pinned="true"] .architectureFrame {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+}
+.scrollChapter[data-pinned="true"] .architecture {
+  width: 100%;
+  height: 100%;
+}
+.scrollChapter[data-pinned="true"] .stageTabs {
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-right: 0;
+}
+.scrollChapter[data-pinned="true"] .stageTabs button {
+  flex-direction: row;
+  padding: 12px 21px;
+  min-height: 0;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid transparent;
+  font-size: 14px;
+}
+.scrollChapter[data-pinned="true"] .stageTabs button:last-child {
+  border-bottom: 0;
+}
+.scrollChapter[data-pinned="true"] .stageTabs button[aria-selected="true"] {
+  border-left-color: var(--blue);
+}
+.scrollChapter[data-pinned="true"] .stageExplanation {
+  grid-column: 1/-1;
+  grid-row: 2;
+  min-height: 112px;
+  padding-top: 18px;
+  gap: 40px;
+}
+.scrollChapter[data-pinned="true"] .stageExplanation h3 {
+  font-size: 16px;
+}
+.scrollChapter[data-pinned="true"] .stageExplanation p {
+  font-size: 12px;
+  margin-top: 6px;
+}
+.scrollChapter[data-pinned="true"] .stageEvidence {
+  gap: 5px;
+  padding-left: 24px;
+}
+.scrollChapter[data-pinned="true"] .stageEvidence .example {
+  font-size: 8px;
+}
+.scrollChapter[data-pinned="true"] .scrollHint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font:
+    9px/1.5 var(--font-jetbrains),
+    monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  margin-top: 10px;
+  padding-top: 10px;
+  flex-shrink: 0;
+}
+.scrollHint > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scrollChapter[data-pinned="true"] .beforeAfter {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.scrollChapter[data-pinned="true"] .benchFrame {
+  flex: 1;
+  min-height: 0;
+}
+.scrollChapter[data-pinned="true"] .proofStrip {
+  margin-top: 18px;
+  flex-shrink: 0;
+}
+.scrollChapter[data-pinned="true"] .proofStrip > div {
+  gap: 8px;
+}
+.scrollChapter[data-pinned="true"] .beforeAfter > .example {
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .section:not(.scrollChapter) .intro,
+    .capability {
+      animation: editorialEnter linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 65%;
+    }
+  }
+}
+@keyframes editorialEnter {
+  from {
+    opacity: 0.6;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes trace {
+  to {
+    stroke-dashoffset: -180;
+  }
+}
+@media (max-width: 1050px) {
+  .section {
+    padding: 80px 35px;
+  }
+  .intro {
+    gap: 40px;
+  }
+  .intro p {
+    font-size: 14px;
+  }
+  .stageTabs button {
+    padding: 16px 13px;
+    gap: 9px;
+    font-size: 12px;
+  }
+  .stageTabs button > svg {
+    display: none;
+  }
+  .capability {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .capability h3 {
+    font-size: 16px;
+  }
+  .capability > p {
+    font-size: 12px;
+  }
+  .capability > .label {
+    font-size: 9px;
+  }
+}
+@media (max-width: 760px) {
+  .section {
+    padding: 65px 22px;
+  }
+  .intro {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    margin-bottom: 33px;
+  }
+  .intro h2 {
+    font-size: 34px;
+    max-width: 480px;
+    margin-top: 15px;
+  }
+  .intro p {
+    font-size: 14px;
+    line-height: 1.85;
+  }
+  .architectureFrame {
+    margin: 0 -7px;
+  }
+  .architecture {
+    min-height: 270px;
+    object-fit: contain;
+  }
+  .stageTabs {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin: 0 -7px;
+  }
+  .stageTabs button {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 13px 4px;
+    font-size: 11px;
+    min-height: 69px;
+    gap: 8px;
+  }
+  .stageTabs button > span {
+    font-size: 9px;
+  }
+  .stageExplanation {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 21px;
+    padding-top: 25px;
+    min-height: 260px;
+  }
+  .stageExplanation h3 {
+    font-size: 17px;
+  }
+  .stageEvidence {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 18px 0 0;
+  }
+  .capabilityGrid {
+    --mini-height: clamp(115px, 33vw, 200px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .capability {
+    padding: 22px 15px 26px;
+  }
+  .capability:nth-child(odd) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .capability:nth-child(even) {
+    padding-right: 0;
+  }
+  .capability:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+  .capability h3 {
+    font-size: 16px;
+  }
+  .capability > p {
+    font-size: 12px;
+  }
+  .miniature {
+    margin-top: 13px;
+  }
+  .proofStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 25px;
+  }
+  .proofStrip > div {
+    padding: 0 17px 6px;
+    gap: 12px;
+  }
+  .proofStrip > div:nth-child(odd) {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .proofStrip strong {
+    font-size: 26px;
+  }
+  .proofStrip > div > span {
+    font-size: 8px;
+  }
+  .svgFine {
+    font-size: 10px;
+  }
+}
+@media (max-width: 360px) {
+  .section {
+    padding: 55px 17px;
+  }
+  .intro h2 {
+    font-size: 30px;
+  }
+  .stageTabs button {
+    font-size: 10px;
+  }
+  .capability h3 {
+    font-size: 15px;
+  }
+  .capability > .label {
+    font-size: 8px;
+  }
+}
+
+@media (min-width: 520px) and (max-width: 999px) {
+  .scrollChapter[data-pinned="true"] .chapterSticky {
+    padding: 20px 22px 12px;
+  }
+  .scrollChapter[data-pinned="true"] .intro {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .scrollChapter[data-pinned="true"] .intro h2 {
+    font-size: 29px;
+    line-height: 1.13;
+    margin-top: 9px;
+  }
+  .scrollChapter[data-pinned="true"] .intro p {
+    font-size: 12px;
+    line-height: 1.7;
+    max-width: 100%;
+  }
+  .scrollChapter[data-pinned="true"] .workflow {
+    display: flex;
+    flex-direction: column;
+  }
+  .scrollChapter[data-pinned="true"] .architectureFrame {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+  }
+  .scrollChapter[data-pinned="true"] .architecture {
+    min-height: 0;
+  }
+  .scrollChapter[data-pinned="true"] .stageTabs {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-rows: auto;
+    margin: 0;
+    border: 1px solid var(--line);
+    border-top: 0;
+    flex-shrink: 0;
+  }
+  .scrollChapter[data-pinned="true"] .stageTabs button {
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    padding: 8px 3px;
+    min-height: 54px;
+    border-left: 0;
+    border-right: 1px solid var(--line);
+    border-bottom: 2px solid transparent;
+    font-size: 11px;
+  }
+  .scrollChapter[data-pinned="true"] .stageTabs button:last-child {
+    border-right: 0;
+    border-bottom: 2px solid transparent;
+  }
+  .scrollChapter[data-pinned="true"] .stageTabs button[aria-selected="true"] {
+    border-bottom-color: var(--blue);
+  }
+  .scrollChapter[data-pinned="true"] .stageTabs button > svg {
+    display: none;
+  }
+  .scrollChapter[data-pinned="true"] .stageExplanation {
+    display: block;
+    flex-shrink: 0;
+    min-height: 98px;
+    padding-top: 12px;
+  }
+  .scrollChapter[data-pinned="true"] .stageExplanation h3 {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .scrollChapter[data-pinned="true"] .stageExplanation p {
+    display: none;
+  }
+  .scrollChapter[data-pinned="true"] .stageEvidence {
+    padding: 8px 0 0;
+    border: 0;
+    gap: 3px;
+  }
+  .scrollChapter[data-pinned="true"] .stageEvidence .label {
+    font-size: 9px;
+  }
+  .scrollChapter[data-pinned="true"] .stageEvidence code {
+    font-size: 10px;
+  }
+  .scrollChapter[data-pinned="true"] .stageEvidence .example {
+    display: none;
+  }
+  .scrollChapter[data-pinned="true"] .proofStrip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    row-gap: 0;
+    margin-top: 12px;
+  }
+  .scrollChapter[data-pinned="true"] .proofStrip > div {
+    padding: 0 10px;
+    gap: 6px;
+    border-left: 1px solid var(--line);
+  }
+  .scrollChapter[data-pinned="true"] .proofStrip > div:first-child {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .scrollChapter[data-pinned="true"] .proofStrip strong {
+    font-size: 22px;
+    height: 30px;
+  }
+  .scrollChapter[data-pinned="true"] .proofStrip > div > span {
+    font-size: 7px;
+  }
+  .scrollChapter[data-pinned="true"] .beforeAfter > .example {
+    font-size: 8px;
+  }
+}
+.chapterFrame {
+  position: absolute;
+  inset: -22px -24px;
+  border: 1px solid #cbd0d8;
+  pointer-events: none;
+  z-index: 4;
+}
+.frameMarker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 7px;
+  height: 7px;
+  background: #252a31;
+  transform: translate(-50%, -50%);
+}
+.scrollChapter .intro {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.scrollChapter[data-pinned="true"] .chapterFrame {
+  inset: 24px 28px 18px;
+}
+.scrollChapter[data-pinned="true"] .chapterSticky {
+  padding-bottom: 30px;
+}
+.scrollChapter[data-pinned="true"] .intro {
+  margin-bottom: 18px;
+}
+.capabilitySequence {
+  min-width: 0;
+}
+.capabilityStep {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+}
+.capability[data-active="true"] .capabilityStep {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+.capability .miniature {
+  transition:
+    filter 0.6s ease,
+    opacity 0.6s ease,
+    transform 0.6s ease;
+}
+.capability[data-revealed="false"] .miniature {
+  filter: blur(3px);
+  opacity: 0.24;
+  transform: scale(0.985);
+}
+.capabilitySummary {
+  display: none;
+}
+.engineerScene {
+  position: relative;
+  aspect-ratio: 2/1;
+  width: 100%;
+  --engineer-mix: 0;
+  background: #fcfcfa;
+  overflow: hidden;
+}
+.engineerPanel {
+  position: absolute;
+  inset: 0;
+}
+.engineerScene[data-fixed="true"] {
+  --engineer-mix: 1;
+}
+.engineerLayer {
+  object-fit: cover;
+  object-position: 50% 44%;
+}
+.engineerBefore {
+  opacity: 1;
+}
+.engineerAfter {
+  opacity: clamp(0, calc(var(--engineer-mix) * 40), 1);
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(var(--engineer-mix) * 106% - 3%),
+    transparent calc(var(--engineer-mix) * 106% + 3%)
+  );
+  transition: opacity 0.6s ease;
+}
+.scrollChapter[data-pinned="true"] .engineerScene[data-fixed] {
+  height: 100%;
+  aspect-ratio: auto;
+  --engineer-mix: var(--proof-mix, 0);
+}
+.scrollChapter[data-pinned="true"] .engineerAfter {
+  transition: none;
+}
+.scrollChapter[data-pinned="false"] .engineerScene {
+  aspect-ratio: auto;
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+}
+.scrollChapter[data-pinned="false"] .engineerPanel {
+  position: relative;
+  inset: auto;
+  aspect-ratio: 2/1;
+}
+.scrollChapter[data-pinned="false"] .engineerAfter {
+  opacity: 1;
+  mask-image: none;
+  transition: none;
+}
+.scrollChapter[data-pinned="true"] .capabilitySequence {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.scrollChapter[data-pinned="true"] .capabilityGrid {
+  flex: 1;
+  min-height: 0;
+}
+.scrollChapter[data-pinned="true"] .capability {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+}
+.scrollChapter[data-pinned="true"] .capabilityStep {
+  flex-shrink: 0;
+}
+.scrollChapter[data-pinned="true"] .capability .miniature {
+  flex: 1;
+  height: auto;
+  min-height: 90px;
+  max-height: 225px;
+  margin-top: 10px;
+}
+.scrollChapter[data-pinned="true"] .capability h3 {
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 16px 0 0;
+  min-height: 48px;
+  flex-shrink: 0;
+}
+.scrollChapter[data-pinned="true"] .capability > p {
+  display: none;
+}
+.scrollChapter[data-pinned="true"] .capabilitySummary {
+  display: block;
+  min-height: 48px;
+  max-width: 780px;
+  margin-top: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+@media (min-width: 1000px) and (min-height: 850px) {
+  .scrollChapter[data-pinned="true"] .capability > p {
+    display: block;
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .scrollChapter[data-pinned="true"] .capabilitySummary {
+    display: none;
+  }
+}
+
+@media (min-width: 520px) and (max-width: 999px) {
+  .scrollChapter[data-pinned="true"] .chapterFrame {
+    inset: 10px 10px 8px;
+  }
+  .scrollChapter[data-pinned="true"] .chapterSticky {
+    padding-bottom: 22px;
+  }
+  .scrollChapter[data-pinned="true"] .intro {
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+  }
+  .scrollChapter[data-pinned="true"] .capability {
+    padding: 4px 10px 10px;
+  }
+  .scrollChapter[data-pinned="true"] .capability:nth-child(odd) {
+    padding-left: 0;
+  }
+  .scrollChapter[data-pinned="true"] .capability:nth-child(even) {
+    padding-right: 0;
+  }
+  .scrollChapter[data-pinned="true"] .capabilityStep {
+    min-height: 30px;
+    font-size: 8px;
+  }
+  .scrollChapter[data-pinned="true"] .capability .miniature {
+    margin-top: 5px;
+    min-height: 45px;
+    max-height: 95px;
+  }
+  .scrollChapter[data-pinned="true"] .capability h3 {
+    min-height: 34px;
+    margin-top: 7px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .scrollChapter[data-pinned="true"] .capabilitySummary {
+    min-height: 40px;
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+}
+
+@media (min-width: 1000px) and (min-height: 700px) {
+  .scrollChapter[data-pinned="true"][data-scroll-chapter="workflow"] .chapterSticky {
+    padding-top: 24px;
+  }
+  .scrollChapter[data-pinned="true"][data-scroll-chapter="workflow"] .intro {
+    padding-bottom: 14px;
+    margin-bottom: 12px;
+  }
+  .scrollChapter[data-pinned="true"][data-scroll-chapter="workflow"] .intro h2 {
+    font-size: clamp(30px, 2.6vw, 36px);
+    margin-top: 9px;
+  }
+  .scrollChapter[data-pinned="true"][data-scroll-chapter="workflow"] .stageExplanation {
+    min-height: 92px;
+    padding-top: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollHeader {
+    transition: none;
+  }
+  .paper *,
+  .paper *::before,
+  .paper *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
