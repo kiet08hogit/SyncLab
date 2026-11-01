@@ -28,7 +28,7 @@ describe('validate', () => {
     await fs.rm(workspace, { recursive: true, force: true });
   });
 
-  it('passes the registered checks when the job gives them nothing to judge', async () => {
+  it('passes when given no checks', async () => {
     await writeTestOutput(stateDir, 'all passed');
     const previousContext = process.env.VALIDATE_CONTEXT;
     delete process.env.VALIDATE_CONTEXT;
@@ -43,7 +43,7 @@ describe('validate', () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.steps[0].step, 'VALIDATE');
-    assert.match(result.steps[0].output, /validation check\(s\) passed/);
+    assert.equal(result.steps[0].output, 'No validation checks registered.');
     assert.equal(await readValidationFailure(stateDir), undefined);
     assert.equal(await readTestOutput(stateDir), undefined);
   });

@@ -339,6 +339,9 @@ A failing run also drops any validation failure left by the previous attempt, si
 Runs after a test attempt passes, and only then, for both dependency jobs and API-change jobs.
 It loads every check module in `server/sandbox/src/validate/checks` and passes when none of them reports a problem.
 The typecheck runs only when the job names the SDK package and version the change requires (`dependencyName` and `targetVersion`).
+For a change found in a versioned Anthropic or OpenAI SDK changelog entry, the worker records that release's package and version when it queues the job.
+It also derives them when running an older queued job that has no SDK metadata.
+A change from an API release note, deprecation page, or OpenAPI spec keeps the installed SDK unless the job explicitly names a required version.
 A repository with no root `tsconfig.json` passes that check.
 When the installed package is a different version, the check fails without running the compiler.
 The worker passes each check the JSON it builds in `server/api/src/worker/sandbox/validation-context/`, and a check adds its own keys in its own file there.
@@ -708,5 +711,6 @@ Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact a
 The sandbox edits a repository for a confirmed API change.
 How that job is prompted and published is in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
 Phase 9 re-scans the migrated tree after the suite passes, and rejects a migration that still uses the change being migrated or newly uses another retired or removed API.
-The OpenAI schema check in Phase 9 is built.
-Detecting when the change needs a newer SDK, typechecking the migrated tree, and Phase 10 are not built yet.
+It checks literal OpenAI requests against the new spec and typechecks TypeScript repositories against a required SDK version when one is known.
+The Phase 9 benchmark proves a partial fix whose tests pass is rejected and the completed fix is accepted.
+Phase 10 remains.

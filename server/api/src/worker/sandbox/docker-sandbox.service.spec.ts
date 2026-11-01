@@ -301,6 +301,7 @@ describe('DockerSandboxService', () => {
 
       expect(created.map((c) => c.phase)).toEqual([
         'prepare',
+        'validate',
         'install',
         'test',
         'upgrade',

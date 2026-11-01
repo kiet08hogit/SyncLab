@@ -183,9 +183,10 @@ describe('buildValidationContext', () => {
     expect(JSON.parse(context)).toEqual({ rescan: { target: null, removed: [RETIRED_SONNET] } });
   });
 
-  it('stays empty for an API change that keeps the SDK the repository has', () => {
-    expect(
-      buildValidationContext({
+  it('does not add typecheck for an API change that keeps the SDK the repository has', async () => {
+    const context = await buildValidationContext(
+      prismaWith(null) as never,
+      {
         kind: 'api_change',
         change: {
           provider: 'anthropic',
@@ -198,29 +199,35 @@ describe('buildValidationContext', () => {
           sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
         },
         files: ['src/chat.ts'],
-      }),
-    ).toBe('{}');
+      },
+      { removedChanges: [] },
+    );
+    expect(JSON.parse(context)).not.toHaveProperty('typecheck');
   });
 
-  it('names the SDK an API change requires so the typecheck can use it', () => {
-    expect(
-      JSON.parse(
-        buildValidationContext({
-          kind: 'api_change',
-          change: {
-            provider: 'anthropic',
-            kind: 'model_retired',
-            operation: null,
-            field: 'claude-3-opus-20240229',
-            replacement: null,
-            effectiveAt: null,
-            evidence: 'Claude 3 Opus is retired.',
-            sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
-          },
-          files: ['src/chat.ts'],
-          sdk: { name: '@anthropic-ai/sdk', version: '0.60.0' },
-        }),
-      ),
-    ).toEqual({ typecheck: { package: '@anthropic-ai/sdk', version: '0.60.0' } });
+  it('names the SDK an API change requires so the typecheck can use it', async () => {
+    const context = await buildValidationContext(
+      prismaWith(null) as never,
+      {
+        kind: 'api_change',
+        change: {
+          provider: 'anthropic',
+          kind: 'model_retired',
+          operation: null,
+          field: 'claude-3-opus-20240229',
+          replacement: null,
+          effectiveAt: null,
+          evidence: 'Claude 3 Opus is retired.',
+          sourceUrl: 'https://docs.anthropic.com/en/docs/about-claude/model-deprecations',
+        },
+        files: ['src/chat.ts'],
+        sdk: { name: '@anthropic-ai/sdk', version: '0.60.0' },
+      },
+      { removedChanges: [] },
+    );
+    expect(JSON.parse(context)).toHaveProperty('typecheck', {
+      package: '@anthropic-ai/sdk',
+      version: '0.60.0',
+    });
   });
 });

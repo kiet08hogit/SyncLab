@@ -13,6 +13,7 @@ import {
   type MigrationJobData,
 } from '../common/constants';
 import { ImpactConfidence } from './match';
+import { requiredSdk } from './required-sdk';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // BullMQ rejects a priority above 2**21-1. A job with no priority at all, such
@@ -64,7 +65,14 @@ export class ApiMigrationsService {
         repositoryId: true,
         breakingChangeId: true,
         repository: { select: { fullName: true } },
-        breakingChange: { select: { effectiveAt: true } },
+        breakingChange: {
+          select: {
+            effectiveAt: true,
+            section: true,
+            provider: { select: { slug: true } },
+            snapshot: { select: { source: { select: { kind: true } } } },
+          },
+        },
       },
     });
     if (impacts.length === 0) {
@@ -74,12 +82,20 @@ export class ApiMigrationsService {
     // The unique index on (repository, change) makes this safe against a
     // concurrent recompute: only one of them creates each row.
     const created = await this.prisma.migrationJob.createManyAndReturn({
-      data: impacts.map((impact) => ({
-        repositoryId: impact.repositoryId,
-        kind: MigrationKind.API_CHANGE,
-        breakingChangeId: impact.breakingChangeId,
-        status: JobStatus.QUEUED,
-      })),
+      data: impacts.map((impact) => {
+        const sdk = requiredSdk({
+          provider: impact.breakingChange.provider.slug,
+          sourceKind: impact.breakingChange.snapshot.source.kind,
+          section: impact.breakingChange.section,
+        });
+        return {
+          repositoryId: impact.repositoryId,
+          kind: MigrationKind.API_CHANGE,
+          breakingChangeId: impact.breakingChangeId,
+          status: JobStatus.QUEUED,
+          ...(sdk ? { dependencyName: sdk.name, targetVersion: sdk.version } : {}),
+        };
+      }),
       skipDuplicates: true,
       select: { id: true, repositoryId: true, breakingChangeId: true },
     });

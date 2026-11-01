@@ -50,8 +50,8 @@ Without one, the run fails closed instead of accepting the partial fix.
 The model gets the change as the job's brief, not release notes.
 The case passes when its own suite passes, validate passes, no test changed, and the contract tests then pass too.
 
-Validation proves the scan confirms exactly `impactFiles`, the suite passes before the migration, the contract tests fail on the original code, and the reference fix passes both and leaves nothing for the scan to match.
-With `partial/`, it also proves that fix passes the project's own suite while the scan still matches the change.
+Validation proves the scan confirms exactly `impactFiles`, the suite passes before the migration, the contract tests fail on the original code, and the reference fix passes both the suite and Phase 9 validation and leaves nothing for the scan to match.
+With `partial/`, it also runs the Phase 9 gate on that fix and requires it to reject the remaining usage even though the project's own suite passes.
 
 Six cases cover a retired model, a removed parameter and a replaced endpoint for each SDK, and `api-anthropic-model-retired-partial-fix` is the Phase 9 case.
 Every change except the Anthropic endpoint replacement is replayed from a snapshot recorded in `server/api/src/monitor/fixtures/`; each `case.json` says which.

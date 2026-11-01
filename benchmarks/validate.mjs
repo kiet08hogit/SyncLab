@@ -127,6 +127,14 @@ async function validateApiChange(spec) {
     }
     const params = jobParams(spec, config, impact.files);
 
+    const recorded = await driver.runPhase('validate', volume, params, 1, { VALIDATE_BASELINE: 'true' });
+    const digest = recorded.data?.baselineDigest;
+    record.checks.validationBaseline = recorded.ok && typeof digest === 'string';
+    if (!record.checks.validationBaseline) {
+      return { ...record, reason: `could not record the pre-install validation baseline: ${lastLines(recorded)}` };
+    }
+    const validateEnv = { VALIDATE_BASELINE_DIGEST: digest };
+
     const install = await driver.runPhase('install', volume, params, 1);
     record.checks.install = install.ok;
     if (!install.ok) return { ...record, reason: `install failed: ${lastLines(install)}` };
@@ -145,6 +153,11 @@ async function validateApiChange(spec) {
       if (!record.checks.partialFixStillMatched) {
         return { ...record, reason: 'the scan no longer matches the change after the partial fix, so validation could not reject it' };
       }
+      const rejected = await driver.runPhase('validate', volume, params, 1, validateEnv);
+      record.checks.partialFixRejected = !rejected.ok && /rescan:/.test(rejected.error ?? '');
+      if (!record.checks.partialFixRejected) {
+        return { ...record, reason: `validation accepted a partial fix that still uses the change: ${lastLines(rejected)}` };
+      }
     }
 
     await overlay(volume, path.join(spec.dir, 'contract'));
@@ -158,6 +171,12 @@ async function validateApiChange(spec) {
     const fixed = await driver.runPhase('test', volume, params, 1);
     record.checks.referenceFixPasses = fixed.ok;
     if (!fixed.ok) return { ...record, reason: `reference fix does not pass: ${lastLines(fixed)}` };
+
+    const accepted = await driver.runPhase('validate', volume, params, 2, validateEnv);
+    record.checks.referenceFixPassesValidation = accepted.ok;
+    if (!accepted.ok) {
+      return { ...record, reason: `reference fix fails Phase 9 validation: ${lastLines(accepted)}` };
+    }
 
     const after = await impactOf(driver, volume, spec);
     record.checks.referenceFixClearsImpact = after.confidence === null;

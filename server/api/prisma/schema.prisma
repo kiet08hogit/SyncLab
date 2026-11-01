@@ -42,7 +42,8 @@ model MigrationJob {
   breakingChange  BreakingChange? @relation(fields: [breakingChangeId], references: [id], onDelete: Cascade)
   executionLogs   ExecutionLog[]
 
-  @@unique([repositoryId, dependencyName, targetVersion])
+  /// Dependency jobs use a partial unique index in SQL because API-change jobs
+  /// can share one SDK version while each needs its own migration.
   @@unique([repositoryId, breakingChangeId])
   @@map("migration_jobs")
 }

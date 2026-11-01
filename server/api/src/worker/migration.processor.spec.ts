@@ -210,8 +210,32 @@ describe('MigrationProcessor', () => {
         validationContext: string;
       };
       expect(params.migration.sdk).toEqual({ name: '@anthropic-ai/sdk', version: '0.60.0' });
-      expect(JSON.parse(params.validationContext)).toEqual({
-        typecheck: { package: '@anthropic-ai/sdk', version: '0.60.0' },
+      expect(JSON.parse(params.validationContext)).toHaveProperty('typecheck', {
+        package: '@anthropic-ai/sdk',
+        version: '0.60.0',
+      });
+    });
+
+    it('uses a versioned SDK changelog for a job queued before SDK metadata was recorded', async () => {
+      const versionedChange = {
+        ...CHANGE,
+        section: 'Changelog / 0.123.0 (2026-09-01) / Features',
+        snapshot: {
+          source: { kind: 'sdk_changelog', url: CHANGE.snapshot.source.url },
+        },
+      };
+      const { processor, sandbox, job } = setup(versionedChange);
+
+      await processor.process(job);
+
+      const params = (sandbox.run.mock.calls[0] as unknown[])[1] as {
+        migration: { sdk?: { name: string; version: string } };
+        validationContext: string;
+      };
+      expect(params.migration.sdk).toEqual({ name: '@anthropic-ai/sdk', version: '0.123.0' });
+      expect(JSON.parse(params.validationContext)).toHaveProperty('typecheck', {
+        package: '@anthropic-ai/sdk',
+        version: '0.123.0',
       });
     });
 

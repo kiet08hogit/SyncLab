@@ -58,6 +58,10 @@ function setup() {
       ),
     },
     migrationJob: {
+      findUniqueOrThrow: jest.fn((args: { where: { id: string } }) => {
+        const row = jobs.find((job) => job.id === args.where.id);
+        return row ? Promise.resolve({ ...row }) : Promise.reject(knownError('P2025'));
+      }),
       create: jest.fn(
         (args: {
           data: { repositoryId: string; dependencyName: string; targetVersion: string };
@@ -83,31 +87,23 @@ function setup() {
           return Promise.resolve(row);
         },
       ),
-      findUniqueOrThrow: jest.fn(
+      findFirstOrThrow: jest.fn(
         (args: {
-          where:
-            | { id: string }
-            | {
-                repositoryId_dependencyName_targetVersion: {
-                  repositoryId: string;
-                  dependencyName: string;
-                  targetVersion: string;
-                };
-              };
+          where: {
+            kind: string;
+            repositoryId: string;
+            dependencyName: string;
+            targetVersion: string;
+          };
         }) => {
           const where = args.where;
-          const row =
-            'id' in where
-              ? jobs.find((job) => job.id === where.id)
-              : jobs.find(
-                  (job) =>
-                    job.repositoryId ===
-                      where.repositoryId_dependencyName_targetVersion.repositoryId &&
-                    job.dependencyName ===
-                      where.repositoryId_dependencyName_targetVersion.dependencyName &&
-                    job.targetVersion ===
-                      where.repositoryId_dependencyName_targetVersion.targetVersion,
-                );
+          const row = jobs.find(
+            (job) =>
+              where.kind === 'dependency' &&
+              job.repositoryId === where.repositoryId &&
+              job.dependencyName === where.dependencyName &&
+              job.targetVersion === where.targetVersion,
+          );
           // A copy, as Prisma returns: later writes must not show through it.
           return row ? Promise.resolve({ ...row }) : Promise.reject(knownError('P2025'));
         },
@@ -323,7 +319,7 @@ describe('MigrationJobsService.enqueue', () => {
     prisma.migrationJob.create.mockRejectedValueOnce(knownError('P2003'));
 
     await expect(service.enqueue(INPUT)).rejects.toMatchObject({ code: 'P2003' });
-    expect(prisma.migrationJob.findUniqueOrThrow).not.toHaveBeenCalled();
+    expect(prisma.migrationJob.findFirstOrThrow).not.toHaveBeenCalled();
     expect(queue.add).not.toHaveBeenCalled();
   });
 

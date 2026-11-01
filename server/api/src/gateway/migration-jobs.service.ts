@@ -8,6 +8,7 @@ import {
   MIGRATION_JOB_NAME,
   MIGRATION_JOB_OPTIONS,
   MIGRATION_QUEUE,
+  MigrationKind,
   type MigrationJobData,
 } from '../common/constants';
 
@@ -136,13 +137,12 @@ export class MigrationJobsService {
         throw error;
       }
 
-      const job = await this.prisma.migrationJob.findUniqueOrThrow({
+      const job = await this.prisma.migrationJob.findFirstOrThrow({
         where: {
-          repositoryId_dependencyName_targetVersion: {
-            repositoryId,
-            dependencyName,
-            targetVersion,
-          },
+          kind: MigrationKind.DEPENDENCY,
+          repositoryId,
+          dependencyName,
+          targetVersion,
         },
       });
       return { job, isNew: false };
