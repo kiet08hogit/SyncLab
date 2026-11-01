@@ -5,8 +5,8 @@ import type { PhaseResult } from '../result.js';
 
 /**
  * Runs after the baseline test run, so the suite is first proven on the
- * version the repository already had. Like install, it runs the new release's
- * install scripts and so gets the network but no GitHub token.
+ * version the repository already had. When it installs a release, that
+ * release's scripts run, so this phase gets the network but no GitHub token.
  */
 export async function upgrade(): Promise<PhaseResult> {
   const config = loadConfig();
@@ -22,6 +22,7 @@ export async function upgrade(): Promise<PhaseResult> {
     dependency.name,
     dependency.version,
     packageManagerEnv(config.workspace),
+    { minimum: config.migration.kind === 'api_change' },
   );
 
   if (!outcome.ok) {

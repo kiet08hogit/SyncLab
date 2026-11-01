@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { loadWorkspace } from '../../config.js';
 import { run } from '../../exec.js';
+import { satisfiesMinimum } from '../../release-version.js';
 
 const OUTPUT_LIMIT = 4_000;
 
@@ -11,10 +12,10 @@ interface TypecheckRequest {
 }
 
 /**
- * Typechecks a TypeScript repository against the SDK version the change
- * requires. With no SDK named in VALIDATE_CONTEXT, or no tsconfig.json, it
- * passes. It uses the repository's own TypeScript compiler and does not
- * fetch anything.
+ * Typechecks a TypeScript repository against the installed SDK when that
+ * release meets the required minimum. With no SDK named in VALIDATE_CONTEXT,
+ * or no tsconfig.json, it passes. It uses the repository's own TypeScript
+ * compiler and does not fetch anything.
  */
 export const check = {
   name: 'typecheck',
@@ -44,7 +45,7 @@ export async function typecheck(): Promise<string | undefined> {
   if (installed === undefined) {
     return `${request.packageName}@${request.version} is not installed`;
   }
-  if (installed !== normalizeVersion(request.version)) {
+  if (!satisfiesMinimum(installed, request.version)) {
     return `${request.packageName}@${installed} is installed, and the change requires ${request.version}`;
   }
 
@@ -52,7 +53,7 @@ export async function typecheck(): Promise<string | undefined> {
   try {
     await fs.access(tsc);
   } catch {
-    return `${request.packageName}@${request.version} cannot be typechecked: the repository has no TypeScript compiler`;
+    return `${request.packageName}@${installed} cannot be typechecked: the repository has no TypeScript compiler`;
   }
 
   const result = await run(
@@ -67,8 +68,8 @@ export async function typecheck(): Promise<string | undefined> {
   const output = result.output.trim();
   const body = output.length > OUTPUT_LIMIT ? `${output.slice(0, OUTPUT_LIMIT)}\n[truncated]` : output;
   return body
-    ? `${request.packageName}@${request.version}\n${body}`
-    : `${request.packageName}@${request.version} failed typecheck with exit code ${result.code}`;
+    ? `${request.packageName}@${installed}\n${body}`
+    : `${request.packageName}@${installed} failed typecheck with exit code ${result.code}`;
 }
 
 function readRequest(raw: string | undefined): TypecheckRequest | 'invalid' | undefined {

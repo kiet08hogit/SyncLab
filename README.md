@@ -37,6 +37,7 @@ A job that already exists for that repository and change is left untouched, incl
 Sooner effective dates run first.
 A change with no effective date runs last among API-change jobs, and dependency jobs have no queue priority, so they run before any of them.
 The worker skips `upgrade` for an API-change job unless that job names the SDK package and version the change requires.
+That version is a minimum, so a repository already on it or a newer release is not downgraded.
 If the queue rejects the job, that job is marked `FAILED` with the queue error.
 
 ## High-level workflow
@@ -252,7 +253,9 @@ flowchart TD
 ```
 
 The phases above are a dependency job.
-An `api_change` job skips `upgrade` unless it names that SDK, and a failing baseline says the suite already fails before the migration.
+An `api_change` job skips `upgrade` unless it names that SDK.
+The named release is a minimum.
+A failing baseline says the suite already fails before the migration.
 
 Each phase is a fresh container from the same `synclab-sandbox` image, started with the phase name as its command.
 State passes between phases only through the shared `/workspace` volume: the repository checkout in `/workspace/repo` and small state files in `/workspace/state` (release notes, the last test output, and the last validation failure).
@@ -306,7 +309,9 @@ If it fails, the job fails straight away: the suite cannot verify a migration, a
 
 Upgrades the migrated dependency with the detected package manager (`server/sandbox/src/upgrade.ts`).
 An API-change job runs this phase only when it names the SDK the change requires.
-- The exact target version is requested, so the suite runs against that version and not the newest one a range would allow.
+That release is a minimum.
+The phase installs it only when the installed SDK is older, and leaves a repository already on that release or a newer one unchanged.
+- A dependency job requests the exact target version, so the suite runs against that version and not the newest one a range would allow.
 - The package stays in the `package.json` section it was declared in, and an exact pin stays exact; a leading `v` in the version is stripped.
   npm and pnpm save a range as `^<version>`; yarn saves what it is asked for, so with yarn a range becomes an exact pin.
 - If the package is not a direct dependency, or the version does not exist, the phase fails.
@@ -343,7 +348,8 @@ For a change found in a versioned Anthropic or OpenAI SDK changelog entry, the w
 It also derives them when running an older queued job that has no SDK metadata.
 A change from an API release note, deprecation page, or OpenAPI spec keeps the installed SDK unless the job explicitly names a required version.
 A repository with no root `tsconfig.json` passes that check.
-When the installed package is a different version, the check fails without running the compiler.
+The named version is a minimum.
+The check compiles the installed SDK when it is that release or newer, and fails without compiling when the installed SDK is older.
 The worker passes each check the JSON it builds in `server/api/src/worker/sandbox/validation-context/`, and a check adds its own keys in its own file there.
 A failed check is written to the volume and the next `refactor` attempt reads it.
 The container has no network and no token, so a check cannot call a provider.
@@ -711,6 +717,6 @@ Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact a
 The sandbox edits a repository for a confirmed API change.
 How that job is prompted and published is in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
 Phase 9 re-scans the migrated tree after the suite passes, and rejects a migration that still uses the change being migrated or newly uses another retired or removed API.
-It checks literal OpenAI requests against the new spec and typechecks TypeScript repositories against a required SDK version when one is known.
+It checks literal OpenAI requests against the new spec and typechecks a TypeScript repository against its installed SDK when the change names a required release.
 The Phase 9 benchmark proves a partial fix whose tests pass is rejected and the completed fix is accepted.
 Phase 10 remains.

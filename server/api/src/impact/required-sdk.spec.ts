@@ -27,6 +27,31 @@ describe('requiredSdk', () => {
     });
   });
 
+  it('reads the bracketed release rather than an older version in its compare URL', () => {
+    expect(
+      requiredSdk({
+        provider: 'anthropic',
+        sourceKind: 'sdk_changelog',
+        section:
+          'Changelog / [1.3.0](https://github.com/anthropics/anthropic-sdk-typescript/compare/sdk-v1.2.0...sdk-v1.3.0) (2026-10-23) / Features',
+      }),
+    ).toEqual({
+      name: '@anthropic-ai/sdk',
+      version: '1.3.0',
+    });
+    expect(
+      requiredSdk({
+        provider: 'openai',
+        sourceKind: 'sdk_changelog',
+        section:
+          'Changelog / [7.47.0](https://github.com/openai/openai-node/compare/v7.46.0...v7.47.0) (2026-10-31) / Features',
+      }),
+    ).toEqual({
+      name: 'openai',
+      version: '7.47.0',
+    });
+  });
+
   it('does not guess a version from a provider API release note or an unversioned section', () => {
     expect(
       requiredSdk({

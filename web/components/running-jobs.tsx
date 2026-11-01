@@ -39,7 +39,13 @@ export function RunningJobs({ jobs, stacked = false }: { jobs: JobWithRepository
                   />
                 </span>
               </div>
-              <PipelineTrack steps={job.steps} status={job.status} kind={job.kind} />
+              <PipelineTrack
+                steps={job.steps}
+                status={job.status}
+                kind={job.kind}
+                dependencyName={job.dependencyName}
+                targetVersion={job.targetVersion}
+              />
             </Link>
           </li>
         ))}

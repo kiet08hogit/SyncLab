@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { run } from './exec.js';
 import { addCommand, type DependencySection, type PackageManager } from './package-manager.js';
+import { satisfiesMinimum } from './release-version.js';
 import type { StepLog } from './result.js';
 
 type PackageJson = Partial<Record<DependencySection, Record<string, string>>>;
@@ -26,6 +27,28 @@ export interface UpgradeOutcome {
 /** Release tags are often "v1.2.3", which package managers do not accept as a version. */
 export function normalizeVersion(version: string): string {
   return version.replace(/^v/, '');
+}
+
+async function readInstalledVersion(repoDir: string, name: string): Promise<string | undefined> {
+  const parts = name.split('/');
+  if (
+    name.includes('\\') ||
+    path.isAbsolute(name) ||
+    parts.length > 2 ||
+    parts.some((part) => !part || part === '.' || part === '..') ||
+    (parts.length === 2 && !parts[0].startsWith('@'))
+  ) {
+    return undefined;
+  }
+
+  try {
+    const manifest = JSON.parse(
+      await fs.readFile(path.join(repoDir, 'node_modules', ...parts, 'package.json'), 'utf8'),
+    ) as { version?: unknown };
+    return typeof manifest.version === 'string' ? normalizeVersion(manifest.version) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isExactVersion(spec: string): boolean {
@@ -62,6 +85,7 @@ export async function upgradeDependency(
   name: string,
   version: string,
   env: NodeJS.ProcessEnv = {},
+  options: { minimum?: boolean } = {},
 ): Promise<UpgradeOutcome> {
   const packageJson = JSON.parse(
     await fs.readFile(path.join(repoDir, 'package.json'), 'utf8'),
@@ -73,9 +97,18 @@ export async function upgradeDependency(
     return { ok: false, error, step: { step: 'UPGRADE', output: error } };
   }
 
+  const required = normalizeVersion(version);
+  if (options.minimum) {
+    const installed = await readInstalledVersion(repoDir, name);
+    if (installed && satisfiesMinimum(installed, required)) {
+      const output = `${name}@${installed} is already installed, which meets the required ${required}`;
+      return { ok: true, step: { step: 'UPGRADE', output, exitCode: 0 } };
+    }
+  }
+
   // Always the exact target, so the suite runs against the version being
   // migrated to. A range would install the newest match instead.
-  const spec = `${name}@${normalizeVersion(version)}`;
+  const spec = `${name}@${required}`;
   const { command, args } = addCommand(pm, spec, found.section, found.exact);
   const result = await run(command, args, { cwd: repoDir, env });
   const step = {

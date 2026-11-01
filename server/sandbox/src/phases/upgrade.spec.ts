@@ -193,6 +193,56 @@ describe('upgrade phase', () => {
       assert.deepEqual((await readJson(path.join(repoDir, 'package.json'))).dependencies, { [DEPENDENCY]: '2.0.0' });
     });
 
+    it('leaves an SDK that is already the required release', async () => {
+      await installed(pinned.url);
+      process.env.TARGET_VERSION = '1.0.0';
+      const before = await fs.readFile(path.join(repoDir, 'package.json'), 'utf8');
+
+      const result = await upgrade();
+
+      assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+      assert.equal(await fs.readFile(path.join(repoDir, 'package.json'), 'utf8'), before);
+      assert.equal((await readJson(path.join(repoDir, 'node_modules', DEPENDENCY, 'package.json'))).version, '1.0.0');
+      assert.equal(result.steps[0].output.includes('$ npm'), false);
+    });
+
+    it('does not downgrade an SDK that is already newer than the required release', async () => {
+      const newer = await createOrigin(
+        root,
+        'already-newer',
+        { name: 'app', version: '1.0.0', dependencies: { [DEPENDENCY]: '2.0.0' } },
+        true,
+      );
+      await installed(newer.url);
+      process.env.TARGET_VERSION = '1.0.0';
+      const before = await fs.readFile(path.join(repoDir, 'package.json'), 'utf8');
+
+      const result = await upgrade();
+
+      assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+      assert.equal(await fs.readFile(path.join(repoDir, 'package.json'), 'utf8'), before);
+      assert.equal((await readJson(path.join(repoDir, 'node_modules', DEPENDENCY, 'package.json'))).version, '2.0.0');
+      assert.equal(result.steps[0].output.includes('$ npm'), false);
+    });
+
+    it('keeps a resolved release newer than the required minimum', async () => {
+      const ranged = await createOrigin(
+        root,
+        'already-ranged',
+        { name: 'app', version: '1.0.0', dependencies: { [DEPENDENCY]: '^2.0.0' } },
+        true,
+      );
+      await installed(ranged.url);
+      process.env.TARGET_VERSION = '2.0.0';
+      const before = await fs.readFile(path.join(repoDir, 'package.json'), 'utf8');
+
+      const result = await upgrade();
+
+      assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+      assert.equal(await fs.readFile(path.join(repoDir, 'package.json'), 'utf8'), before);
+      assert.equal((await readJson(path.join(repoDir, 'node_modules', DEPENDENCY, 'package.json'))).version, '2.1.0');
+    });
+
     it('refuses to run without an SDK to upgrade', async () => {
       delete process.env.DEPENDENCY_NAME;
       delete process.env.TARGET_VERSION;

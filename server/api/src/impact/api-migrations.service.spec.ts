@@ -131,6 +131,31 @@ describe('ApiMigrationsService', () => {
     ]);
   });
 
+  it('records the bracketed SDK release, not the previous tag in its compare URL', async () => {
+    const { service, prisma } = setup([
+      impact(
+        'repo-1',
+        'change-1',
+        SOON,
+        'sdk_changelog',
+        'Changelog / [1.3.0](https://github.com/anthropics/anthropic-sdk-typescript/compare/sdk-v1.2.0...sdk-v1.3.0) (2026-10-23) / Features',
+      ),
+    ]);
+
+    await service.queueConfirmedImpacts();
+
+    expect(prisma.migrationJob.createManyAndReturn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            dependencyName: '@anthropic-ai/sdk',
+            targetVersion: '1.3.0',
+          }),
+        ],
+      }),
+    );
+  });
+
   it('records the version required by an SDK changelog on the queued job', async () => {
     const { service, prisma } = setup([
       impact(

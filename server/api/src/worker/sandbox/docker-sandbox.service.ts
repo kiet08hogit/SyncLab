@@ -163,7 +163,7 @@ export class DockerSandboxService {
         };
       }
 
-      // An API change keeps the installed SDK unless the job names the one it requires.
+      // An API change names a minimum SDK release. Upgrade installs it only when the installed one is older.
       if (params.migration.kind === 'dependency' || params.migration.sdk) {
         const upgraded = await this.runPhase(
           'upgrade',

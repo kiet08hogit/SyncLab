@@ -17,11 +17,10 @@ export function requiredSdk(
   const name = SDK_PACKAGES[change.provider];
   if (!name || !change.section) return undefined;
 
-  // The notes parser joins heading levels with " / ". A release heading starts
-  // with its version, optionally prefixed by v, and may include a date after it.
+  // Heading levels are joined with " / ". The release is the first x.y.z in a heading.
   const version = change.section
     .split(' / ')
-    .map((heading) => /^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)(?:\s|$)/.exec(heading)?.[1])
+    .map((heading) => /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(heading)?.[1])
     .find((candidate) => candidate !== undefined);
   return version ? { name, version } : undefined;
 }

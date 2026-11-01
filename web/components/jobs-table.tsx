@@ -43,7 +43,13 @@ export function JobsTable({ jobs }: { jobs: JobWithRepository[] }) {
               </TableCell>
               <TableCell className="text-muted-foreground max-xl:hidden">{job.repository.fullName}</TableCell>
               <TableCell className="max-lg:hidden">
-                <PipelineTrackCompact steps={job.steps} status={job.status} kind={job.kind} />
+                <PipelineTrackCompact
+                  steps={job.steps}
+                  status={job.status}
+                  kind={job.kind}
+                  dependencyName={job.dependencyName}
+                  targetVersion={job.targetVersion}
+                />
               </TableCell>
               <TableCell>
                 <StatusBadge status={job.status} />

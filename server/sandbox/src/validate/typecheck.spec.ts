@@ -104,6 +104,81 @@ describe('typecheck', () => {
     assert.equal(await check.run(), undefined);
   });
 
+  it('typechecks the installed SDK when it is newer than the required release', async () => {
+    await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x' });\n");
+    await write(
+      'node_modules/@anthropic-ai/sdk/package.json',
+      JSON.stringify({ name: '@anthropic-ai/sdk', version: '1.3.0', types: 'index.d.ts' }),
+    );
+    process.env.VALIDATE_CONTEXT = context({ package: '@anthropic-ai/sdk', version: '0.123.0' });
+
+    assert.equal(await check.run(), undefined);
+  });
+
+  it('reports a type error against the installed SDK when that release is newer', async () => {
+    await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x', max_tokens: 1 });\n");
+    await write(
+      'node_modules/@anthropic-ai/sdk/package.json',
+      JSON.stringify({ name: '@anthropic-ai/sdk', version: '1.3.0', types: 'index.d.ts' }),
+    );
+    process.env.VALIDATE_CONTEXT = context({ package: '@anthropic-ai/sdk', version: '0.123.0' });
+
+    const reason = await check.run();
+
+    assert.match(reason ?? '', /^@anthropic-ai\/sdk@1\.3\.0\n/);
+    assert.match(reason ?? '', /max_tokens/);
+  });
+
+  it('accepts a later numeric prerelease of the same release', async () => {
+    await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x' });\n");
+    await write(
+      'node_modules/@anthropic-ai/sdk/package.json',
+      JSON.stringify({ name: '@anthropic-ai/sdk', version: '6.4.0-beta.10', types: 'index.d.ts' }),
+    );
+    process.env.VALIDATE_CONTEXT = context({ package: '@anthropic-ai/sdk', version: '6.4.0-beta.2' });
+
+    assert.equal(await check.run(), undefined);
+  });
+
+  it('accepts a release that is newer than the required prerelease', async () => {
+    await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x' });\n");
+    await write(
+      'node_modules/@anthropic-ai/sdk/package.json',
+      JSON.stringify({ name: '@anthropic-ai/sdk', version: '6.4.0', types: 'index.d.ts' }),
+    );
+    process.env.VALIDATE_CONTEXT = context({ package: '@anthropic-ai/sdk', version: '6.4.0-beta.2' });
+
+    assert.equal(await check.run(), undefined);
+  });
+
+  it('fails when the installed prerelease is older than the required prerelease', async () => {
+    await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x' });\n");
+    await write(
+      'node_modules/@anthropic-ai/sdk/package.json',
+      JSON.stringify({ name: '@anthropic-ai/sdk', version: '6.4.0-beta.1', types: 'index.d.ts' }),
+    );
+    process.env.VALIDATE_CONTEXT = context({ package: '@anthropic-ai/sdk', version: '6.4.0-beta.2' });
+
+    assert.equal(
+      await check.run(),
+      '@anthropic-ai/sdk@6.4.0-beta.1 is installed, and the change requires 6.4.0-beta.2',
+    );
+  });
+
+  it('fails when the installed SDK is an older release than the one required', async () => {
+    await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x' });\n");
+    await write(
+      'node_modules/@anthropic-ai/sdk/package.json',
+      JSON.stringify({ name: '@anthropic-ai/sdk', version: '0.9.0', types: 'index.d.ts' }),
+    );
+    process.env.VALIDATE_CONTEXT = context({ package: '@anthropic-ai/sdk', version: '0.123.0' });
+
+    assert.equal(
+      await check.run(),
+      '@anthropic-ai/sdk@0.9.0 is installed, and the change requires 0.123.0',
+    );
+  });
+
   it('fails when the required SDK is not the one installed', async () => {
     await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x' });\n");
     await write(

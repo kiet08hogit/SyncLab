@@ -380,7 +380,7 @@ describe('publish phase', () => {
       assert.match(body, /^- Operation: `POST \/v1\/messages`$/m);
       assert.match(body, new RegExp(`^- Affected parameter or model: \`${flatField}\`$`, 'm'));
       assert.match(body, /^- Replacement: `claude opus-4-1`$/m);
-      assert.match(body, /^- Upgrades `@anthropic-ai \/sdk` to `0\.60 \.0`, which the change needs\.$/m);
+      assert.match(body, /^- Requires `@anthropic-ai \/sdk` `0\.60 \.0` or newer\.$/m);
     });
 
     it('flattens an operation into the subject when the change has no field', async () => {
@@ -402,7 +402,7 @@ describe('publish phase', () => {
       assert.match(String(calls[0].body?.body), /^- Operation: `POST \/v1\/messages`$/m);
     });
 
-    it('says when no deadline was announced and names the SDK upgrade', async () => {
+    it('says when no deadline was announced and names the required SDK release', async () => {
       process.env.API_CHANGE = JSON.stringify({ ...CHANGE, operation: null, replacement: null, effectiveAt: null });
       process.env.DEPENDENCY_NAME = '@anthropic-ai/sdk';
       process.env.TARGET_VERSION = '0.60.0';
@@ -412,7 +412,7 @@ describe('publish phase', () => {
 
       const body = String(calls[0].body?.body);
       assert.match(body, /^- Deadline: none announced$/m);
-      assert.match(body, /^- Upgrades `@anthropic-ai\/sdk` to `0\.60\.0`, which the change needs\.$/m);
+      assert.match(body, /^- Requires `@anthropic-ai\/sdk` `0\.60\.0` or newer\.$/m);
       assert.doesNotMatch(body, /Operation:|Replacement:/);
     });
   });
