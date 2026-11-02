@@ -127,7 +127,7 @@ export function PipelineTrack(props: TrackProps) {
         ))}
       </ol>
       <p aria-hidden className="mt-3 text-center text-xs text-muted-foreground @md:hidden">
-        {describePipeline(stages, status)}
+        {describePipeline(stages, props.status)}
       </p>
     </div>
   );
