@@ -42,8 +42,10 @@ export function pipelineStages(
   steps: LogStep[],
   status: JobStatus,
   kind: MigrationKind = "dependency",
+  sdk: { dependencyName: string | null; targetVersion: string | null } | null = null,
 ): StageView[] {
-  const all = kind === "api_change" ? API_CHANGE_PIPELINE_STAGES : PIPELINE_STAGES;
+  const namesSdk = Boolean(sdk?.dependencyName && sdk.targetVersion);
+  const all = kind === "api_change" && !namesSdk ? API_CHANGE_PIPELINE_STAGES : PIPELINE_STAGES;
   const rows = status === "FAILED" && steps.at(-1) === "FAILED" ? steps.slice(0, -1) : steps;
   const boundary = Math.max(rows.lastIndexOf("STARTED"), rows.lastIndexOf("FAILED"));
   const reached = all.findLastIndex((stage) => rows.slice(boundary + 1).includes(stage));

@@ -17,8 +17,8 @@ function sha256(contents: string): string {
 /**
  * Proves the migration fixed the API usage, after the repository's own suite
  * has passed. It runs SyncLab's checks and nothing from the repository, which
- * is why its container has no network and no token. With no checks registered
- * it passes, and a failure is saved for the next refactor attempt.
+ * is why its container has no network and no token. It passes when every
+ * check passes, and a failure is saved for the next refactor attempt.
  *
  * With VALIDATE_BASELINE=true it runs right after prepare instead, and saves
  * what each check records about the tree as cloned. Repository code can write

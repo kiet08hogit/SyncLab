@@ -43,7 +43,7 @@ function setup(existing?: { id: string; status: string }, declared = true) {
       create: existing
         ? jest.fn().mockRejectedValue(duplicateError())
         : jest.fn().mockResolvedValue({ id: 'job-1', status: JobStatus.QUEUED }),
-      findUniqueOrThrow: jest.fn().mockResolvedValue(existing),
+      findFirstOrThrow: jest.fn().mockResolvedValue(existing),
       // The row is still FAILED when the redelivery claims its retry.
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -169,13 +169,12 @@ describe('WebhookController', () => {
         status,
         queued: false,
       });
-      expect(prisma.migrationJob.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(prisma.migrationJob.findFirstOrThrow).toHaveBeenCalledWith({
         where: {
-          repositoryId_dependencyName_targetVersion: {
-            repositoryId: 'repo-1',
-            dependencyName: 'react',
-            targetVersion: '19.0.0',
-          },
+          kind: 'dependency',
+          repositoryId: 'repo-1',
+          dependencyName: 'react',
+          targetVersion: '19.0.0',
         },
       });
       expect(queue.add).not.toHaveBeenCalled();

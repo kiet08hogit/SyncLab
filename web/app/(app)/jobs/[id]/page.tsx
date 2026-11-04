@@ -148,7 +148,13 @@ async function JobDetailView({ params }: Pick<PageProps<"/jobs/[id]">, "params">
         <h2 id="pipeline-heading" className="label-mono text-muted-foreground">
           Pipeline
         </h2>
-        <PipelineTrack steps={job.steps} status={job.status} kind={job.kind} />
+        <PipelineTrack
+          steps={job.steps}
+          status={job.status}
+          kind={job.kind}
+          dependencyName={job.dependencyName}
+          targetVersion={job.targetVersion}
+        />
       </section>
 
       <ExecutionLogView logs={job.executionLogs} initiallyTerminal={job.status === "IN_PROGRESS"} />

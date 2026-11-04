@@ -31,10 +31,13 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 A confirmed breaking change queues a job on its own, whenever impacts are recomputed.
 Each affected repository gets one `api_change` job, and only when the impact's confidence is `confirmed` and the change itself is `confirmed`.
 `behavior_changed` is recorded and never queued.
-The job points at the breaking change, stores no dependency name or version, and is left untouched if one already exists for that repository and change, including a job that `FAILED`.
+The job points at the breaking change.
+Both dependency columns stay empty, or both name the SDK the change requires.
+A job that already exists for that repository and change is left untouched, including a job that `FAILED`.
 Sooner effective dates run first.
 A change with no effective date runs last among API-change jobs, and dependency jobs have no queue priority, so they run before any of them.
-The worker always skips `upgrade` for an API-change job.
+The worker skips `upgrade` for an API-change job unless that job names the SDK package and version the change requires.
+That version is a minimum, so a repository already on it or a newer release is not downgraded.
 If the queue rejects the job, that job is marked `FAILED` with the queue error.
 
 ## High-level workflow
@@ -250,7 +253,9 @@ flowchart TD
 ```
 
 The phases above are a dependency job.
-An `api_change` job skips `upgrade`, and a failing baseline says the suite already fails before the migration.
+An `api_change` job skips `upgrade` unless it names that SDK.
+The named release is a minimum.
+A failing baseline says the suite already fails before the migration.
 
 Each phase is a fresh container from the same `synclab-sandbox` image, started with the phase name as its command.
 State passes between phases only through the shared `/workspace` volume: the repository checkout in `/workspace/repo` and small state files in `/workspace/state` (release notes, the last test output, and the last validation failure).
@@ -303,7 +308,10 @@ If it fails, the job fails straight away: the suite cannot verify a migration, a
 #### `upgrade`
 
 Upgrades the migrated dependency with the detected package manager (`server/sandbox/src/upgrade.ts`).
-- The exact target version is requested, so the suite runs against that version and not the newest one a range would allow.
+An API-change job runs this phase only when it names the SDK the change requires.
+That release is a minimum.
+The phase installs it only when the installed SDK is older, and leaves a repository already on that release or a newer one unchanged.
+- A dependency job requests the exact target version, so the suite runs against that version and not the newest one a range would allow.
 - The package stays in the `package.json` section it was declared in, and an exact pin stays exact; a leading `v` in the version is stripped.
   npm and pnpm save a range as `^<version>`; yarn saves what it is asked for, so with yarn a range becomes an exact pin.
 - If the package is not a direct dependency, or the version does not exist, the phase fails.
@@ -335,6 +343,13 @@ A failing run also drops any validation failure left by the previous attempt, si
 
 Runs after a test attempt passes, and only then, for both dependency jobs and API-change jobs.
 It loads every check module in `server/sandbox/src/validate/checks` and passes when none of them reports a problem.
+The typecheck runs only when the job names the SDK package and version the change requires (`dependencyName` and `targetVersion`).
+For a change found in a versioned Anthropic or OpenAI SDK changelog entry, the worker records that release's package and version when it queues the job.
+It also derives them when running an older queued job that has no SDK metadata.
+A change from an API release note, deprecation page, or OpenAPI spec keeps the installed SDK unless the job explicitly names a required version.
+A repository with no root `tsconfig.json` passes that check.
+The named version is a minimum.
+The check compiles the installed SDK when it is that release or newer, and fails without compiling when the installed SDK is older.
 The worker passes each check the JSON it builds in `server/api/src/worker/sandbox/validation-context/`, and a check adds its own keys in its own file there.
 A failed check is written to the volume and the next `refactor` attempt reads it.
 The container has no network and no token, so a check cannot call a provider.
@@ -532,7 +547,7 @@ erDiagram
 A dependency job is unique on `(repository_id, dependency_name, target_version)`, which is what makes those triggers idempotent.
 An `api_change` job is unique on `(repository_id, breaking_change_id)` and points at the change, because impact rows are replaced on every recompute.
 Deleting a breaking change deletes its jobs.
-A check in `server/api/prisma/migrations/20261021000000_api_change_jobs/migration.sql` requires a dependency job to have both dependency fields and no breaking change, and an API-change job to have a breaking change and neither dependency field.
+A check in `server/api/prisma/migrations/20261023000000_api_change_sdk/migration.sql` requires a dependency job to have both dependency fields and no breaking change, and an API-change job to have a breaking change with both dependency fields or neither.
 `execution_logs` is append-only and cascades on job deletion.
 `repository_scans.queued_for` holds the repository id only while a scan waits to start, so its unique index allows one waiting scan per repository.
 `api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
@@ -702,5 +717,6 @@ Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact a
 The sandbox edits a repository for a confirmed API change.
 How that job is prompted and published is in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
 Phase 9 re-scans the migrated tree after the suite passes, and rejects a migration that still uses the change being migrated or newly uses another retired or removed API.
-The OpenAI schema check in Phase 9 is built.
-Detecting when the change needs a newer SDK, typechecking the migrated tree, and Phase 10 are not built yet.
+It checks literal OpenAI requests against the new spec and typechecks a TypeScript repository against its installed SDK when the change names a required release.
+The Phase 9 benchmark proves a partial fix whose tests pass is rejected and the completed fix is accepted.
+Phase 10 remains.

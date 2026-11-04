@@ -157,7 +157,7 @@ erDiagram
 An API-change migration is a `migration_jobs` row that points at `breaking_change_id`, not at an impact.
 Impact rows are deleted and recreated on every recompute, so an impact id is not a stable target.
 The columns and the unique key per repository and change are in `server/api/prisma/schema.prisma`.
-The check that separates a dependency job from an API-change job is in `server/api/prisma/migrations/20261021000000_api_change_jobs/migration.sql`.
+The check that separates a dependency job from an API-change job is in `server/api/prisma/migrations/20261023000000_api_change_sdk/migration.sql`.
 
 ## Monitoring endpoints
 
@@ -285,7 +285,7 @@ An unknown change is `404`.
 
 The migration reuses the existing pipeline: `refactor` with the configured `LLM_PROVIDER`, the repository's own test suite, the retry loop that feeds failures back, and `publish`.
 The prompt gets the migration brief in `API_CHANGE`, and it does not name the dependency or target version.
-When the change also needs a newer SDK, the release notes for that version follow the brief.
+When the job names the SDK release the change requires, the release notes for that version follow the brief.
 Files come from the impact record instead of from the dependency's imports.
 
 The worker tells the sandbox phases which kind of job they are running through these environment variables:
@@ -295,7 +295,7 @@ The worker tells the sandbox phases which kind of job they are running through t
 | `MIGRATION_KIND` | `dependency` (the default) or `api_change`. |
 | `API_CHANGE` | The brief as JSON: `provider`, `kind`, `operation`, `field`, `replacement`, `effectiveAt` (`YYYY-MM-DD`), `evidence` and `sourceUrl`. The optional fields may be null. `behavior_changed` is refused, since it is reported and never migrated. |
 | `TARGET_FILES` | The impact's files as a JSON array of repository-relative paths, each normalized and inside the repository. |
-| `DEPENDENCY_NAME`, `TARGET_VERSION` | Required for a dependency job. For an API change, set both only when a newer SDK is required. `upgrade` throws unless both are set. |
+| `DEPENDENCY_NAME`, `TARGET_VERSION` | Required for a dependency job. For an API change, set both when the job names the SDK release the change requires, and leave both unset otherwise. `upgrade` throws unless both are set. |
 | `BRANCH_NAME` | The branch `publish` pushes. An API-change job uses the name in the root README. |
 
 `refactor` sends only the listed files that are regular files inside the checkout, and never follows a link repository code planted.
@@ -303,14 +303,14 @@ A listed file that cannot be sent fails the job before any model call, as the ro
 `publish` titles the commit `chore: adapt to <provider> <kind>` and the pull request `Adapt to <provider> <kind>`.
 The kind is written with spaces, and the field or the operation follows it when the change has one.
 Each title is a single line capped as in the root README, with newlines flattened, and the body keeps the full values.
-The body includes the source, the deadline (or `none announced`), an SDK upgrade when the change needs one, and the quoted evidence.
+The body includes the source, the deadline (or `none announced`), the SDK release the job requires (that release or newer) when it names one, and the quoted evidence.
 
 Passing tests is necessary but not enough, because a test suite rarely calls the real API.
 So a migration is also validated before `publish`:
 
 1. The scanner runs again on the migrated tree, and the impacted usage must be gone with no new use of anything retired or removed.
 2. For OpenAI, literal request objects are checked against the request schema of the new spec.
-3. For a TypeScript repository, the typecheck runs against the SDK version the change requires.
+3. For a TypeScript repository, the typecheck follows the root README's validate phase.
 
 A check that fails after the suite passes goes back into the retry loop with its reason, like a failing test.
 A live call to the provider is deliberately not part of validation.

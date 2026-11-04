@@ -84,6 +84,7 @@ describe('MigrationProcessor', () => {
     function setup(
       change: unknown = CHANGE,
       impact: unknown = { confidence: 'confirmed', files: ['src/chat.ts', 'src/summary.ts'] },
+      sdk: { name: string | null; version: string | null } | null = null,
     ) {
       jest.mocked(claimMigrationJob).mockResolvedValue({
         kind: 'claimed',
@@ -92,8 +93,8 @@ describe('MigrationProcessor', () => {
           kind: 'api_change',
           repositoryId: 'repo-1',
           breakingChangeId: CHANGE.id,
-          dependencyName: null,
-          targetVersion: null,
+          dependencyName: sdk?.name ?? null,
+          targetVersion: sdk?.version ?? null,
           repository: { fullName: 'acme/widgets', installationId: 1n },
         },
       } as never);
@@ -192,6 +193,90 @@ describe('MigrationProcessor', () => {
           status: JobStatus.COMPLETED,
           pullRequestUrl: 'https://github.com/acme/widgets/pull/9',
           errorMessage: null,
+        },
+      });
+    });
+
+    it('typechecks an API change against the SDK the job names', async () => {
+      const { processor, sandbox, job } = setup(CHANGE, undefined, {
+        name: '@anthropic-ai/sdk',
+        version: '0.60.0',
+      });
+
+      await processor.process(job);
+
+      const params = (sandbox.run.mock.calls[0] as unknown[])[1] as {
+        migration: { sdk?: { name: string; version: string } };
+        validationContext: string;
+      };
+      expect(params.migration.sdk).toEqual({ name: '@anthropic-ai/sdk', version: '0.60.0' });
+      expect(JSON.parse(params.validationContext)).toHaveProperty('typecheck', {
+        package: '@anthropic-ai/sdk',
+        version: '0.60.0',
+      });
+    });
+
+    it('uses the bracketed SDK release for a job queued before SDK metadata was recorded', async () => {
+      const versionedChange = {
+        ...CHANGE,
+        section:
+          'Changelog / [1.3.0](https://github.com/anthropics/anthropic-sdk-typescript/compare/sdk-v1.2.0...sdk-v1.3.0) (2026-10-23) / Features',
+        snapshot: {
+          source: { kind: 'sdk_changelog', url: CHANGE.snapshot.source.url },
+        },
+      };
+      const { processor, sandbox, job } = setup(versionedChange);
+
+      await processor.process(job);
+
+      const params = (sandbox.run.mock.calls[0] as unknown[])[1] as {
+        migration: { sdk?: { name: string; version: string } };
+        validationContext: string;
+      };
+      expect(params.migration.sdk).toEqual({ name: '@anthropic-ai/sdk', version: '1.3.0' });
+      expect(JSON.parse(params.validationContext)).toHaveProperty('typecheck', {
+        package: '@anthropic-ai/sdk',
+        version: '1.3.0',
+      });
+    });
+
+    it('uses a versioned SDK changelog for a job queued before SDK metadata was recorded', async () => {
+      const versionedChange = {
+        ...CHANGE,
+        section: 'Changelog / 0.123.0 (2026-09-01) / Features',
+        snapshot: {
+          source: { kind: 'sdk_changelog', url: CHANGE.snapshot.source.url },
+        },
+      };
+      const { processor, sandbox, job } = setup(versionedChange);
+
+      await processor.process(job);
+
+      const params = (sandbox.run.mock.calls[0] as unknown[])[1] as {
+        migration: { sdk?: { name: string; version: string } };
+        validationContext: string;
+      };
+      expect(params.migration.sdk).toEqual({ name: '@anthropic-ai/sdk', version: '0.123.0' });
+      expect(JSON.parse(params.validationContext)).toHaveProperty('typecheck', {
+        package: '@anthropic-ai/sdk',
+        version: '0.123.0',
+      });
+    });
+
+    it('fails for good when an API change names only half of an SDK', async () => {
+      const { processor, prisma, sandbox, job } = setup(CHANGE, undefined, {
+        name: '@anthropic-ai/sdk',
+        version: null,
+      });
+
+      await expect(processor.process(job)).rejects.toBeInstanceOf(UnrecoverableError);
+
+      expect(sandbox.run).not.toHaveBeenCalled();
+      expect(prisma.migrationJob.update).toHaveBeenCalledWith({
+        where: { id: 'job-1' },
+        data: {
+          status: JobStatus.FAILED,
+          errorMessage: expect.stringMatching(/both the package and the version/) as unknown,
         },
       });
     });

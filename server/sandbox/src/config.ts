@@ -57,8 +57,9 @@ const TargetFilesSchema = z
   .min(1);
 
 /**
- * An API change keeps the SDK the repository already has unless the change
- * needs a newer one, in which case the dependency to upgrade comes with it.
+ * An API change may carry the SDK release it requires.
+ * That release is a minimum, and it is the optional dependency.
+ * Without one, the repository keeps the SDK it already has.
  */
 export type Migration =
   | { kind: 'dependency'; dependency: DependencyTarget }

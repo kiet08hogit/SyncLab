@@ -16,6 +16,7 @@ import {
 } from '../common/constants';
 import { configuration, LLM_API_KEY_ENV, type Configuration } from '../config/configuration';
 import { ImpactConfidence } from '../impact/match';
+import { requiredSdk } from '../impact/required-sdk';
 import type { SandboxJobParams, StepLog } from './sandbox/sandbox.types';
 import { buildValidationContext } from './sandbox/validation-context';
 import { REMOVAL_KINDS, type RescanChange } from './sandbox/validation-context/rescan';
@@ -176,9 +177,25 @@ export class MigrationProcessor extends WorkerHost {
     const subject = slug(change.field ?? change.operation ?? change.kind)
       .slice(0, 60)
       .replace(/-+$/, '');
+    if (
+      (record.dependencyName && !record.targetVersion) ||
+      (!record.dependencyName && record.targetVersion)
+    ) {
+      throw new UnrecoverableError(
+        'An API change that names an SDK needs both the package and the version.',
+      );
+    }
+    const inferredSdk = requiredSdk({
+      provider: change.provider.slug,
+      sourceKind: change.snapshot.source.kind,
+      section: change.section,
+    });
+    const sdkName = record.dependencyName ?? inferredSdk?.name;
+    const sdkVersion = record.targetVersion ?? inferredSdk?.version;
     return {
       migration: {
         kind: 'api_change',
+        ...(sdkName && sdkVersion ? { sdk: { name: sdkName, version: sdkVersion } } : {}),
         change: {
           provider: change.provider.slug,
           kind: change.kind,

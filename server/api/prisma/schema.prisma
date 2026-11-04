@@ -25,7 +25,8 @@ model MigrationJob {
   repositoryId    String         @map("repository_id") @db.Uuid
   /// dependency or api_change.
   kind            String         @default("dependency") @db.VarChar(20)
-  /// Set for a dependency job only.
+  /// Set for a dependency job, and for an api_change job that names the SDK
+  /// the change requires. Both columns are set, or neither.
   dependencyName  String?        @map("dependency_name") @db.VarChar(255)
   targetVersion   String?        @map("target_version") @db.VarChar(50)
   /// Set for an api_change job only. Points at the change rather than its
@@ -41,7 +42,8 @@ model MigrationJob {
   breakingChange  BreakingChange? @relation(fields: [breakingChangeId], references: [id], onDelete: Cascade)
   executionLogs   ExecutionLog[]
 
-  @@unique([repositoryId, dependencyName, targetVersion])
+  /// Dependency jobs use a partial unique index in SQL because API-change jobs
+  /// can share one SDK version while each needs its own migration.
   @@unique([repositoryId, breakingChangeId])
   @@map("migration_jobs")
 }

@@ -60,12 +60,18 @@ export interface SandboxApiChange {
 }
 
 /**
- * An API change runs on the SDK the repository already has: nothing records
- * which SDK version a change needs yet, so it never upgrades.
+ * `sdk` is the required release when the job names one, and it is a minimum.
+ * The job stores that pair in its dependency columns.
+ * Without `sdk`, the repository keeps the SDK it already has.
  */
 export type SandboxMigration =
   | { kind: 'dependency'; dependencyName: string; targetVersion: string }
-  | { kind: 'api_change'; change: SandboxApiChange; files: string[] };
+  | {
+      kind: 'api_change';
+      change: SandboxApiChange;
+      files: string[];
+      sdk?: { name: string; version: string };
+    };
 
 export interface SandboxJobParams {
   repoUrl: string;

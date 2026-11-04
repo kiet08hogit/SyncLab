@@ -179,7 +179,7 @@ function describeMigration(migration: Migration): {
     `- Deadline: ${change.effectiveAt ?? 'none announced'}`,
     `- Source: ${change.sourceUrl}`,
     dependency &&
-      `- Upgrades \`${singleLine(dependency.name)}\` to \`${singleLine(dependency.version)}\`, which the change needs.`,
+      `- Requires \`${singleLine(dependency.name)}\` \`${singleLine(dependency.version)}\` or newer.`,
   ].filter(Boolean);
 
   return {

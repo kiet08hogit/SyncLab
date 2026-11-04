@@ -79,7 +79,7 @@ The design is in [[05 - Self-Maintaining API]], and the workflow is sketched in 
   1. Generalize `MigrationJob` with a `kind` (`dependency` or `api_change`) and nullable dependency fields, unique per repository and breaking change. The job points at `breakingChangeId`. An impact id is rebuilt on every recompute, so the job must not point at one.
   2. Build a migration brief from the change for the prompt, as described in [[05 - Self-Maintaining API]].
   3. Target the files from the impact record instead of the dependency's imports.
-  4. Skip `upgrade` unless the change needs a newer SDK, and then reuse the existing upgrade step.
+  4. Skip `upgrade` unless the job names the SDK the change requires, and then reuse the existing upgrade step.
   5. Run the existing `refactor` and `test` loop with the configured `LLM_PROVIDER`, then `publish` on the API-change branch named in the root README, with the source and deadline in the pull request body.
   6. Add benchmark cases for both SDKs: a retired model, a removed parameter, and a replaced endpoint.
 - **Done when:** the benchmark runner passes the new API-change cases end to end.
@@ -90,7 +90,7 @@ The design is in [[05 - Self-Maintaining API]], and the workflow is sketched in 
   1. Keep the baseline run and the repository's own test suite as the first gate.
   2. Re-scan the migrated tree: the impacted usage must be gone, and nothing retired or removed may be newly used.
   3. Check literal OpenAI request objects against the request schema of the new spec.
-  4. Typecheck TypeScript repositories against the SDK version the change requires.
+  4. Typecheck TypeScript repositories as the root README's validate phase describes.
   5. Feed a failed check back into the retry loop with its reason.
   6. Keep live provider calls out of validation, since they would run repository code with a network and a key.
 - **Done when:** a benchmark case whose tests pass but which still sends a retired model ID is rejected and retried.

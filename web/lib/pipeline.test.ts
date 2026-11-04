@@ -154,6 +154,38 @@ describe("pipelineStages for an API change", () => {
   });
 });
 
+describe("pipelineStages for an API change that names an SDK", () => {
+  const sdk = { dependencyName: "@anthropic-ai/sdk", targetVersion: "1.3.0" };
+  const view = (steps: LogStep[], status: JobStatus) => pipelineStages(steps, status, "api_change", sdk);
+
+  it("keeps the changelog and upgrade stages", () => {
+    expect(view([], "QUEUED").map((stage) => stage.label)).toEqual([
+      "Clone",
+      "Changelog",
+      "Install",
+      "Baseline",
+      "Upgrade",
+      "Refactor",
+      "Test",
+      "Pull request",
+    ]);
+  });
+
+  it("fails at upgrade when the upgrade fails after the baseline passed", () => {
+    const steps: LogStep[] = ["STARTED", "CLONE", "CHANGELOG", "INSTALL", "BASELINE", "UPGRADE", "FAILED"];
+    expect(describePipeline(view(steps, "FAILED"), "FAILED")).toBe("Failed at upgrade (stage 5 of 8)");
+  });
+
+  it("drops changelog and upgrade when either dependency column is missing", () => {
+    const steps: LogStep[] = ["STARTED", "CLONE", "CHANGELOG", "INSTALL", "BASELINE", "UPGRADE", "FAILED"];
+    const partial = pipelineStages(steps, "FAILED", "api_change", {
+      dependencyName: "@anthropic-ai/sdk",
+      targetVersion: null,
+    });
+    expect(describePipeline(partial, "FAILED")).toBe("Failed at baseline (stage 3 of 6)");
+  });
+});
+
 describe("latestRunDuration", () => {
   const at = (minute: number, second = 0) => `2026-10-16T10:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}Z`;
   const log = (step: LogStep, minute: number, second = 0) => ({ step, createdAt: at(minute, second) });

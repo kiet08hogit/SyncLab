@@ -4,12 +4,23 @@ import { ApiMigrationsService, priorityFor } from './api-migrations.service';
 const SOON = new Date('2026-01-05T00:00:00Z');
 const LATER = new Date('2026-06-30T00:00:00Z');
 
-function impact(repositoryId: string, breakingChangeId: string, effectiveAt: Date | null = SOON) {
+function impact(
+  repositoryId: string,
+  breakingChangeId: string,
+  effectiveAt: Date | null = SOON,
+  sourceKind = 'deprecations',
+  section: string | null = null,
+) {
   return {
     repositoryId,
     breakingChangeId,
     repository: { fullName: `acme/${repositoryId}` },
-    breakingChange: { effectiveAt },
+    breakingChange: {
+      effectiveAt,
+      section,
+      provider: { slug: 'anthropic' },
+      snapshot: { source: { kind: sourceKind } },
+    },
   };
 }
 
@@ -118,6 +129,91 @@ describe('ApiMigrationsService', () => {
         { ...MIGRATION_JOB_OPTIONS, priority: priorityFor(SOON) },
       ],
     ]);
+  });
+
+  it('records the bracketed SDK release, not the previous tag in its compare URL', async () => {
+    const { service, prisma } = setup([
+      impact(
+        'repo-1',
+        'change-1',
+        SOON,
+        'sdk_changelog',
+        'Changelog / [1.3.0](https://github.com/anthropics/anthropic-sdk-typescript/compare/sdk-v1.2.0...sdk-v1.3.0) (2026-10-23) / Features',
+      ),
+    ]);
+
+    await service.queueConfirmedImpacts();
+
+    expect(prisma.migrationJob.createManyAndReturn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            dependencyName: '@anthropic-ai/sdk',
+            targetVersion: '1.3.0',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('records the version required by an SDK changelog on the queued job', async () => {
+    const { service, prisma } = setup([
+      impact(
+        'repo-1',
+        'change-1',
+        SOON,
+        'sdk_changelog',
+        'Changelog / 0.123.0 (2026-09-01) / Features',
+      ),
+    ]);
+
+    await service.queueConfirmedImpacts();
+
+    expect(prisma.migrationJob.createManyAndReturn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            dependencyName: '@anthropic-ai/sdk',
+            targetVersion: '0.123.0',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('queues separate changes from the same SDK release for one repository', async () => {
+    const section = 'Changelog / 0.123.0 (2026-09-01) / Features';
+    const { service, prisma, queue } = setup([
+      impact('repo-1', 'change-1', SOON, 'sdk_changelog', section),
+      impact('repo-1', 'change-2', SOON, 'sdk_changelog', section),
+    ]);
+
+    await service.queueConfirmedImpacts();
+
+    const [args] = prisma.migrationJob.createManyAndReturn.mock.calls[0] as [
+      {
+        data: Array<{ breakingChangeId: string; dependencyName?: string; targetVersion?: string }>;
+      },
+    ];
+    expect(
+      args.data.map(({ breakingChangeId, dependencyName, targetVersion }) => ({
+        breakingChangeId,
+        dependencyName,
+        targetVersion,
+      })),
+    ).toEqual([
+      {
+        breakingChangeId: 'change-1',
+        dependencyName: '@anthropic-ai/sdk',
+        targetVersion: '0.123.0',
+      },
+      {
+        breakingChangeId: 'change-2',
+        dependencyName: '@anthropic-ai/sdk',
+        targetVersion: '0.123.0',
+      },
+    ]);
+    expect(queue.add).toHaveBeenCalledTimes(2);
   });
 
   it('never queues a repository and change that already have a job, whatever its status', async () => {

@@ -35,7 +35,7 @@ export const PIPELINE_STAGES = [
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 /**
- * An API change keeps the SDK the repository has and carries its own brief,
+ * An API change that does not name an SDK keeps the repository's packages,
  * so it reads no release notes and runs no upgrade.
  */
 export const API_CHANGE_PIPELINE_STAGES: readonly PipelineStage[] = PIPELINE_STAGES.filter(
@@ -75,7 +75,7 @@ export interface MigrationJob {
   id: string;
   repositoryId: string;
   kind: MigrationKind;
-  /** Set for a dependency job only. */
+  /** Set for a dependency job, and for an api_change job that names its SDK. Both or neither. */
   dependencyName: string | null;
   targetVersion: string | null;
   breakingChangeId: string | null;

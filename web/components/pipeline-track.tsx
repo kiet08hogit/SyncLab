@@ -8,6 +8,8 @@ interface TrackProps {
   steps: LogStep[];
   status: JobStatus;
   kind?: MigrationKind;
+  dependencyName?: string | null;
+  targetVersion?: string | null;
 }
 
 const SEGMENT: Record<StageState, string> = {
@@ -17,10 +19,17 @@ const SEGMENT: Record<StageState, string> = {
   pending: "bg-foreground/12",
 };
 
+function trackStages({ steps, status, kind, dependencyName, targetVersion }: TrackProps) {
+  return pipelineStages(steps, status, kind, {
+    dependencyName: dependencyName ?? null,
+    targetVersion: targetVersion ?? null,
+  });
+}
+
 /** One segment per sandbox stage. Sized for a table cell. */
-export function PipelineTrackCompact({ steps, status, kind }: TrackProps) {
-  const stages = pipelineStages(steps, status, kind);
-  const description = describePipeline(stages, status);
+export function PipelineTrackCompact(props: TrackProps) {
+  const stages = trackStages(props);
+  const description = describePipeline(stages, props.status);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -61,13 +70,13 @@ const STATE_TEXT: Record<StageState, string> = {
  * half-width dashboard card is as narrow as a phone. Below 28rem eight labels
  * collide, so they give way to a single caption naming the current stage.
  */
-export function PipelineTrack({ steps, status, kind }: TrackProps) {
-  const stages = pipelineStages(steps, status, kind);
+export function PipelineTrack(props: TrackProps) {
+  const stages = trackStages(props);
 
   return (
     <div className="@container">
       <ol
-        aria-label={describePipeline(stages, status)}
+        aria-label={describePipeline(stages, props.status)}
         className="grid"
         style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
       >
@@ -118,7 +127,7 @@ export function PipelineTrack({ steps, status, kind }: TrackProps) {
         ))}
       </ol>
       <p aria-hidden className="mt-3 text-center text-xs text-muted-foreground @md:hidden">
-        {describePipeline(stages, status)}
+        {describePipeline(stages, props.status)}
       </p>
     </div>
   );
