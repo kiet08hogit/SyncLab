@@ -547,7 +547,7 @@ erDiagram
 A dependency job is unique on `(repository_id, dependency_name, target_version)`, which is what makes those triggers idempotent.
 An `api_change` job is unique on `(repository_id, breaking_change_id)` and points at the change, because impact rows are replaced on every recompute.
 Deleting a breaking change deletes its jobs.
-A check in `server/api/prisma/migrations/20261021000000_api_change_jobs/migration.sql` requires a dependency job to have both dependency fields and no breaking change, and an API-change job to have a breaking change and neither dependency field.
+A check in `server/api/prisma/migrations/20261023000000_api_change_sdk/migration.sql` requires a dependency job to have both dependency fields and no breaking change, and an API-change job to have a breaking change with both dependency fields or neither.
 `execution_logs` is append-only and cascades on job deletion.
 `repository_scans.queued_for` holds the repository id only while a scan waits to start, so its unique index allows one waiting scan per repository.
 `api_usages` cascades on scan deletion, and a repository's current usage is that of its newest completed scan.
