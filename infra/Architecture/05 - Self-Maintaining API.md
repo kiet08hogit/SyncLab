@@ -1,8 +1,8 @@
 # 05 - Self-Maintaining API
 
-SyncLab today reacts to a dependency release: Dependabot or Renovate opens a pull request, and SyncLab migrates the code that uses the package.
-This extension makes SyncLab react to the API itself.
-When an external API provider ships a breaking change, SyncLab finds every connected repository that calls the affected part of the API, migrates the calls, proves the result, and opens a pull request.
+SyncLab reacts to dependency releases and to confirmed breaking changes in watched provider APIs.
+For an API change, it scans connected repositories, identifies calls to the affected part of the API, migrates confirmed impacts, validates the result, and opens a pull request.
+The loop does not yet maintain SyncLab's own repository automatically; connecting it and proving a self-migration is the Phase 10 goal.
 The rollout is Phases 5 to 10 in [[04 - Phased Rollout]].
 
 ![[Self-Maintaining API Workflow.excalidraw]]
@@ -59,7 +59,7 @@ That keeps an LLM from inventing a breaking change.
 | `behavior_changed` | Same request, different response semantics | no, reported only |
 
 Changes from the spec diff and the deprecation tables are confirmed automatically.
-Changes from a release-note or changelog classification start as `detected` and need a confirm from the API or the dashboard, unless a provider is configured to trust them.
+Changes from a release-note or changelog classification start as `detected` and need an admin confirmation from the API or dashboard.
 
 ## Repository scanning
 

@@ -15,6 +15,12 @@ These are common instructions for Kun's agents across all scenarios.
   This makes sure you find the real problem so your fix will actually solve it.
 - When end-to-end testing a product, be picky about the UI you see and be obsessed with pixel perfection.
   If something clearly looks off, even if it is not directly related to what you are working on, try to get it fixed along the way.
+- When working on UI, choose and use the skill that best fits the specific issue: `impeccable`, `ui-ux-pro-max`, or [apple-design](https://github.com/emilkowalski/skills/blob/main/skills/apple-design/SKILL.md).
+- After implementing code, run a code review, a security review, and relevant end-to-end tests before reporting completion.
+  In Claude Code CLI, review the local diff and run `/security-review`; when a pull request exists and the plugin is installed, also run `/code-review`.
+  In Codex, use `/review-bugbot` and `/review-security`, and use the `playwright-cli` skill to test affected user flows end to end.
+  In Cursor CLI, use `/review-bugbot` and `/review-security`, and use the `playwright-cli` skill to test affected user flows end to end.
+  Address review findings and rerun affected checks.
 - Apply that same high standard to engineering excellence: lint, test failures, and test flakiness.
   If you see one, even if it is not caused by what you are working on right now, still get it fixed.
 - Use a worktree when dealing with massive projects with slow build/compile times, running concurrent tests across different branches, or using parallel AI coding agents (like Claude Code or Cursor) that require isolated file workspaces.

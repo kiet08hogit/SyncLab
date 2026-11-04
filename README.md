@@ -1,11 +1,13 @@
 # SyncLab
 
-SyncLab is an autonomous API migration agent.
+SyncLab is an autonomous dependency and external API migration agent.
 When a dependency ships a breaking release, SyncLab clones the affected repository, upgrades the dependency, rewrites the code that uses it with an LLM, proves the change with the repository's own test suite and a validation pass, and opens a pull request.
-A confirmed breaking change in a watched provider API also queues a migration job for each repository it is confirmed to affect.
+It also scans connected repositories for Anthropic and OpenAI API usage, watches those providers for breaking changes, and queues a migration for each repository a confirmed change affects.
+SyncLab's own repository can be connected to this loop, but automatic self-maintenance is still a Phase 10 goal.
 
 The untrusted repository code never runs on the orchestrating server.
-Every step that touches it runs in a short-lived, locked-down Docker container, and the only container that executes repository code has no network and no credentials.
+Every step that touches it runs in a short-lived, locked-down Docker container.
+Install and upgrade may execute package scripts with registry network access but no credentials; the test suite runs with neither network nor credentials.
 
 A web dashboard in `web/` shows every migration job, its progress through the pipeline, and its execution log.
 
@@ -22,22 +24,26 @@ A web dashboard in `web/` shows every migration job, its progress through the pi
 
 ## How it works in one minute
 
-1. A trigger arrives: a signed `pull_request` webhook for a Dependabot or Renovate npm update, or an authenticated `POST /migrations` request.
-2. The **gateway** records a `MigrationJob` in PostgreSQL and enqueues it on a BullMQ queue in Redis.
-3. A **worker** claims the job and, for a dependency migration, runs the **sandbox** image as a sequence of containers over one shared Docker volume:
-   `prepare` (clone, fetch release notes), a validation baseline, `install`, a baseline `test` on the current version, `upgrade`, then `refactor`, `test` and `validate` in a loop, then `publish`.
-4. If the tests and validation pass, `publish` pushes a branch and opens a pull request, and the job is marked `COMPLETED` with the PR URL.
+1. A dependency job starts from a signed Dependabot or Renovate `pull_request` webhook or an authenticated `POST /migrations` request.
+   An API-change job starts after a repository scan and a provider-source poll show that a confirmed breaking change affects that repository.
+2. The **gateway** records dependency jobs and queues repository scans after installation, default-branch pushes, or a manual scan request.
+   The **API monitor** polls Anthropic and OpenAI sources on a schedule or by request, records changed snapshots, and identifies breaking changes.
+3. **Impact analysis** matches confirmed changes against each repository's latest completed scan.
+   Only confirmed, migratable impacts create `api_change` jobs; possible impacts and `behavior_changed` findings remain visible without starting a migration.
+4. A **worker** claims a migration job and runs short-lived sandbox containers over one shared Docker volume:
+   `prepare`, a validation baseline, `install`, a baseline `test`, then `refactor`, `test`, and `validate` in a loop, followed by `publish`.
+   Dependency jobs run `upgrade` before the loop; API-change jobs run it when a required SDK release is recorded.
+5. If tests and validation pass, `publish` pushes a branch and opens a pull request, and the job is marked `COMPLETED` with the PR URL.
 
 A confirmed breaking change queues a job on its own, whenever impacts are recomputed.
 Each affected repository gets one `api_change` job, and only when the impact's confidence is `confirmed` and the change itself is `confirmed`.
 `behavior_changed` is recorded and never queued.
-The job points at the breaking change.
-Both dependency columns stay empty, or both name the SDK the change requires.
+The job points at the breaking change and stores an SDK package and minimum version only when the change requires one.
 A job that already exists for that repository and change is left untouched, including a job that `FAILED`.
 Sooner effective dates run first.
 A change with no effective date runs last among API-change jobs, and dependency jobs have no queue priority, so they run before any of them.
-The worker skips `upgrade` for an API-change job unless that job names the SDK package and version the change requires.
-That version is a minimum, so a repository already on it or a newer release is not downgraded.
+The worker skips `upgrade` for an API-change job unless it names the SDK package and minimum version the change requires.
+A repository already on that release or a newer one is not downgraded.
 If the queue rejects the job, that job is marked `FAILED` with the queue error.
 
 ## High-level workflow
@@ -48,49 +54,65 @@ If the queue rejects the job, that job is marked `FAILED` with the queue error.
 flowchart LR
     subgraph Triggers
         GH["Dependabot / Renovate<br/>pull_request webhook"]
-        API["POST /migrations<br/>(user or service token)"]
+        API["POST /migrations"]
+        PUSH["Installation or<br/>default-branch push"]
+        POLL["Scheduled or<br/>manual provider poll"]
     end
 
     subgraph Server["server/api (NestJS)"]
         GW["Gateway<br/>APP_ROLE=gateway"]
-        WK["Worker(s)<br/>APP_ROLE=worker"]
+        SC["Scan worker"]
+        MON["API monitor"]
+        IMP["Impact analysis"]
+        WK["Migration worker"]
     end
 
-    PG[("PostgreSQL<br/>repositories<br/>migration_jobs<br/>execution_logs")]
-    RD[("Redis<br/>BullMQ migration-queue")]
+    PG[("PostgreSQL<br/>jobs, scans, usages,<br/>sources, changes, impacts")]
+    RD[("Redis<br/>BullMQ scan, monitor,<br/>migration queues")]
 
     subgraph Docker["Docker host"]
         VOL[("Named volume<br/>/workspace")]
-        P["prepare"]
-        I["install, upgrade<br/>no token"]
-        R["refactor"]
-        T["test<br/>no network"]
-        PB["publish"]
+        S["clone, scan<br/>API usage"]
+        C["classify<br/>release notes"]
+        M["prepare, install, upgrade when required,<br/>refactor, test, validate, publish"]
     end
 
     LLM["Gemini or Claude<br/>via LangChain.js and the Anthropic SDK"]
-    NPM["npm registry"]
-    REPO["Target GitHub repository"]
+    SOURCES["Anthropic and OpenAI<br/>change sources"]
+    REPO["Connected GitHub repositories"]
 
     GH --> GW
     API --> GW
-    GW -->|"upsert repo, create job"| PG
-    GW -->|"enqueue"| RD
-    RD -->|"dequeue"| WK
-    WK <-->|"claim, status, logs"| PG
-    WK -->|"Docker Engine API"| Docker
-    P & I & R & T & PB --- VOL
-    P -->|"clone"| REPO
-    I -->|"install and upgrade"| NPM
-    R -->|"rewrite files"| LLM
-    PB -->|"push branch, open PR"| REPO
+    PUSH --> GW
+    POLL --> RD
+    GW -->|"queue dependency job or scan"| RD
+    RD --> SC
+    RD --> WK
+    RD --> MON
+    SC --> S
+    S --> REPO
+    SC -->|"store usages"| PG
+    MON --> SOURCES
+    MON --> C
+    C --> LLM
+    MON -->|"store changes"| PG
+    PG --> IMP
+    IMP -->|"queue confirmed impacts"| RD
+    IMP --> PG
+    WK --> M
+    M --> REPO
+    M --> LLM
+    S --- VOL
+    M --- VOL
+    GW --> PG
+    WK --> PG
 ```
 
-The gateway and worker are the same NestJS application started in different roles.
+The gateway and workers are the same NestJS application started in different roles.
 `APP_ROLE=all` (the default) runs both in one process.
-Running one gateway and several `APP_ROLE=worker` processes lets jobs run in parallel, because every worker pulls from the same Redis queue.
+Running one gateway and several `APP_ROLE=worker` processes lets jobs run in parallel across the scan, monitor, and migration queues.
 
-### End-to-end sequence
+### Dependency migration sequence
 
 ```mermaid
 sequenceDiagram
@@ -145,11 +167,55 @@ sequenceDiagram
     end
 ```
 
+### API-change migration sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant GH as GitHub
+    participant GW as Gateway
+    participant SC as Scan worker
+    participant MON as API monitor
+    participant DB as PostgreSQL
+    participant IMP as Impact analysis
+    participant Q as Redis (BullMQ)
+    participant WK as Migration worker
+    participant SB as Sandbox containers
+
+    GH->>GW: installation or default-branch push webhook
+    GW->>Q: enqueue repository scan
+    Q->>SC: deliver scan
+    SC->>SB: clone with token, then scan without network or credentials
+    SC->>DB: store API usages from latest completed scan
+
+    MON->>MON: scheduled or manual provider-source poll
+    MON->>DB: store changed snapshot and breaking-change records
+    Note over MON,DB: Spec and deprecation changes are confirmed automatically; classified prose needs confirmation.
+    SC->>IMP: recompute impacts after scan
+    MON->>IMP: recompute auto-confirmed changes
+    opt classified prose is confirmed by an admin
+        GW->>IMP: recompute confirmed change
+    end
+    IMP->>DB: recompute impacted repositories and files
+    IMP->>Q: enqueue new confirmed, migratable impacts
+
+    Q->>WK: deliver api_change job
+    WK->>DB: recheck change and latest confirmed impact
+    WK->>SB: prepare, baseline, install, upgrade if required, refactor, test, validate
+    alt tests and validation pass
+        WK->>SB: publish branch and pull request
+        WK->>DB: mark COMPLETED with pull request URL
+    else migration cannot be verified
+        WK->>DB: record failure and logs
+    end
+```
+
 ## Low-level workflow
 
 ### 1. Gateway intake
 
 Code: `server/api/src/gateway/`.
+This diagram covers dependency-job intake; installation and push scans and provider monitoring are described in the API-change sequence above.
 
 ```mermaid
 flowchart TD
@@ -700,7 +766,7 @@ See [`benchmarks/results/report.md`](benchmarks/results/report.md) for the metho
 
 Known gaps in the current implementation:
 
-- Automatic migrations need Dependabot or Renovate running on the repository; SyncLab does not watch npm itself.
+- Automatic dependency migrations need Dependabot or Renovate running on the repository; SyncLab does not watch npm itself.
   It opens its own pull request next to the bot's rather than pushing onto the bot's branch.
 - Install scripts run without the GitHub token, so dependencies installed from private GitHub repositories or private registries cannot be fetched.
 - A repository whose suite already fails is not migrated at all; there is no way yet to accept a known set of failing tests.
@@ -712,11 +778,8 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 
-After that, Phases 5 to 10 make SyncLab self-maintaining for external APIs.
-Phase 5 (the API usage registry), Phase 6 (change monitoring), Phase 7 (impact analysis), and the Phase 8 queue and dashboard are built.
-The sandbox edits a repository for a confirmed API change.
-How that job is prompted and published is in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md).
-Phase 9 re-scans the migrated tree after the suite passes, and rejects a migration that still uses the change being migrated or newly uses another retired or removed API.
-It checks literal OpenAI requests against the new spec and typechecks a TypeScript repository against its installed SDK when the change names a required release.
+The external API-change workflow in Phases 5 to 9 is built: it scans connected repositories, monitors provider sources, analyzes impacts, migrates confirmed changes, and validates the result.
+Phase 9 rescans the migrated tree after the suite passes, checks literal OpenAI requests against the new spec, and typechecks a TypeScript repository when the change names a required SDK release.
 The Phase 9 benchmark proves a partial fix whose tests pass is rejected and the completed fix is accepted.
-Phase 10 remains.
+Phase 10 will connect SyncLab's own repository and prove the loop opens a migration pull request on SyncLab itself.
+The API-change design and remaining steps are in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md) and [`infra/Architecture/04 - Phased Rollout.md`](infra/Architecture/04%20-%20Phased%20Rollout.md).
