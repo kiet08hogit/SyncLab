@@ -42,8 +42,10 @@ export async function exists(filePath: string): Promise<boolean> {
 
 /**
  * npm runs as a child process, so the registry has to be a real server. It
- * serves a single package with versions 1.0.0, 2.0.0 and 2.1.0, each with a
- * postinstall script that records which version ran it.
+ * serves a single package with versions 1.0.0, 2.0.0 and 2.1.0 with a
+ * postinstall script, plus scriptless 3.0.0 for testing Yarn's zip cache.
+ * 3.0.0 also declares a peer dependency, so Yarn Plug'n'Play stores that
+ * install under a virtual locator.
  */
 export async function startRegistry(root: string): Promise<{ server: Server; url: string }> {
   const tarballs = new Map<string, Buffer>();
@@ -71,25 +73,37 @@ export async function startRegistry(root: string): Promise<{ server: Server; url
 
   const versions: Record<string, unknown> = {};
   // 2.1.0 is newer than every target the specs ask for, so a range request
-  // would visibly install it instead of the exact target.
-  for (const version of ['1.0.0', '2.0.0', '2.1.0']) {
-    const scripts = {
+  // would visibly install it instead of the exact target. Scriptless 3.0.0
+  // declares a peer so Yarn Plug'n'Play gives that zip a virtual locator.
+  for (const version of ['1.0.0', '2.0.0', '2.1.0', '3.0.0']) {
+    const scripts = version === '3.0.0' ? undefined : {
       postinstall: `node -e "require('fs').writeFileSync('${POSTINSTALL_MARKER}', '${version}')"`,
+    };
+    const peerDependencies = version === '3.0.0' ? { react: '^18.0.0' } : undefined;
+    const packageJson = {
+      name: DEPENDENCY,
+      version,
+      ...(scripts ? { scripts } : {}),
+      ...(peerDependencies ? { peerDependencies } : {}),
     };
     const packageDir = path.join(root, `pkg-${version}`, 'package');
     await fs.mkdir(packageDir, { recursive: true });
-    await fs.writeFile(path.join(packageDir, 'package.json'), JSON.stringify({ name: DEPENDENCY, version, scripts }));
+    await fs.writeFile(path.join(packageDir, 'package.json'), JSON.stringify(packageJson));
     await fs.writeFile(path.join(packageDir, 'index.js'), `module.exports = '${version}';\n`);
     const tarballPath = path.join(root, `${DEPENDENCY}-${version}.tgz`);
-    await runOrThrow('tar', ['-czf', tarballPath, '-C', path.dirname(packageDir), 'package']);
+    // ustar without Apple pax metadata. macOS tar's default archive makes Yarn Classic
+    // reject the tarball as corrupt, so the registry would not be installable there.
+    await runOrThrow(
+      'tar',
+      ['--format', 'ustar', '-czf', tarballPath, '-C', path.dirname(packageDir), 'package'],
+      { env: { COPYFILE_DISABLE: '1' } },
+    );
     const tarball = await fs.readFile(tarballPath);
     const tarballUrl = `/tarballs/${DEPENDENCY}-${version}.tgz`;
     tarballs.set(tarballUrl, tarball);
     versions[version] = {
-      name: DEPENDENCY,
-      version,
-      scripts,
-      hasInstallScript: true,
+      ...packageJson,
+      hasInstallScript: Boolean(scripts),
       dist: {
         tarball: `${url}${tarballUrl}`,
         shasum: createHash('sha1').update(tarball).digest('hex'),
