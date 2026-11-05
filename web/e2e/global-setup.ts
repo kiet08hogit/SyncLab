@@ -120,7 +120,7 @@ export default async function globalSetup() {
       GITHUB_APP_SLUG: "synclab-e2e",
       SESSION_SECRET: "e2e-session-secret",
     };
-    run(NEXT, ["build"], { cwd: WEB_DIR, env: webEnv });
+    run(NEXT, ["build", "--webpack"], { cwd: WEB_DIR, env: webEnv });
 
     stub = await startStub(STUB_PORT);
     children.push(
@@ -132,6 +132,9 @@ export default async function globalSetup() {
         APP_ROLE: "gateway",
         GITHUB_API_URL: githubUrl,
         GITHUB_TOKEN: "e2e-installation-token",
+        GITHUB_APP_ID: "",
+        GITHUB_PRIVATE_KEY: "",
+        GITHUB_PRIVATE_KEY_PATH: "",
         MONITOR_ADMIN_LOGINS: LOGIN,
       }, `http://127.0.0.1:${API_PORT}/`),
     );

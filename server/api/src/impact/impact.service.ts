@@ -98,6 +98,49 @@ export class ImpactService {
     };
   }
 
+  /** Current confirmed impacts for one repository, including the migration they started. */
+  async listForRepository(githubRepoId: bigint) {
+    const repository = await this.prisma.repository.findUnique({
+      where: { githubRepoId },
+      select: { id: true, fullName: true },
+    });
+    if (!repository) return null;
+
+    const rows = await this.prisma.apiImpact.findMany({
+      where: { repositoryId: repository.id },
+      include: {
+        breakingChange: {
+          include: {
+            provider: { select: { slug: true } },
+            migrationJobs: {
+              where: { repositoryId: repository.id },
+              select: { id: true, status: true, pullRequestUrl: true },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { breakingChange: { detectedAt: 'desc' } },
+    });
+
+    return {
+      fullName: repository.fullName,
+      impacts: rows.map((row) => ({
+        changeId: row.breakingChangeId,
+        provider: row.breakingChange.provider.slug,
+        kind: row.breakingChange.kind,
+        operation: row.breakingChange.operation,
+        field: row.breakingChange.field,
+        replacement: row.breakingChange.replacement,
+        effectiveAt: row.breakingChange.effectiveAt?.toISOString().slice(0, 10) ?? null,
+        detectedAt: row.breakingChange.detectedAt.toISOString(),
+        confidence: row.confidence,
+        files: row.files,
+        migration: row.breakingChange.migrationJobs[0] ?? null,
+      })),
+    };
+  }
+
   private async recompute(
     scope: { repositoryId?: string; changeId?: string },
     tx?: Db,

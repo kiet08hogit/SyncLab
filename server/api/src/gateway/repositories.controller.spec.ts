@@ -25,13 +25,17 @@ function setup() {
     }),
   };
   const prisma = { repository: { findUnique: jest.fn().mockResolvedValue(null) } };
+  const impact = {
+    listForRepository: jest.fn().mockResolvedValue({ fullName: 'acme/api', impacts: [] }),
+  };
   const controller = new RepositoriesController(
     {} as never,
     scans as never,
     github as never,
     prisma as never,
+    impact as never,
   );
-  return { controller, scans, github, prisma };
+  return { controller, scans, github, prisma, impact };
 }
 
 describe('RepositoriesController', () => {
@@ -100,6 +104,19 @@ describe('RepositoriesController', () => {
       scans.usageFor.mockResolvedValue(undefined);
 
       await expect(controller.apiUsage(USER, '7')).rejects.toThrow('has not been scanned');
+    });
+  });
+
+  describe('GET :githubRepoId/api-impact', () => {
+    it('returns impacts only for a repository the caller can reach', async () => {
+      const { controller, impact } = setup();
+      await expect(controller.apiImpact(USER, '7')).resolves.toEqual({
+        fullName: 'acme/api',
+        impacts: [],
+      });
+      expect(impact.listForRepository).toHaveBeenCalledWith(7n);
+      await expect(controller.apiImpact(USER, '8')).rejects.toBeInstanceOf(NotFoundException);
+      expect(impact.listForRepository).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -485,6 +485,7 @@ If no result line appears (for example, the container was killed), the raw log b
 | `/dashboard` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
 | `/jobs/[id]` | One job's pipeline track, failure reason, and execution log. The stages, how an API-change job is titled, and which jobs can be retried are in [`web/README.md`](web/README.md#pages) |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
+| `/repositories/[id]` | Scanned API calls, current impacts, migration links, and a manual scan action for one GitHub repository |
 | `/api-changes` | The API change monitor's watched Anthropic and OpenAI sources and the breaking changes it found, with a button to check every source now |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
@@ -492,6 +493,19 @@ If no result line appears (for example, the container was killed), the raw log b
 Signed in, every page reads the API with the user's own GitHub token (`GET /migrations`, `/migrations/counts`, `/migrations/:id`, `/repositories`), and the API limits each answer to that user's repositories.
 Signed out, the pages show sample data shaped like the API's answers, with a prompt to sign in.
 See [`web/README.md`](web/README.md) for the environment variables that enable sign-in.
+
+## API monitoring metrics
+
+`GET /api-metrics` returns unique changes detected, distinct repositories with current impacts, and average seconds from detection to successful API migration PR publication.
+Repository counts and PR timings respect the caller's installation access.
+The change total includes detected, confirmed, and dismissed records.
+A missing timing is returned as `null`, with a zero sample count.
+Timings use the first successful PR execution log and count each migration job once.
+
+`GET /metrics` exposes the same durable values in Prometheus text format as `synclab_api_changes_detected`, `synclab_api_repositories_impacted`, and the `synclab_api_detection_to_pr_seconds` summary (`_sum` and `_count`).
+Configure the scraper to send `MIGRATIONS_API_TOKEN` as a bearer token for all repositories.
+
+API migrations install and test each package containing impacted files, including repositories such as SyncLab that have independent nested packages and no root `package.json`.
 
 ## Data model
 

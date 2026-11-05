@@ -10,7 +10,8 @@ import { SampleDataNotice } from "@/components/sample-data-notice";
 import { TableSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getApiChanges, getApiProviders, type MonitorSource } from "@/lib/api-changes";
+import { getApiChanges, getApiMetrics, getApiProviders, type MonitorSource } from "@/lib/api-changes";
+import { formatDuration } from "@/lib/format";
 import {
   API_CHANGE_KINDS,
   API_CHANGE_STATUSES,
@@ -82,7 +83,7 @@ async function Monitor({ searchParams }: Pick<PageProps<"/api-changes">, "search
   };
   const filtered = Boolean(filter.provider || filter.status || filter.kind);
 
-  const [providers, changes] = await Promise.all([getApiProviders(), getApiChanges(filter)]);
+  const [providers, changes, metrics] = await Promise.all([getApiProviders(), getApiChanges(filter), getApiMetrics()]);
 
   return (
     <>
@@ -93,6 +94,30 @@ async function Monitor({ searchParams }: Pick<PageProps<"/api-changes">, "search
         />
       )}
       {providers.source === "unavailable" && <MonitorUnavailableNotice />}
+
+      {metrics && (
+        <section aria-labelledby="metrics-heading" className="flex flex-col gap-3">
+          <h2 id="metrics-heading" className="label-mono text-muted-foreground">Monitor metrics</h2>
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <div className="corner-mark border bg-card p-4">
+              <dt className="text-sm text-muted-foreground">Changes detected</dt>
+              <dd className="mt-1 font-serif text-3xl tabular-nums">{metrics.changesDetected}</dd>
+            </div>
+            <div className="corner-mark border bg-card p-4">
+              <dt className="text-sm text-muted-foreground">Repositories impacted</dt>
+              <dd className="mt-1 font-serif text-3xl tabular-nums">{metrics.repositoriesImpacted}</dd>
+              <p className="mt-1 text-xs text-muted-foreground">Current impacts in your installations</p>
+            </div>
+            <div className="corner-mark border bg-card p-4">
+              <dt className="text-sm text-muted-foreground">Average detection to PR</dt>
+              <dd className="mt-1 font-serif text-3xl tabular-nums">
+                {metrics.averageDetectionToPrSeconds === null ? "--" : formatDuration(metrics.averageDetectionToPrSeconds * 1000)}
+              </dd>
+              <p className="mt-1 text-xs text-muted-foreground">{metrics.migrationPrCount} API migration {metrics.migrationPrCount === 1 ? "PR" : "PRs"} measured</p>
+            </div>
+          </dl>
+        </section>
+      )}
 
       <section aria-labelledby="providers-heading" className="flex flex-col gap-3">
         <h2 id="providers-heading" className="label-mono text-muted-foreground">

@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   NotFoundException,
@@ -61,6 +62,31 @@ export class ApiChangesController {
   @Get('api-providers')
   listProviders() {
     return this.queries.listProviders();
+  }
+
+  @Get('api-metrics')
+  metrics(@CurrentCaller() caller: Caller) {
+    return this.queries.metrics(caller);
+  }
+
+  @Get('metrics')
+  @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
+  async prometheus(@CurrentCaller() caller: Caller) {
+    const metrics = await this.queries.metrics(caller);
+    const seconds = (metrics.averageDetectionToPrSeconds ?? 0) * metrics.migrationPrCount;
+    return [
+      '# HELP synclab_api_changes_detected Unique provider changes recorded.',
+      '# TYPE synclab_api_changes_detected gauge',
+      `synclab_api_changes_detected ${metrics.changesDetected}`,
+      '# HELP synclab_api_repositories_impacted Repositories with current API impacts.',
+      '# TYPE synclab_api_repositories_impacted gauge',
+      `synclab_api_repositories_impacted ${metrics.repositoriesImpacted}`,
+      '# HELP synclab_api_detection_to_pr_seconds Seconds from detection to successful API migration PR publication.',
+      '# TYPE synclab_api_detection_to_pr_seconds summary',
+      `synclab_api_detection_to_pr_seconds_sum ${seconds}`,
+      `synclab_api_detection_to_pr_seconds_count ${metrics.migrationPrCount}`,
+      '',
+    ].join('\n');
   }
 
   /**

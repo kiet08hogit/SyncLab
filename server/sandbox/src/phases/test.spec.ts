@@ -67,6 +67,22 @@ describe('test phase', () => {
     assert.match(result.steps[0].output, /all 3 tests passed/);
   });
 
+  it('tests the package containing an API call when the repository has no root manifest', async () => {
+    const packageDir = path.join(repoDir, 'server', 'sandbox');
+    await fs.mkdir(path.join(packageDir, 'src'), { recursive: true });
+    await fs.writeFile(path.join(packageDir, 'package.json'), JSON.stringify({ scripts: { test: 'node -e "console.log(12345)"' } }));
+    delete process.env.DEPENDENCY_NAME;
+    delete process.env.TARGET_VERSION;
+    process.env.MIGRATION_KIND = 'api_change';
+    process.env.API_CHANGE = JSON.stringify({ provider: 'anthropic', kind: 'param_removed', operation: 'POST /v1/messages', field: 'fallbacks', evidence: 'Removed fallbacks', sourceUrl: 'https://example.com/replay' });
+    process.env.TARGET_FILES = JSON.stringify(['server/sandbox/src/client.ts']);
+
+    const result = await runTestPhase();
+    assert.equal(result.ok, true);
+    assert.match(result.steps[0].output, /server\/sandbox/);
+    assert.match(result.steps[0].output, /12345/);
+  });
+
   it('labels a normal run with the refactor attempt and the npm command', async () => {
     await writeTestScript('node -e "console.log(\'ok\')"');
     Object.assign(process.env, { REFACTOR_ATTEMPT: '2', REFACTOR_MAX_ATTEMPTS: '3' });

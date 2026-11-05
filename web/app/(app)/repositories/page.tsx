@@ -18,8 +18,8 @@ export default function RepositoriesPage() {
       <header className="flex flex-col gap-2">
         <h1 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">Repositories</h1>
         <p className="max-w-2xl text-pretty text-muted-foreground">
-          Every repository the SyncLab GitHub App can reach through your installations, with the migrations SyncLab has
-          run on each.
+          Every repository the SyncLab GitHub App can reach through your installations, with its API usage, impacts,
+          and migrations.
         </p>
       </header>
 
@@ -72,7 +72,7 @@ async function RepositoryTable() {
               <TableRow key={repository.githubRepoId} className="relative">
                 <TableCell className="py-3.5 pl-4">
                   <Link
-                    href={`/dashboard?repo=${encodeURIComponent(repository.fullName)}`}
+                    href={`/repositories/${repository.githubRepoId}`}
                     className="flex flex-col gap-0.5 after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
                   >
                     <span className="flex items-center gap-1.5 font-medium">
