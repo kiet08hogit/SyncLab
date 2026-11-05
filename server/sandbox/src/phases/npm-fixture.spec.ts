@@ -91,7 +91,13 @@ export async function startRegistry(root: string): Promise<{ server: Server; url
     await fs.writeFile(path.join(packageDir, 'package.json'), JSON.stringify(packageJson));
     await fs.writeFile(path.join(packageDir, 'index.js'), `module.exports = '${version}';\n`);
     const tarballPath = path.join(root, `${DEPENDENCY}-${version}.tgz`);
-    await runOrThrow('tar', ['-czf', tarballPath, '-C', path.dirname(packageDir), 'package']);
+    // ustar without Apple pax metadata. macOS tar's default archive makes Yarn Classic
+    // reject the tarball as corrupt, so the registry would not be installable there.
+    await runOrThrow(
+      'tar',
+      ['--format', 'ustar', '-czf', tarballPath, '-C', path.dirname(packageDir), 'package'],
+      { env: { COPYFILE_DISABLE: '1' } },
+    );
     const tarball = await fs.readFile(tarballPath);
     const tarballUrl = `/tarballs/${DEPENDENCY}-${version}.tgz`;
     tarballs.set(tarballUrl, tarball);
