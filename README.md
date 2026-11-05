@@ -344,6 +344,8 @@ The same image also runs the phases of a repository scan (`clone`, then `scan`) 
 | `classify` | yes | no | yes | no (gets only the text to classify) |
 
 The token is only ever present in the phases that clone or push and run nothing but SyncLab's own code.
+`install`, `upgrade`, and `test` spawn repository commands without the phase's job settings.
+Those commands drop `SANDBOX_WORKSPACE`, `REPO_URL`, `REPO_FULL_NAME`, `DEPENDENCY_NAME`, `TARGET_VERSION`, `MIGRATION_KIND`, `API_CHANGE`, `TARGET_FILES`, `BRANCH_NAME`, `TEST_BASELINE`, `BASE_SHA`, `GITHUB_TOKEN`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, and every `LLM_`, `REFACTOR_`, and `VALIDATE_` variable.
 Repository code can still write to the checkout on the volume, including its `.git` directory, so `publish` never runs git there: a planted hook, `core.fsmonitor` command or filter driver would otherwise run beside the token.
 
 Every container also runs as the non-root `node` user, with all Linux capabilities dropped, `no-new-privileges`, a hard memory ceiling with swap disabled, a CPU quota, a PID limit, and a per-phase timeout.
@@ -365,10 +367,12 @@ The package manager comes from the `packageManager` field in `package.json`, oth
 A lockfile is honoured exactly (`npm ci`, `pnpm install --frozen-lockfile`, `yarn install --frozen-lockfile` or `--immutable` for Yarn 2+).
 pnpm and yarn run through corepack, at the version `packageManager` pins.
 Corepack's downloads and Yarn 2+'s package cache live on the volume, because the test phase has no network to fetch them again.
+An API-change job whose repository has no root `package.json` installs each package that contains an impacted file.
+A dependency job, and an API-change job with a root `package.json`, still installs only that root.
 
 #### Baseline `test`
 
-Runs the test suite once on the version the repository already had.
+Runs the test suite once on the version the repository already had, in the same directories as `install`.
 If it fails, the job fails straight away: the suite cannot verify a migration, and every refactor attempt would be spent on a failure the model did not cause.
 
 #### `upgrade`
@@ -377,12 +381,14 @@ Upgrades the migrated dependency with the detected package manager (`server/sand
 An API-change job runs this phase only when it names the SDK the change requires.
 That release is a minimum.
 The phase installs it only when the installed SDK is older, and leaves a repository already on that release or a newer one unchanged.
+An API-change upgrade visits the same directories as `install`, and upgrades a directory only when its `package.json` lists that SDK.
+If none of those packages list it, the phase fails because the SDK is not a direct dependency, so the upgrade cannot succeed without installing anything.
 - A dependency job requests the exact target version, so the suite runs against that version and not the newest one a range would allow.
 - The package stays in the `package.json` section it was declared in, and an exact pin stays exact.
   A leading `v` in the version is stripped.
   npm, pnpm, and Yarn save an existing range as `^<version>`.
   Yarn installs the exact target first, then records the range against that target in the lockfile.
-- If the package is not a direct dependency, or the version does not exist, the phase fails.
+- If a package being upgraded does not list the dependency directly, or the version does not exist, the phase fails.
 - The new release's install scripts run, since this phase has no token.
 
 #### `refactor`
@@ -404,7 +410,8 @@ The phase installs it only when the installed SDK is older, and leaves a reposit
 
 #### `test`
 
-Runs the package manager's `test` script in the checkout with no network and no credentials, and saves the full output to the volume so the next `refactor` attempt can correct itself.
+Runs the package manager's `test` script in each directory `install` used, with no network and no credentials, and saves the output to the volume so the next `refactor` attempt can correct itself.
+When more than one package is tested, that file is the last package's output.
 A failing run also drops any validation failure left by the previous attempt, since this attempt never reached validation.
 
 #### `validate`
@@ -415,9 +422,12 @@ The typecheck runs only when the job names the SDK package and version the chang
 For a change found in a versioned Anthropic or OpenAI SDK changelog entry, the worker records that release's package and version when it queues the job.
 It also derives them when running an older queued job that has no SDK metadata.
 A change from an API release note, deprecation page, or OpenAPI spec keeps the installed SDK unless the job explicitly names a required version.
-A repository with no root `tsconfig.json` passes that check.
+An API-change job with no root `package.json` typechecks each package that contains an impacted file.
+Any other job that reaches this check typechecks only the repository root.
+A package whose `package.json` does not list the SDK is skipped, including when that package has a `tsconfig.json`.
+A directory with no `tsconfig.json` passes its part of the check.
 The named version is a minimum.
-The check compiles the installed SDK when it is that release or newer, and fails without compiling when the installed SDK is older.
+The check compiles the installed SDK when it is that release or newer, and fails without compiling when a package that lists the SDK does not have it installed or has an older release.
 The worker passes each check the JSON it builds in `server/api/src/worker/sandbox/validation-context/`, and a check adds its own keys in its own file there.
 A failed check is written to the volume and the next `refactor` attempt reads it.
 The container has no network and no token, so a check cannot call a provider.
@@ -486,26 +496,19 @@ If no result line appears (for example, the container was killed), the raw log b
 | `/jobs/[id]` | One job's pipeline track, failure reason, and execution log. The stages, how an API-change job is titled, and which jobs can be retried are in [`web/README.md`](web/README.md#pages) |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
 | `/repositories/[id]` | Scanned API calls, current impacts, migration links, and a manual scan action for one GitHub repository |
-| `/api-changes` | The API change monitor's watched Anthropic and OpenAI sources and the breaking changes it found, with a button to check every source now |
+| `/api-changes` | The API change monitor's watched Anthropic and OpenAI sources, the breaking changes it found, and the [monitoring metrics](#api-monitoring-metrics), with a button to check every source now |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
 
-Signed in, every page reads the API with the user's own GitHub token (`GET /migrations`, `/migrations/counts`, `/migrations/:id`, `/repositories`), and the API limits each answer to that user's repositories.
+Signed in, every page reads the API with the user's own GitHub token, and the API limits each answer to that user's repositories.
+The calls each page makes are in [`web/README.md`](web/README.md#data).
 Signed out, the pages show sample data shaped like the API's answers, with a prompt to sign in.
 See [`web/README.md`](web/README.md) for the environment variables that enable sign-in.
 
 ## API monitoring metrics
 
-`GET /api-metrics` returns unique changes detected, distinct repositories with current impacts, and average seconds from detection to successful API migration PR publication.
-Repository counts and PR timings respect the caller's installation access.
-The change total includes detected, confirmed, and dismissed records.
-A missing timing is returned as `null`, with a zero sample count.
-Timings use the first successful PR execution log and count each migration job once.
-
-`GET /metrics` exposes the same durable values in Prometheus text format as `synclab_api_changes_detected`, `synclab_api_repositories_impacted`, and the `synclab_api_detection_to_pr_seconds` summary (`_sum` and `_count`).
-Configure the scraper to send `MIGRATIONS_API_TOKEN` as a bearer token for all repositories.
-
-API migrations install and test each package containing impacted files, including repositories such as SyncLab that have independent nested packages and no root `package.json`.
+`GET /api-metrics` and Prometheus `GET /metrics` report changes detected, repositories with current impacts, and the time from detection to a successful API migration pull request.
+The fields, access scope, and metric names are in [Self-Maintaining API](infra/Architecture/05%20-%20Self-Maintaining%20API.md#monitoring-endpoints).
 
 ## Data model
 

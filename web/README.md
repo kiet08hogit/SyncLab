@@ -28,8 +28,9 @@ Tests sign in through the real OAuth redirect, seed jobs straight into the datab
 | `/` | The landing page: a dark office walk-in hero titled "Code breaks. You keep shipping.", illustrated steps for Detect, Locate, Refactor, Verify, and Review, connected capability drawings, and a closing engineer crossfade. The header carries the mascot and sign-in. Routing for `/` is in the [Dashboard](../README.md#dashboard) table |
 | `/dashboard` | Job counts per status, the jobs a worker is running now, and a searchable, filterable job table; refreshes every 5 seconds while any job is queued or running and no filter is set |
 | `/jobs/[id]` | One job's pipeline track, failure reason, branch name, how long the latest run took, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running. A dependency job's track is clone, changelog, install, baseline, upgrade, refactor, test, and pull request. An API-change job is titled by the changed field, then the operation, then the kind with underscores shown as spaces. Its track omits changelog and upgrade unless the job names both the SDK package and the version the change requires. It also shows the replacement when the change has one, the deadline, and the branch the worker pushes. A failed dependency job has a **Retry migration** button when you are signed in. An API-change job does not. Output longer than 24 lines folds to its last 12, except on a failed step, and each step's output has a copy button |
-| `/repositories` | Installed repositories with job totals and last activity |
-| `/api-changes` | The API change monitor: each watched Anthropic and OpenAI source with its last check, and the breaking changes found, filterable by provider, status and kind; monitor admins confirm or dismiss each change |
+| `/repositories` | Installed repositories with job totals and last activity. Each row opens that repository's API usage and impacts |
+| `/repositories/[id]` | One repository's latest scan, the Anthropic and OpenAI calls from its newest completed scan, the current impacts, links to the migration and pull request when a change started one, and a button to scan it now. Signed out, it asks you to sign in |
+| `/api-changes` | The API change monitor: changes detected, repositories impacted in your installations, and the average time from detection to an API migration pull request; each watched Anthropic and OpenAI source with its last check; and the breaking changes found, filterable by provider, status and kind. Monitor admins confirm or dismiss each change |
 | `/migrations/new` | Pick a repository, a dependency from its root `package.json`, and a stable npm version, then start the job and open its page |
 | `/settings` | Sign in with GitHub, and the App installations you can access, or an Install SyncLab button when there are none |
 
@@ -62,7 +63,10 @@ Signed out, they serve the built-in sample data instead, shaped exactly like the
 The samples' job pages stay public; a real job is only readable by a signed-in user whose installations reach its repository, and anyone else gets a 404.
 When the API is down or no longer accepts the session, `app/(app)/error.tsx` offers a retry and a way back to Settings.
 
-`/api-changes` reads the change monitor through `lib/api-changes.ts`: `GET /api-providers`, `GET /api-changes` and `POST /api-providers/poll`, with the shapes in the "Monitoring endpoints" section of `infra/Architecture/05 - Self-Maintaining API.md`.
+`/repositories/[id]` reads `GET /repositories/:githubRepoId/api-usage` and `GET /repositories/:githubRepoId/api-impact` through `lib/api.ts`, and its scan button posts to `POST /repositories/:githubRepoId/scan`.
+A 404 from either read is shown as no completed scan or no current impacts.
+
+`/api-changes` reads the change monitor through `lib/api-changes.ts`: `GET /api-providers`, `GET /api-metrics`, `GET /api-changes` and `POST /api-providers/poll`, with the shapes in the "Monitoring endpoints" section of `infra/Architecture/05 - Self-Maintaining API.md`.
 Signed in to an API that does not run the monitor yet, those routes answer 404, so the page serves its samples too and says the API has no monitor, rather than showing an error.
 Confirm and dismiss (`POST /api-changes/:id/confirm` and `/dismiss`, through `lib/api.ts`) show only on changes whose `canReview` is true, which the API sets for users listed in its `MONITOR_ADMIN_LOGINS`; a refusal says so and refreshes the page.
 
