@@ -101,6 +101,11 @@ describe('upgrade phase', () => {
     await runOrThrow('npm', ['ci', '--no-audit', '--no-fund'], { cwd: repoDir });
   }
 
+  async function yarnPnpLocation(env: NodeJS.ProcessEnv): Promise<string> {
+    const expression = `(() => { const pnp = require('pnpapi'); const root = pnp.getDependencyTreeRoots()[0]; const dependency = pnp.getPackageInformation(root).packageDependencies.get(${JSON.stringify(DEPENDENCY)}); const reference = Array.isArray(dependency) ? dependency[1] : dependency; const name = Array.isArray(dependency) ? dependency[0] : ${JSON.stringify(DEPENDENCY)}; return pnp.getPackageInformation({name, reference}).packageLocation; })()`;
+    return (await runOrThrow('corepack', ['yarn', 'node', '-p', expression], { cwd: repoDir, env })).output.trim();
+  }
+
   it('upgrades an exact pin to an exact pin and updates the lockfile and node_modules, without a GitHub token', async () => {
     await installed(pinned.url);
 
@@ -387,7 +392,7 @@ describe('upgrade phase', () => {
       assert.equal(withStaleNodeModules.steps[0].output.includes('$ corepack yarn add'), false);
     });
 
-    it('reads a scriptless SDK from the Yarn Plug\'n\'Play zip cache', async () => {
+    it('reads a newer peer-dependent scriptless SDK from the Yarn Plug\'n\'Play zip cache', async () => {
       const origin = await createOrigin(root, 'berry-pnp-zipped-sdk', {
         name: 'app',
         version: '1.0.0',
@@ -406,6 +411,7 @@ describe('upgrade phase', () => {
       await runOrThrow('corepack', ['yarn', 'install'], { cwd: repoDir, env: yarnEnv });
       const manifest = await fs.readFile(path.join(repoDir, 'package.json'), 'utf8');
       const lockfile = await fs.readFile(path.join(repoDir, 'yarn.lock'), 'utf8');
+      assert.match(await yarnPnpLocation(yarnEnv), /(?:^|\/)(?:\$\$virtual|__virtual__)\//);
       process.env.TARGET_VERSION = '2.0.0';
 
       const result = await upgrade();

@@ -100,6 +100,26 @@ async function readPnpState(repoDir: string): Promise<PnpState | undefined> {
   }
 }
 
+const PNP_VIRTUAL = /^(\/(?:[^/]+\/)*?(?:\$\$virtual|__virtual__))((?:\/((?:[^/]+-)?[a-f0-9]+)(?:\/([^/]+))?)?((?:\/.*)?))$/;
+
+/** Map a Yarn PnP virtual locator onto the zip or unplugged folder it stores. */
+function resolvePnpPhysical(location: string): string {
+  let current = location;
+  for (;;) {
+    const match = PNP_VIRTUAL.exec(current);
+    if (!match || (!match[3] && match[5])) return current;
+
+    const slash = match[1].lastIndexOf('/');
+    const target = slash > 0 ? match[1].slice(0, slash) : '/';
+    if (!match[3] || !match[4]) return target;
+    if (!/^[0-9]+$/.test(match[4])) return current;
+
+    const next = path.posix.join(target, '../'.repeat(Number(match[4])), match[5] || '.');
+    if (next === current) return current;
+    current = next;
+  }
+}
+
 /** Inspect the actual artifact selected by the root workspace's PnP map. */
 async function readPnpInstalledVersion(repoDir: string, name: string, state: PnpState): Promise<string | undefined> {
   try {
@@ -115,7 +135,7 @@ async function readPnpInstalledVersion(repoDir: string, name: string, state: Pnp
       .find(([entryReference]) => entryReference === reference)?.[1];
     if (!info) return undefined;
 
-    const location = path.resolve(repoDir, info.packageLocation);
+    const location = resolvePnpPhysical(path.resolve(repoDir, info.packageLocation));
     const zipBoundary = location.indexOf('.zip/');
     let manifestText: string;
     if (zipBoundary >= 0) {
