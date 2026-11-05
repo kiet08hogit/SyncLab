@@ -38,6 +38,10 @@ describe('upgrade phase', () => {
     await fs.mkdir(home);
     registry = await startRegistry(root);
     Object.assign(process.env, isolatedEnv(root, home, registry.url));
+    // These local fixtures create and deliberately modify lockfiles. Explicit
+    // frozen/immutable commands below still verify the resulting lockfiles.
+    process.env.YARN_ENABLE_IMMUTABLE_INSTALLS = 'false';
+    process.env.YARN_ENABLE_HARDENED_MODE = 'false';
 
     pinned = await createOrigin(root, 'pinned', { name: 'app', version: '1.0.0', dependencies: { [DEPENDENCY]: '1.0.0' } }, true);
     rangedDev = await createOrigin(root, 'ranged-dev', { name: 'app', version: '1.0.0', devDependencies: { [DEPENDENCY]: '^1.0.0' } }, true);
