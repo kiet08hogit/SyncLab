@@ -68,12 +68,50 @@ describe('test phase', () => {
   });
 
   it('keeps outer job settings out of repository test processes', async () => {
-    await writeTestScript('node -e "if (process.env.TEST_BASELINE || process.env.API_CHANGE || process.env.LLM_MODEL) process.exit(1)"');
+    const hidden = [
+      'SANDBOX_WORKSPACE', 'REPO_URL', 'REPO_FULL_NAME', 'DEPENDENCY_NAME',
+      'TARGET_VERSION', 'MIGRATION_KIND', 'API_CHANGE', 'TARGET_FILES', 'BRANCH_NAME',
+      'TEST_BASELINE', 'BASE_SHA', 'GITHUB_TOKEN', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
+    ];
+    await fs.writeFile(
+      path.join(repoDir, 'check-env.js'),
+      `
+        const hidden = ${JSON.stringify(hidden)};
+        const leaked = [
+          ...hidden.filter((name) => Object.hasOwn(process.env, name)),
+          ...Object.keys(process.env).filter((name) => /^(LLM_|REFACTOR_|VALIDATE_)/.test(name)),
+        ];
+        console.log(JSON.stringify({
+          leaked,
+          corepack: process.env.COREPACK_HOME ?? null,
+          path: typeof process.env.PATH,
+        }));
+        if (leaked.length > 0) process.exit(1);
+      `,
+    );
+    await writeTestScript('node check-env.js');
+    for (const name of hidden) {
+      process.env[name] ??= `set-${name}`;
+    }
     process.env.TEST_BASELINE = 'true';
+    process.env.MIGRATION_KIND = 'dependency';
     process.env.API_CHANGE = '{}';
+    process.env.TARGET_FILES = '["src/client.ts"]';
+    process.env.BASE_SHA = 'abc123';
+    process.env.GITHUB_TOKEN = 'ghp-test';
+    process.env.GEMINI_API_KEY = 'gemini-test';
+    process.env.ANTHROPIC_API_KEY = 'anthropic-test';
+    process.env.LLM_PROVIDER = 'gemini';
+    process.env.REFACTOR_CUSTOM = 'refactor-test';
+    process.env.VALIDATE_CUSTOM = 'validate-test';
+
     const result = await runTestPhase();
-    assert.equal(result.ok, true);
+
+    assert.equal(result.ok, true, result.steps[0]?.output ?? result.error);
     assert.equal(result.steps[0].step, 'BASELINE');
+    assert.match(result.steps[0].output, /"leaked":\[\]/);
+    assert.match(result.steps[0].output, /"path":"string"/);
+    assert.ok(result.steps[0].output.includes(path.join(workspace, '.corepack')));
   });
 
   it('tests the package containing an API call when the repository has no root manifest', async () => {

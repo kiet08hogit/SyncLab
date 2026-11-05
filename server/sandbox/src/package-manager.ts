@@ -194,11 +194,7 @@ export function packageManagerEnv(workspace: string): NodeJS.ProcessEnv {
     'TARGET_VERSION', 'MIGRATION_KIND', 'API_CHANGE', 'TARGET_FILES', 'BRANCH_NAME',
     'TEST_BASELINE', 'BASE_SHA', 'GITHUB_TOKEN', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
   ]);
-  const cleared = Object.fromEntries(Object.keys(process.env)
-    .filter((key) => phaseKeys.has(key) || /^(LLM_|REFACTOR_|VALIDATE_)/.test(key))
-    .map((key) => [key, undefined]));
-  return {
-    ...cleared,
+  const env: NodeJS.ProcessEnv = {
     COREPACK_HOME: path.join(workspace, '.corepack'),
     COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
     // Without a packageManager field, resolve corepack's bundled default
@@ -208,4 +204,10 @@ export function packageManagerEnv(workspace: string): NodeJS.ProcessEnv {
     YARN_GLOBAL_FOLDER: path.join(workspace, '.yarn-global'),
     YARN_ENABLE_TELEMETRY: '0',
   };
+  for (const key of Object.keys(process.env)) {
+    if (phaseKeys.has(key) || /^(LLM_|REFACTOR_|VALIDATE_)/.test(key)) {
+      env[key] = undefined;
+    }
+  }
+  return env;
 }

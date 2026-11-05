@@ -10,6 +10,22 @@ export interface RunOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+function commandEnv(overrides: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  if (overrides === undefined) {
+    return env;
+  }
+  for (const key of Object.keys(overrides)) {
+    const value = overrides[key];
+    if (value === undefined) {
+      delete env[key];
+    } else {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
 /**
  * Interleaves stdout and stderr into a single buffer so the captured output
  * reads in the same order a human would see it in a terminal.
@@ -18,7 +34,7 @@ export function run(command: string, args: string[], options: RunOptions = {}): 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
-      env: { ...process.env, ...options.env },
+      env: commandEnv(options.env),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
