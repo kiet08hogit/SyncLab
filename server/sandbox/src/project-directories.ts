@@ -8,7 +8,7 @@ async function hasManifest(directory: string): Promise<boolean> {
 
 /** Run an API migration's install and tests in each package containing an impacted file. */
 export async function projectDirectories(config: SandboxConfig): Promise<string[]> {
-  if (config.migration.kind !== 'api_change') return [config.repoDir];
+  if (config.migration.kind !== 'api_change' || await hasManifest(config.repoDir)) return [config.repoDir];
 
   const projects = new Set<string>();
   for (const file of config.migration.files) {

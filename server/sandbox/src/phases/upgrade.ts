@@ -2,6 +2,7 @@ import { loadConfig } from '../config.js';
 import { detectPackageManager, packageManagerEnv } from '../package-manager.js';
 import { upgradeDependency } from '../upgrade.js';
 import type { PhaseResult } from '../result.js';
+import { projectDirectories } from '../project-directories.js';
 
 /**
  * Runs after the baseline test run, so the suite is first proven on the
@@ -14,20 +15,21 @@ export async function upgrade(): Promise<PhaseResult> {
   if (!dependency) {
     throw new Error('The upgrade phase needs DEPENDENCY_NAME and TARGET_VERSION');
   }
-  const pm = await detectPackageManager(config.repoDir);
-
-  const outcome = await upgradeDependency(
-    config.repoDir,
-    pm,
-    dependency.name,
-    dependency.version,
-    packageManagerEnv(config.workspace),
-    { minimum: config.migration.kind === 'api_change' },
-  );
-
-  if (!outcome.ok) {
-    return { phase: 'upgrade', ok: false, error: outcome.error, steps: [outcome.step] };
+  const steps: PhaseResult['steps'] = [];
+  for (const directory of await projectDirectories(config)) {
+    const pm = await detectPackageManager(directory);
+    const outcome = await upgradeDependency(
+      directory,
+      pm,
+      dependency.name,
+      dependency.version,
+      packageManagerEnv(config.workspace),
+      { minimum: config.migration.kind === 'api_change' },
+    );
+    steps.push(outcome.step);
+    if (!outcome.ok) {
+      return { phase: 'upgrade', ok: false, error: outcome.error, steps };
+    }
   }
-
-  return { phase: 'upgrade', ok: true, steps: [outcome.step] };
+  return { phase: 'upgrade', ok: true, steps };
 }

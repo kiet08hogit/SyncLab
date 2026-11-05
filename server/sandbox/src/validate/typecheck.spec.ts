@@ -83,6 +83,23 @@ describe('typecheck', () => {
     assert.equal(await check.run(), undefined);
   });
 
+  it('checks a nested API package when the root has no manifest', async () => {
+    await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x', max_tokens: 1 });\n");
+    const staged = path.join(workspace, 'package');
+    await fs.rename(repoDir, staged);
+    await fs.mkdir(path.join(repoDir, 'server'), { recursive: true });
+    await fs.rename(staged, path.join(repoDir, 'server', 'sdk'));
+    Object.assign(process.env, {
+      MIGRATION_KIND: 'api_change',
+      API_CHANGE: JSON.stringify({ provider: 'anthropic', kind: 'param_removed', field: 'max_tokens', evidence: 'Removed max_tokens', sourceUrl: 'https://example.com/replay' }),
+      TARGET_FILES: JSON.stringify(['server/sdk/src/chat.ts']),
+      REPO_URL: 'https://github.com/acme/api.git', REPO_FULL_NAME: 'acme/api', BRANCH_NAME: 'replay', LLM_MODEL: 'test',
+    });
+    const reason = await check.run();
+    assert.match(reason ?? '', /^server\/sdk:/);
+    assert.match(reason ?? '', /max_tokens/);
+  });
+
   it('passes a repository that is not TypeScript', async () => {
     await write('src/chat.js', 'module.exports = 1;\n');
 

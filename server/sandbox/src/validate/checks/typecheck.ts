@@ -1,8 +1,10 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { loadWorkspace } from '../../config.js';
+import { loadWorkspace, loadConfig } from '../../config.js';
 import { run } from '../../exec.js';
 import { satisfiesMinimum } from '../../release-version.js';
+
+import { projectDirectories } from '../../project-directories.js';
 
 const OUTPUT_LIMIT = 4_000;
 
@@ -32,6 +34,17 @@ export async function typecheck(): Promise<string | undefined> {
   }
 
   const { repoDir } = loadWorkspace();
+  const directories = process.env.MIGRATION_KIND === 'api_change'
+    ? await projectDirectories(loadConfig())
+    : [repoDir];
+  for (const directory of directories) {
+    const reason = await typecheckProject(directory, request);
+    if (reason) return directory === repoDir ? reason : `${path.relative(repoDir, directory)}: ${reason}`;
+  }
+  return undefined;
+}
+
+async function typecheckProject(repoDir: string, request: TypecheckRequest): Promise<string | undefined> {
   try {
     await fs.access(path.join(repoDir, 'tsconfig.json'));
   } catch {

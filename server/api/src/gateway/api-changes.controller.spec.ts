@@ -13,14 +13,12 @@ function setup(monitorAdminLogins: string[] = ['octo-admin']) {
     listProviders: jest.fn().mockResolvedValue([]),
     listChanges: jest.fn().mockResolvedValue([]),
     setStatus: jest.fn(),
-    metrics: jest
-      .fn()
-      .mockResolvedValue({
-        changesDetected: 3,
-        repositoriesImpacted: 2,
-        migrationPrCount: 2,
-        averageDetectionToPrSeconds: 45,
-      }),
+    metrics: jest.fn().mockResolvedValue({
+      changesDetected: 3,
+      repositoriesImpacted: 2,
+      migrationPrCount: 2,
+      averageDetectionToPrSeconds: 45,
+    }),
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
   const config = { get: jest.fn(() => monitorAdminLogins) };

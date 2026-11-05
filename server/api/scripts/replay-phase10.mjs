@@ -30,7 +30,8 @@ try {
     update: {},
     include: { provider: { select: { slug: true } } },
   });
-  const baseline = await monitor.recordSnapshot(source, await fixture('phase10-fallbacks-before.md'));
+  const previous = await prisma.apiSourceSnapshot.count({ where: { sourceId: source.id } });
+  const baseline = previous ? null : await monitor.recordSnapshot(source, await fixture('phase10-fallbacks-before.md'));
   const replay = await monitor.recordSnapshot(source, await fixture('phase10-fallbacks-after.md'));
   const change = await prisma.breakingChange.findFirst({
     where: { providerId: provider.id, field: 'fallbacks', kind: 'param_removed' },

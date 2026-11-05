@@ -31,4 +31,14 @@ describe('projectDirectories', () => {
     const config = { repoDir: '/workspace/repo', migration: { kind: 'dependency' } } as SandboxConfig;
     assert.deepEqual(await projectDirectories(config), ['/workspace/repo']);
   });
+
+  it('preserves root workspace orchestration', async () => {
+    const repoDir = await mkdtemp(path.join(os.tmpdir(), 'synclab-workspace-'));
+    temporary.push(repoDir);
+    await mkdir(path.join(repoDir, 'packages', 'api'), { recursive: true });
+    await writeFile(path.join(repoDir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
+    await writeFile(path.join(repoDir, 'packages', 'api', 'package.json'), '{}');
+    const config = { repoDir, migration: { kind: 'api_change', files: ['packages/api/client.ts'] } } as SandboxConfig;
+    assert.deepEqual(await projectDirectories(config), [repoDir]);
+  });
 });
