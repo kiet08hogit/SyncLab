@@ -12,6 +12,7 @@ import {
   POSTINSTALL_MARKER,
   cloneInto,
   createOrigin,
+  exists,
   isolatedEnv,
   readJson,
   restoreEnv,
@@ -547,5 +548,109 @@ ${pnp}`);
 
       await assert.rejects(upgrade(), { message: 'The upgrade phase needs DEPENDENCY_NAME and TARGET_VERSION' });
     });
+
+    async function writePackage(directory: string, manifest: Record<string, unknown>): Promise<string> {
+      const packageDir = path.join(repoDir, directory);
+      await fs.mkdir(path.join(packageDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(packageDir, 'package.json'), JSON.stringify(manifest));
+      await fs.writeFile(path.join(packageDir, 'src', 'client.ts'), 'export {}\n');
+      return packageDir;
+    }
+
+    async function impactedPackages(): Promise<void> {
+      const owner = path.join(repoDir, 'server', 'sandbox');
+      await cloneInto(pinned.url, owner);
+      await runOrThrow('npm', ['ci', '--no-audit', '--no-fund'], { cwd: owner });
+      await fs.mkdir(path.join(owner, 'src'), { recursive: true });
+      await fs.writeFile(path.join(owner, 'src', 'client.ts'), 'export {}\n');
+      await writePackage('server/api', { name: 'api', version: '1.0.0' });
+      await writePackage('web', { name: 'web', version: '1.0.0' });
+      process.env.TARGET_FILES = JSON.stringify([
+        'server/api/src/client.ts',
+        'server/sandbox/src/client.ts',
+        'web/src/client.ts',
+      ]);
+    }
+
+    it('upgrades only the packages that depend on the SDK', async () => {
+      await impactedPackages();
+      const apiManifest = await fs.readFile(path.join(repoDir, 'server', 'api', 'package.json'), 'utf8');
+      const webManifest = await fs.readFile(path.join(repoDir, 'web', 'package.json'), 'utf8');
+
+      const result = await upgrade();
+
+      assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+      assert.equal(result.steps.length, 1);
+      assert.equal((await readJson(path.join(repoDir, 'server', 'sandbox', 'package.json'))).dependencies[DEPENDENCY], '2.0.0');
+      assert.equal(await fs.readFile(path.join(repoDir, 'server', 'api', 'package.json'), 'utf8'), apiManifest);
+      assert.equal(await fs.readFile(path.join(repoDir, 'web', 'package.json'), 'utf8'), webManifest);
+      assert.equal(await exists(path.join(repoDir, 'server', 'api', 'node_modules')), false);
+      assert.equal(await exists(path.join(repoDir, 'web', 'node_modules')), false);
+    });
+
+    it('reports an install failure from the package that owns the SDK', async () => {
+      await impactedPackages();
+      process.env.TARGET_VERSION = '9.9.9';
+      const before = await fs.readFile(path.join(repoDir, 'server', 'sandbox', 'package.json'), 'utf8');
+      const apiManifest = await fs.readFile(path.join(repoDir, 'server', 'api', 'package.json'), 'utf8');
+      const webManifest = await fs.readFile(path.join(repoDir, 'web', 'package.json'), 'utf8');
+
+      const result = await upgrade();
+
+      assert.equal(result.ok, false);
+      assert.equal(result.error, `could not install ${DEPENDENCY}@9.9.9`);
+      assert.equal(await fs.readFile(path.join(repoDir, 'server', 'sandbox', 'package.json'), 'utf8'), before);
+      assert.equal(await fs.readFile(path.join(repoDir, 'server', 'api', 'package.json'), 'utf8'), apiManifest);
+      assert.equal(await fs.readFile(path.join(repoDir, 'web', 'package.json'), 'utf8'), webManifest);
+    });
+
+    it('still refuses an API change when no impacted package depends on the SDK', async () => {
+      await writePackage('server/api', { name: 'api', version: '1.0.0' });
+      await writePackage('web', { name: 'web', version: '1.0.0' });
+      process.env.TARGET_FILES = JSON.stringify(['server/api/src/client.ts', 'web/src/client.ts']);
+
+      const result = await upgrade();
+
+      assert.equal(result.ok, false);
+      assert.equal(result.error, `${DEPENDENCY} is not a direct dependency in package.json, so it cannot be upgraded`);
+      assert.deepEqual(result.steps, [
+        { step: 'UPGRADE', output: `${DEPENDENCY} is not a direct dependency in package.json, so it cannot be upgraded` },
+      ]);
+    });
+
+    for (const section of ['devDependencies', 'optionalDependencies', 'peerDependencies'] as const) {
+      it(`keeps an already-sufficient SDK in ${section} and skips packages that do not list it`, async () => {
+        const owner = await writePackage('server/sandbox', {
+          name: 'sandbox',
+          version: '1.0.0',
+          [section]: { [DEPENDENCY]: '^2.0.0' },
+        });
+        await fs.mkdir(path.join(owner, 'node_modules', DEPENDENCY), { recursive: true });
+        await fs.writeFile(
+          path.join(owner, 'node_modules', DEPENDENCY, 'package.json'),
+          JSON.stringify({ name: DEPENDENCY, version: '2.0.0' }),
+        );
+        const ownerManifest = await fs.readFile(path.join(owner, 'package.json'), 'utf8');
+        const api = await writePackage('server/api', { name: 'api', version: '1.0.0' });
+        const web = await writePackage('web', { name: 'web', version: '1.0.0' });
+        const apiManifest = await fs.readFile(path.join(api, 'package.json'), 'utf8');
+        const webManifest = await fs.readFile(path.join(web, 'package.json'), 'utf8');
+        process.env.TARGET_VERSION = '2.0.0';
+        process.env.TARGET_FILES = JSON.stringify([
+          'server/api/src/client.ts',
+          'server/sandbox/src/client.ts',
+          'web/src/client.ts',
+        ]);
+
+        const result = await upgrade();
+
+        assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+        assert.equal(result.steps.length, 1);
+        assert.equal(result.steps[0].output.includes('$ npm'), false);
+        assert.equal(await fs.readFile(path.join(owner, 'package.json'), 'utf8'), ownerManifest);
+        assert.equal(await fs.readFile(path.join(api, 'package.json'), 'utf8'), apiManifest);
+        assert.equal(await fs.readFile(path.join(web, 'package.json'), 'utf8'), webManifest);
+      });
+    }
   });
 });

@@ -1,6 +1,6 @@
 import { loadConfig } from '../config.js';
 import { detectPackageManager, packageManagerEnv } from '../package-manager.js';
-import { upgradeDependency } from '../upgrade.js';
+import { missingDependencyOutcome, packageDeclaresDependency, upgradeDependency } from '../upgrade.js';
 import type { PhaseResult } from '../result.js';
 import { projectDirectories } from '../project-directories.js';
 
@@ -16,7 +16,11 @@ export async function upgrade(): Promise<PhaseResult> {
     throw new Error('The upgrade phase needs DEPENDENCY_NAME and TARGET_VERSION');
   }
   const steps: PhaseResult['steps'] = [];
+  const minimum = config.migration.kind === 'api_change';
+  let upgraded = false;
   for (const directory of await projectDirectories(config)) {
+    if (minimum && !(await packageDeclaresDependency(directory, dependency.name))) continue;
+    upgraded = true;
     const pm = await detectPackageManager(directory);
     const outcome = await upgradeDependency(
       directory,
@@ -24,12 +28,16 @@ export async function upgrade(): Promise<PhaseResult> {
       dependency.name,
       dependency.version,
       packageManagerEnv(config.workspace),
-      { minimum: config.migration.kind === 'api_change' },
+      { minimum },
     );
     steps.push(outcome.step);
     if (!outcome.ok) {
       return { phase: 'upgrade', ok: false, error: outcome.error, steps };
     }
+  }
+  if (!upgraded) {
+    const outcome = missingDependencyOutcome(dependency.name);
+    return { phase: 'upgrade', ok: false, error: outcome.error, steps: [outcome.step] };
   }
   return { phase: 'upgrade', ok: true, steps };
 }

@@ -130,6 +130,49 @@ describe('test phase', () => {
     assert.match(result.steps[0].output, /12345/);
   });
 
+  it('tests every impacted package, including one that does not depend on the SDK', async () => {
+    const packages = [
+      { directory: 'server/api', name: 'api', script: 'api-suite', dependencies: undefined },
+      { directory: 'server/sandbox', name: 'sandbox', script: 'sandbox-suite', dependencies: { '@anthropic-ai/sdk': '0.60.0' } },
+      { directory: 'web', name: 'web', script: 'web-suite', dependencies: undefined },
+    ];
+    for (const { directory, name, script, dependencies } of packages) {
+      const packageDir = path.join(repoDir, directory);
+      await fs.mkdir(path.join(packageDir, 'src'), { recursive: true });
+      await fs.writeFile(
+        path.join(packageDir, 'package.json'),
+        JSON.stringify({ name, dependencies, scripts: { test: `node -e "console.log('${script}')"` } }),
+      );
+      await fs.writeFile(path.join(packageDir, 'src', 'client.ts'), 'export {}\n');
+    }
+    delete process.env.DEPENDENCY_NAME;
+    delete process.env.TARGET_VERSION;
+    process.env.MIGRATION_KIND = 'api_change';
+    process.env.API_CHANGE = JSON.stringify({
+      provider: 'anthropic',
+      kind: 'param_removed',
+      operation: 'POST /v1/messages',
+      field: 'fallbacks',
+      evidence: 'Removed fallbacks',
+      sourceUrl: 'https://example.com/replay',
+    });
+    process.env.TARGET_FILES = JSON.stringify([
+      'server/api/src/client.ts',
+      'server/sandbox/src/client.ts',
+      'web/src/client.ts',
+    ]);
+
+    const result = await runTestPhase();
+
+    assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+    assert.match(result.steps[0].output, /server\/api/);
+    assert.match(result.steps[0].output, /api-suite/);
+    assert.match(result.steps[1].output, /server\/sandbox/);
+    assert.match(result.steps[1].output, /sandbox-suite/);
+    assert.match(result.steps[2].output, /web/);
+    assert.match(result.steps[2].output, /web-suite/);
+  });
+
   it('labels a normal run with the refactor attempt and the npm command', async () => {
     await writeTestScript('node -e "console.log(\'ok\')"');
     Object.assign(process.env, { REFACTOR_ATTEMPT: '2', REFACTOR_MAX_ATTEMPTS: '3' });

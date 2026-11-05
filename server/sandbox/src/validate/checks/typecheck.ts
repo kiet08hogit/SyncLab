@@ -5,6 +5,7 @@ import { run } from '../../exec.js';
 import { satisfiesMinimum } from '../../release-version.js';
 
 import { projectDirectories } from '../../project-directories.js';
+import { packageDeclaresDependency } from '../../upgrade.js';
 
 const OUTPUT_LIMIT = 4_000;
 
@@ -54,6 +55,9 @@ async function typecheckProject(repoDir: string, request: TypecheckRequest): Pro
   const installed = await installedVersion(repoDir, request.packageName);
   if (installed === 'invalid-name') {
     return `refusing to typecheck a package path: ${request.packageName}`;
+  }
+  if (!(await packageDeclaresDependency(repoDir, request.packageName))) {
+    return undefined;
   }
   if (installed === undefined) {
     return `${request.packageName}@${request.version} is not installed`;
