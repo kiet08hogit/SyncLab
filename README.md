@@ -378,8 +378,10 @@ An API-change job runs this phase only when it names the SDK the change requires
 That release is a minimum.
 The phase installs it only when the installed SDK is older, and leaves a repository already on that release or a newer one unchanged.
 - A dependency job requests the exact target version, so the suite runs against that version and not the newest one a range would allow.
-- The package stays in the `package.json` section it was declared in, and an exact pin stays exact; a leading `v` in the version is stripped.
-  npm and pnpm save a range as `^<version>`; yarn saves what it is asked for, so with yarn a range becomes an exact pin.
+- The package stays in the `package.json` section it was declared in, and an exact pin stays exact.
+  A leading `v` in the version is stripped.
+  npm, pnpm, and Yarn save an existing range as `^<version>`.
+  Yarn installs the exact target first, then records the range against that target in the lockfile.
 - If the package is not a direct dependency, or the version does not exist, the phase fails.
 - The new release's install scripts run, since this phase has no token.
 
@@ -770,7 +772,6 @@ Known gaps in the current implementation:
   It opens its own pull request next to the bot's rather than pushing onto the bot's branch.
 - Install scripts run without the GitHub token, so dependencies installed from private GitHub repositories or private registries cannot be fetched.
 - A repository whose suite already fails is not migrated at all; there is no way yet to accept a known set of failing tests.
-- With yarn, an upgraded dependency declared as a range is saved as an exact pin, because yarn cannot install an exact version and record a range in one step.
 
 Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architecture/04%20-%20Phased%20Rollout.md):
 

@@ -42,8 +42,8 @@ export async function exists(filePath: string): Promise<boolean> {
 
 /**
  * npm runs as a child process, so the registry has to be a real server. It
- * serves a single package with versions 1.0.0, 2.0.0 and 2.1.0, each with a
- * postinstall script that records which version ran it.
+ * serves a single package with versions 1.0.0, 2.0.0 and 2.1.0 with a
+ * postinstall script, plus scriptless 3.0.0 for testing Yarn's zip cache.
  */
 export async function startRegistry(root: string): Promise<{ server: Server; url: string }> {
   const tarballs = new Map<string, Buffer>();
@@ -72,8 +72,8 @@ export async function startRegistry(root: string): Promise<{ server: Server; url
   const versions: Record<string, unknown> = {};
   // 2.1.0 is newer than every target the specs ask for, so a range request
   // would visibly install it instead of the exact target.
-  for (const version of ['1.0.0', '2.0.0', '2.1.0']) {
-    const scripts = {
+  for (const version of ['1.0.0', '2.0.0', '2.1.0', '3.0.0']) {
+    const scripts = version === '3.0.0' ? undefined : {
       postinstall: `node -e "require('fs').writeFileSync('${POSTINSTALL_MARKER}', '${version}')"`,
     };
     const packageDir = path.join(root, `pkg-${version}`, 'package');
@@ -89,7 +89,7 @@ export async function startRegistry(root: string): Promise<{ server: Server; url
       name: DEPENDENCY,
       version,
       scripts,
-      hasInstallScript: true,
+      hasInstallScript: Boolean(scripts),
       dist: {
         tarball: `${url}${tarballUrl}`,
         shasum: createHash('sha1').update(tarball).digest('hex'),
