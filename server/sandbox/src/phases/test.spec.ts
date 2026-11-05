@@ -67,6 +67,15 @@ describe('test phase', () => {
     assert.match(result.steps[0].output, /all 3 tests passed/);
   });
 
+  it('keeps outer job settings out of repository test processes', async () => {
+    await writeTestScript('node -e "if (process.env.TEST_BASELINE || process.env.API_CHANGE || process.env.LLM_MODEL) process.exit(1)"');
+    process.env.TEST_BASELINE = 'true';
+    process.env.API_CHANGE = '{}';
+    const result = await runTestPhase();
+    assert.equal(result.ok, true);
+    assert.equal(result.steps[0].step, 'BASELINE');
+  });
+
   it('tests the package containing an API call when the repository has no root manifest', async () => {
     const packageDir = path.join(repoDir, 'server', 'sandbox');
     await fs.mkdir(path.join(packageDir, 'src'), { recursive: true });
