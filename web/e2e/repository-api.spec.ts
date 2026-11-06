@@ -44,7 +44,6 @@ test("shows a repository's scanned calls, impacts, migration and live monitor me
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    await page.screenshot({ path: `/private/tmp/synclab-repository-${width}.png`, fullPage: true });
   }
 
   await page.goto("/api-changes");
