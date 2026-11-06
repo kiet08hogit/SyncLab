@@ -5,6 +5,7 @@ import type {
   ApiChangeDecision,
   ApiChangeFilter,
   ApiProviderSummary,
+  ApiMetrics,
   ExecutionLog,
   JobDetail,
   JobStatus,
@@ -12,6 +13,8 @@ import type {
   MigrationJob,
   Repository,
   RepositorySummary,
+  RepositoryApiUsage,
+  RepositoryApiImpact,
 } from "@/lib/types";
 
 // The NestJS gateway in server/api. Every call carries the signed-in user's
@@ -64,6 +67,22 @@ export async function listRepositories(token: string): Promise<RepositorySummary
   return json(await request(token, "/repositories"));
 }
 
+export async function fetchRepositoryApiUsage(token: string, githubRepoId: string): Promise<RepositoryApiUsage | null> {
+  const response = await request(token, `/repositories/${encodeURIComponent(githubRepoId)}/api-usage`);
+  if (response.status === 404) return null;
+  return json(response);
+}
+
+export async function fetchRepositoryApiImpact(token: string, githubRepoId: string): Promise<RepositoryApiImpact | null> {
+  const response = await request(token, `/repositories/${encodeURIComponent(githubRepoId)}/api-impact`);
+  if (response.status === 404) return null;
+  return json(response);
+}
+
+export async function scanRepository(token: string, githubRepoId: string): Promise<{ id: string; queued: boolean }> {
+  return json(await request(token, `/repositories/${encodeURIComponent(githubRepoId)}/scan`, { method: "POST" }));
+}
+
 type ApiJob = MigrationJob & { repository: Repository; executionLogs: ExecutionLog[] };
 
 export async function fetchJob(token: string, id: string): Promise<JobDetail | null> {
@@ -94,6 +113,10 @@ async function monitor<T>(token: string, path: string, init?: RequestInit): Prom
 
 export async function listApiProviders(token: string): Promise<ApiProviderSummary[]> {
   return monitor(token, "/api-providers");
+}
+
+export async function fetchApiMetrics(token: string): Promise<ApiMetrics> {
+  return monitor(token, "/api-metrics");
 }
 
 export async function listApiChanges(token: string, filter: ApiChangeFilter): Promise<ApiChange[]> {

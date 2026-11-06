@@ -187,7 +187,14 @@ export function testCommand(pm: PackageManager): Command {
  * reads at runtime, have to live on the job volume.
  */
 export function packageManagerEnv(workspace: string): NodeJS.ProcessEnv {
-  return {
+  // Repository scripts may themselves exercise SyncLab. Job configuration
+  // belongs to the outer phase and must not change the repository's tests.
+  const phaseKeys = new Set([
+    'SANDBOX_WORKSPACE', 'REPO_URL', 'REPO_FULL_NAME', 'DEPENDENCY_NAME',
+    'TARGET_VERSION', 'MIGRATION_KIND', 'API_CHANGE', 'TARGET_FILES', 'BRANCH_NAME',
+    'TEST_BASELINE', 'BASE_SHA', 'GITHUB_TOKEN', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
+  ]);
+  const env: NodeJS.ProcessEnv = {
     COREPACK_HOME: path.join(workspace, '.corepack'),
     COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
     // Without a packageManager field, resolve corepack's bundled default
@@ -197,4 +204,10 @@ export function packageManagerEnv(workspace: string): NodeJS.ProcessEnv {
     YARN_GLOBAL_FOLDER: path.join(workspace, '.yarn-global'),
     YARN_ENABLE_TELEMETRY: '0',
   };
+  for (const key of Object.keys(process.env)) {
+    if (phaseKeys.has(key) || /^(LLM_|REFACTOR_|VALIDATE_)/.test(key)) {
+      env[key] = undefined;
+    }
+  }
+  return env;
 }

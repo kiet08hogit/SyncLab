@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
+import { runOrThrow } from '../exec.js';
 import { install } from './install.js';
 import {
   DEPENDENCY,
@@ -110,6 +111,55 @@ describe('install phase', () => {
     const lockfile = await readJson(path.join(repoDir, 'package-lock.json'));
     assert.equal(lockfile.packages[`node_modules/${DEPENDENCY}`].version, '1.0.0');
     assert.equal(await exists(path.join(repoDir, 'node_modules', DEPENDENCY, POSTINSTALL_MARKER)), true);
+  });
+
+  it('installs every impacted package when only one depends on the SDK', async () => {
+    const packages = [
+      { directory: 'server/api', manifest: { name: 'api', version: '1.0.0' } },
+      { directory: 'server/sandbox', manifest: { name: 'sandbox', version: '1.0.0', dependencies: { [DEPENDENCY]: '1.0.0' } } },
+      { directory: 'web', manifest: { name: 'web', version: '1.0.0' } },
+    ];
+    for (const { directory, manifest } of packages) {
+      const packageDir = path.join(repoDir, directory);
+      await fs.mkdir(path.join(packageDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(packageDir, 'package.json'), JSON.stringify(manifest));
+      await fs.writeFile(path.join(packageDir, 'src', 'client.ts'), 'export {}\n');
+      await runOrThrow('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: packageDir });
+      await fs.rm(path.join(packageDir, 'node_modules'), { recursive: true, force: true });
+    }
+    Object.assign(process.env, {
+      MIGRATION_KIND: 'api_change',
+      API_CHANGE: JSON.stringify({
+        provider: 'anthropic',
+        kind: 'param_removed',
+        field: 'top_k',
+        evidence: 'top_k is no longer accepted.',
+        sourceUrl: 'https://docs.anthropic.com/en/release-notes/api',
+      }),
+      TARGET_FILES: JSON.stringify([
+        'server/api/src/client.ts',
+        'server/sandbox/src/client.ts',
+        'web/src/client.ts',
+      ]),
+    });
+
+    const result = await install();
+
+    assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+    assert.deepEqual(result.steps.map((step) => [step.step, step.exitCode]), [
+      ['INSTALL', 0],
+      ['INSTALL', 0],
+      ['INSTALL', 0],
+    ]);
+    assert.match(result.steps[0].output, /server\/api/);
+    assert.match(result.steps[1].output, /server\/sandbox/);
+    assert.match(result.steps[2].output, /web/);
+    assert.equal(
+      (await readJson(path.join(repoDir, 'server', 'sandbox', 'node_modules', DEPENDENCY, 'package.json'))).version,
+      '1.0.0',
+    );
+    assert.equal(await exists(path.join(repoDir, 'server', 'api', 'node_modules', DEPENDENCY)), false);
+    assert.equal(await exists(path.join(repoDir, 'web', 'node_modules', DEPENDENCY)), false);
   });
 
   it('fails with the install output when dependencies cannot be installed', async () => {

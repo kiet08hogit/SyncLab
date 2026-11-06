@@ -1,0 +1,13 @@
+{
+  "note": "Hand-authored classifier output for a simulated Phase 10 provider change.",
+  "changes": [
+    {
+      "kind": "param_removed",
+      "operation": "POST /v1/messages",
+      "field": "fallbacks",
+      "replacement": null,
+      "effectiveAt": null,
+      "evidence": "The fallbacks request parameter for POST /v1/messages has been removed."
+    }
+  ]
+}

@@ -67,6 +67,112 @@ describe('test phase', () => {
     assert.match(result.steps[0].output, /all 3 tests passed/);
   });
 
+  it('keeps outer job settings out of repository test processes', async () => {
+    const hidden = [
+      'SANDBOX_WORKSPACE', 'REPO_URL', 'REPO_FULL_NAME', 'DEPENDENCY_NAME',
+      'TARGET_VERSION', 'MIGRATION_KIND', 'API_CHANGE', 'TARGET_FILES', 'BRANCH_NAME',
+      'TEST_BASELINE', 'BASE_SHA', 'GITHUB_TOKEN', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
+    ];
+    await fs.writeFile(
+      path.join(repoDir, 'check-env.js'),
+      `
+        const hidden = ${JSON.stringify(hidden)};
+        const leaked = [
+          ...hidden.filter((name) => Object.hasOwn(process.env, name)),
+          ...Object.keys(process.env).filter((name) => /^(LLM_|REFACTOR_|VALIDATE_)/.test(name)),
+        ];
+        console.log(JSON.stringify({
+          leaked,
+          corepack: process.env.COREPACK_HOME ?? null,
+          path: typeof process.env.PATH,
+        }));
+        if (leaked.length > 0) process.exit(1);
+      `,
+    );
+    await writeTestScript('node check-env.js');
+    for (const name of hidden) {
+      process.env[name] ??= `set-${name}`;
+    }
+    process.env.TEST_BASELINE = 'true';
+    process.env.MIGRATION_KIND = 'dependency';
+    process.env.API_CHANGE = '{}';
+    process.env.TARGET_FILES = '["src/client.ts"]';
+    process.env.BASE_SHA = 'abc123';
+    process.env.GITHUB_TOKEN = 'ghp-test';
+    process.env.GEMINI_API_KEY = 'gemini-test';
+    process.env.ANTHROPIC_API_KEY = 'anthropic-test';
+    process.env.LLM_PROVIDER = 'gemini';
+    process.env.REFACTOR_CUSTOM = 'refactor-test';
+    process.env.VALIDATE_CUSTOM = 'validate-test';
+
+    const result = await runTestPhase();
+
+    assert.equal(result.ok, true, result.steps[0]?.output ?? result.error);
+    assert.equal(result.steps[0].step, 'BASELINE');
+    assert.match(result.steps[0].output, /"leaked":\[\]/);
+    assert.match(result.steps[0].output, /"path":"string"/);
+    assert.ok(result.steps[0].output.includes(path.join(workspace, '.corepack')));
+  });
+
+  it('tests the package containing an API call when the repository has no root manifest', async () => {
+    const packageDir = path.join(repoDir, 'server', 'sandbox');
+    await fs.mkdir(path.join(packageDir, 'src'), { recursive: true });
+    await fs.writeFile(path.join(packageDir, 'package.json'), JSON.stringify({ scripts: { test: 'node -e "console.log(12345)"' } }));
+    delete process.env.DEPENDENCY_NAME;
+    delete process.env.TARGET_VERSION;
+    process.env.MIGRATION_KIND = 'api_change';
+    process.env.API_CHANGE = JSON.stringify({ provider: 'anthropic', kind: 'param_removed', operation: 'POST /v1/messages', field: 'fallbacks', evidence: 'Removed fallbacks', sourceUrl: 'https://example.com/replay' });
+    process.env.TARGET_FILES = JSON.stringify(['server/sandbox/src/client.ts']);
+
+    const result = await runTestPhase();
+    assert.equal(result.ok, true);
+    assert.match(result.steps[0].output, /server\/sandbox/);
+    assert.match(result.steps[0].output, /12345/);
+  });
+
+  it('tests every impacted package, including one that does not depend on the SDK', async () => {
+    const packages = [
+      { directory: 'server/api', name: 'api', script: 'api-suite', dependencies: undefined },
+      { directory: 'server/sandbox', name: 'sandbox', script: 'sandbox-suite', dependencies: { '@anthropic-ai/sdk': '0.60.0' } },
+      { directory: 'web', name: 'web', script: 'web-suite', dependencies: undefined },
+    ];
+    for (const { directory, name, script, dependencies } of packages) {
+      const packageDir = path.join(repoDir, directory);
+      await fs.mkdir(path.join(packageDir, 'src'), { recursive: true });
+      await fs.writeFile(
+        path.join(packageDir, 'package.json'),
+        JSON.stringify({ name, dependencies, scripts: { test: `node -e "console.log('${script}')"` } }),
+      );
+      await fs.writeFile(path.join(packageDir, 'src', 'client.ts'), 'export {}\n');
+    }
+    delete process.env.DEPENDENCY_NAME;
+    delete process.env.TARGET_VERSION;
+    process.env.MIGRATION_KIND = 'api_change';
+    process.env.API_CHANGE = JSON.stringify({
+      provider: 'anthropic',
+      kind: 'param_removed',
+      operation: 'POST /v1/messages',
+      field: 'fallbacks',
+      evidence: 'Removed fallbacks',
+      sourceUrl: 'https://example.com/replay',
+    });
+    process.env.TARGET_FILES = JSON.stringify([
+      'server/api/src/client.ts',
+      'server/sandbox/src/client.ts',
+      'web/src/client.ts',
+    ]);
+
+    const result = await runTestPhase();
+
+    assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+    assert.match(result.steps[0].output, /server\/api/);
+    assert.match(result.steps[0].output, /api-suite/);
+    assert.match(result.steps[1].output, /server\/sandbox/);
+    assert.match(result.steps[1].output, /sandbox-suite/);
+    assert.match(result.steps[2].output, /web/);
+    assert.match(result.steps[2].output, /web-suite/);
+  });
+
   it('labels a normal run with the refactor attempt and the npm command', async () => {
     await writeTestScript('node -e "console.log(\'ok\')"');
     Object.assign(process.env, { REFACTOR_ATTEMPT: '2', REFACTOR_MAX_ATTEMPTS: '3' });

@@ -112,6 +112,50 @@ export interface RepositorySummary {
   lastActivityAt: string | null;
 }
 
+export interface RepositoryScan {
+  id: string;
+  trigger: string;
+  status: JobStatus;
+  commitSha: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RepositoryApiUsage {
+  fullName: string;
+  latestScan: RepositoryScan | null;
+  usageScan: RepositoryScan | null;
+  usages: Array<{
+    provider: ApiProvider;
+    file: string;
+    line: number;
+    style: "sdk" | "http";
+    method: string | null;
+    operation: string | null;
+    params: string[];
+    modelIds: string[];
+    dynamic: boolean;
+  }>;
+}
+
+export interface RepositoryApiImpact {
+  fullName: string;
+  impacts: Array<{
+    changeId: string;
+    provider: ApiProvider;
+    kind: ApiChangeKind;
+    operation: string | null;
+    field: string | null;
+    replacement: string | null;
+    effectiveAt: string | null;
+    detectedAt: string;
+    confidence: "confirmed" | "possible";
+    files: string[];
+    migration: { id: string; status: JobStatus; pullRequestUrl: string | null } | null;
+  }>;
+}
+
 // The API change monitor, as documented under "Monitoring endpoints" in
 // infra/Architecture/05 - Self-Maintaining API.md. Both the API and the
 // dashboard build against these shapes.
@@ -158,6 +202,13 @@ export interface ApiProviderSummary {
   slug: ApiProvider;
   sources: ApiSource[];
   changeCounts: Record<ApiChangeStatus, number>;
+}
+
+export interface ApiMetrics {
+  changesDetected: number;
+  repositoriesImpacted: number;
+  migrationPrCount: number;
+  averageDetectionToPrSeconds: number | null;
 }
 
 /** One entry of `GET /api-changes`, newest first. */

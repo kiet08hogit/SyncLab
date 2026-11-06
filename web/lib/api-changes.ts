@@ -3,9 +3,9 @@ import "server-only";
 import { connection } from "next/server";
 import { cache } from "react";
 
-import { listApiChanges, listApiProviders, MonitorUnavailableError } from "@/lib/api";
+import { fetchApiMetrics, listApiChanges, listApiProviders, MonitorUnavailableError } from "@/lib/api";
 import { getSession } from "@/lib/session";
-import type { ApiChange, ApiChangeFilter, ApiProviderSummary, ApiSource } from "@/lib/types";
+import type { ApiChange, ApiChangeFilter, ApiMetrics, ApiProviderSummary, ApiSource } from "@/lib/types";
 
 // The API change monitor, read with the signed-in user's token. Signed out,
 // the getters serve the samples below, shaped exactly like the contract in
@@ -236,4 +236,15 @@ export async function getApiChanges(filter: ApiChangeFilter = {}): Promise<Monit
     (token) => listApiChanges(token, filter),
     () => filterChanges(sampleChanges(), filter),
   );
+}
+
+export async function getApiMetrics(): Promise<ApiMetrics | null> {
+  const session = await getSession();
+  if (!session) return null;
+  try {
+    return await fetchApiMetrics(session.accessToken);
+  } catch (error) {
+    if (error instanceof MonitorUnavailableError) return null;
+    throw error;
+  }
 }

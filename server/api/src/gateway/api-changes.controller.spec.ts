@@ -13,6 +13,12 @@ function setup(monitorAdminLogins: string[] = ['octo-admin']) {
     listProviders: jest.fn().mockResolvedValue([]),
     listChanges: jest.fn().mockResolvedValue([]),
     setStatus: jest.fn(),
+    metrics: jest.fn().mockResolvedValue({
+      changesDetected: 3,
+      repositoriesImpacted: 2,
+      migrationPrCount: 2,
+      averageDetectionToPrSeconds: 45,
+    }),
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
   const config = { get: jest.fn(() => monitorAdminLogins) };
@@ -30,6 +36,15 @@ function setup(monitorAdminLogins: string[] = ['octo-admin']) {
 }
 
 describe('ApiChangesController', () => {
+  it('exposes durable metrics as Prometheus samples using the caller scope', async () => {
+    const { controller, queries } = setup();
+    const output = await controller.prometheus(SERVICE);
+    expect(queries.metrics).toHaveBeenCalledWith(SERVICE);
+    expect(output).toContain('synclab_api_changes_detected 3\n');
+    expect(output).toContain('synclab_api_repositories_impacted 2\n');
+    expect(output).toContain('synclab_api_detection_to_pr_seconds_sum 90\n');
+    expect(output).toContain('synclab_api_detection_to_pr_seconds_count 2\n');
+  });
   it('passes valid filters through and leaves missing ones out', async () => {
     const { controller, queries } = setup();
 

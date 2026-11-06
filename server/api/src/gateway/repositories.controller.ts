@@ -14,6 +14,7 @@ import { ScanTrigger } from '../common/constants';
 import { ApiAuthGuard, CurrentCaller, type Caller } from './api-auth.guard';
 import { MigrationQueriesService } from './migration-queries.service';
 import { ScansService } from './scans.service';
+import { ImpactService } from '../impact/impact.service';
 
 const GITHUB_REPO_ID = /^[1-9]\d{0,18}$/;
 
@@ -25,6 +26,7 @@ export class RepositoriesController {
     private readonly scans: ScansService,
     private readonly github: GithubTokenService,
     private readonly prisma: PrismaService,
+    private readonly impact: ImpactService,
   ) {}
 
   @Get()
@@ -55,6 +57,16 @@ export class RepositoriesController {
       throw new NotFoundException(`Repository ${param} has not been scanned`);
     }
     return usage;
+  }
+
+  @Get(':githubRepoId/api-impact')
+  async apiImpact(@CurrentCaller() caller: Caller, @Param('githubRepoId') param: string) {
+    await this.accessibleFullName(caller, param);
+    const impact = await this.impact.listForRepository(BigInt(param));
+    if (!impact) {
+      throw new NotFoundException(`Repository ${param} has not been scanned`);
+    }
+    return impact;
   }
 
   /**

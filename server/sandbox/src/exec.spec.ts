@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { redact, run, runOrThrow } from './exec.js';
+import { packageManagerEnv } from './package-manager.js';
 
 const node = process.execPath;
 
@@ -38,6 +39,71 @@ describe('run', () => {
     );
 
     assert.equal(result.output, 'extra:string');
+  });
+
+  it('omits variables the override sets to undefined, including job and credential names', async () => {
+    const saved: NodeJS.ProcessEnv = { ...process.env };
+    const hidden = [
+      'SANDBOX_WORKSPACE', 'REPO_URL', 'REPO_FULL_NAME', 'DEPENDENCY_NAME',
+      'TARGET_VERSION', 'MIGRATION_KIND', 'API_CHANGE', 'TARGET_FILES', 'BRANCH_NAME',
+      'TEST_BASELINE', 'BASE_SHA', 'GITHUB_TOKEN', 'GEMINI_API_KEY', 'ANTHROPIC_API_KEY',
+      'LLM_MODEL', 'LLM_PROVIDER', 'REFACTOR_ATTEMPT', 'VALIDATE_TYPECHECK',
+    ];
+    const workspace = path.join(os.tmpdir(), 'job-workspace');
+    try {
+      for (const name of hidden) {
+        process.env[name] = `secret-${name}`;
+      }
+      process.env.SYNCLAB_KEEP = 'keep-me';
+      const result = await run(
+        node,
+        ['-e', `
+          const hidden = ${JSON.stringify(hidden)};
+          const leaked = [
+            ...hidden.filter((name) => Object.hasOwn(process.env, name)),
+            ...Object.keys(process.env).filter((name) => /^(LLM_|REFACTOR_|VALIDATE_)/.test(name)),
+          ];
+          process.stdout.write(JSON.stringify({
+            leaked,
+            keep: process.env.SYNCLAB_KEEP ?? null,
+            corepack: process.env.COREPACK_HOME ?? null,
+            yarn: process.env.YARN_GLOBAL_FOLDER ?? null,
+            latest: process.env.COREPACK_DEFAULT_TO_LATEST ?? null,
+            prompt: process.env.COREPACK_ENABLE_DOWNLOAD_PROMPT ?? null,
+            telemetry: process.env.YARN_ENABLE_TELEMETRY ?? null,
+            path: typeof process.env.PATH,
+          }));
+        `],
+        { env: packageManagerEnv(workspace) },
+      );
+
+      assert.equal(result.code, 0, result.output);
+      const seen = JSON.parse(result.output) as {
+        leaked: string[];
+        keep: string | null;
+        corepack: string | null;
+        yarn: string | null;
+        latest: string | null;
+        prompt: string | null;
+        telemetry: string | null;
+        path: string;
+      };
+      assert.deepEqual(seen.leaked, []);
+      assert.equal(seen.keep, 'keep-me');
+      assert.equal(seen.corepack, path.join(workspace, '.corepack'));
+      assert.equal(seen.yarn, path.join(workspace, '.yarn-global'));
+      assert.equal(seen.latest, '0');
+      assert.equal(seen.prompt, '0');
+      assert.equal(seen.telemetry, '0');
+      assert.equal(seen.path, 'string');
+    } finally {
+      for (const name of Object.keys(process.env)) {
+        if (!(name in saved)) {
+          delete process.env[name];
+        }
+      }
+      Object.assign(process.env, saved);
+    }
   });
 
   it('reports -1 when the process is killed by a signal', async () => {

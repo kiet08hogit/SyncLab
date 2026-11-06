@@ -2,8 +2,8 @@
 
 SyncLab reacts to dependency releases and to confirmed breaking changes in watched provider APIs.
 For an API change, it scans connected repositories, identifies calls to the affected part of the API, migrates confirmed impacts, validates the result, and opens a pull request.
-The loop does not yet maintain SyncLab's own repository automatically; connecting it and proving a self-migration is the Phase 10 goal.
-The rollout is Phases 5 to 10 in [[04 - Phased Rollout]].
+The loop does not yet maintain SyncLab's own repository automatically.
+The rollout is Phases 5 to 10 in [[04 - Phased Rollout]], which also records Phase 10's progress.
 
 ![[Self-Maintaining API Workflow.excalidraw]]
 
@@ -161,7 +161,8 @@ The check that separates a dependency job from an API-change job is in `server/a
 
 ## Monitoring endpoints
 
-The dashboard reads the monitor through these endpoints, and both sides build against the shapes below.
+The dashboard reads the JSON endpoints below, and both sides build against the shapes below.
+`GET /metrics` is the Prometheus form of `GET /api-metrics` for a scraper, not a dashboard call.
 All of them take the same bearer token as the rest of the API: a signed-in user's GitHub token or `MIGRATIONS_API_TOKEN`.
 Breaking changes are not tied to a repository, so any authenticated caller can read them.
 Confirming or dismissing one changes what every installation sees, so only an admin may: the `MIGRATIONS_API_TOKEN` service caller, or a user whose GitHub login is listed in `MONITOR_ADMIN_LOGINS` (comma-separated, case-insensitive; empty or unset means no user is an admin).
@@ -176,6 +177,8 @@ Timestamps are ISO 8601 strings; `effectiveAt` is a calendar date (`YYYY-MM-DD`)
 | `POST /api-changes/:id/confirm` | 6b | the updated change, with `status: "confirmed"`; admins only |
 | `POST /api-changes/:id/dismiss` | 6b | the updated change, with `status: "dismissed"`; admins only |
 | `GET /api-changes/:id/impact` | 7 | the repositories and files the change affects |
+| `GET /api-metrics` | 10 | changes detected, repositories with current impacts, and time from detection to a published API migration pull request |
+| `GET /metrics` | 10 | the same values as Prometheus text |
 
 `GET /api-providers`:
 
@@ -239,6 +242,30 @@ A removal read from the spec diff (`endpoint_removed`, `param_removed` or `enum_
 A model retirement names the model in `field`; an endpoint removal from a deprecations page names the path in `operation`, such as `/v1/edits`, because those pages do not give the HTTP method, while one from the spec diff carries it, such as `POST /v1/agents/sessions`.
 A parameter change names the parameter in `field`, and a removed enum value is written `parameter=value`.
 The spec diff only reads top-level request parameters; a change inside a nested object is not reported.
+
+`GET /api-metrics`:
+
+```json
+{
+  "changesDetected": 21,
+  "repositoriesImpacted": 4,
+  "migrationPrCount": 2,
+  "averageDetectionToPrSeconds": 3600
+}
+```
+
+`changesDetected` counts every recorded breaking change, including `detected`, `confirmed`, and `dismissed`, and is not limited to the caller's repositories.
+`repositoriesImpacted` counts distinct repositories that currently have an impact row.
+`migrationPrCount` and `averageDetectionToPrSeconds` cover API-change jobs with a pull request URL and a `PR` execution log whose output contains `opened `.
+The seconds run from the change's `detectedAt` to the earliest such log, each job is counted once, and the value is never negative.
+A caller with no such pull request gets `averageDetectionToPrSeconds: null` and `migrationPrCount: 0`.
+Repository counts and pull request timings include only repositories the caller's installations reach.
+The service token includes every recorded repository.
+
+`GET /metrics` returns those values as Prometheus text (`text/plain; version=0.0.4; charset=utf-8`).
+`synclab_api_changes_detected` and `synclab_api_repositories_impacted` are gauges.
+`synclab_api_detection_to_pr_seconds` is a summary: `_count` is `migrationPrCount`, and `_sum` is the average multiplied by that count.
+A scraper that should see every repository sends `MIGRATIONS_API_TOKEN` as a bearer token.
 
 ## Impact analysis
 

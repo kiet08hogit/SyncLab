@@ -9,4 +9,4 @@ Start with [[00 - Architecture Overview]] for the dependency and external API mi
 - [[05 - Self-Maintaining API]] details provider monitoring, repository scanning, impact matching, migration, and validation.
 
 SyncLab can migrate confirmed API changes in connected repositories.
-The remaining dogfooding goal is to connect SyncLab's own repository and prove that the same loop opens a pull request for its own API usage.
+Phase 10's progress is in [[04 - Phased Rollout]].

@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BreakingChangeStatus } from '../common/constants';
+import type { Caller } from '../gateway/api-auth.guard';
 
 export interface ChangeFilters {
   provider?: string;
@@ -20,6 +21,49 @@ function isoDate(value: Date | null): string | null {
 @Injectable()
 export class ApiChangesQueries {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Live totals. `changesDetected` counts every recorded change; the other figures are limited to repositories the caller may see. */
+  async metrics(caller: Caller) {
+    const ids = caller.kind === 'user' ? [...caller.repositories.keys()] : null;
+    const changesDetected = await this.prisma.breakingChange.count();
+    if (ids && ids.length === 0) {
+      return {
+        changesDetected,
+        repositoriesImpacted: 0,
+        migrationPrCount: 0,
+        averageDetectionToPrSeconds: null,
+      };
+    }
+    const repoScope = ids
+      ? Prisma.sql`AND r.github_repo_id IN (${Prisma.join(ids)})`
+      : Prisma.empty;
+    const [impacted, latency] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT COUNT(DISTINCT i.repository_id)::int AS count
+        FROM api_impacts i JOIN repositories r ON r.id = i.repository_id
+        WHERE true ${repoScope}
+      `),
+      this.prisma.$queryRaw<Array<{ count: number; average: number | null }>>(Prisma.sql`
+        SELECT COUNT(*)::int AS count, AVG(seconds)::float AS average
+        FROM (
+          SELECT GREATEST(0, EXTRACT(EPOCH FROM (MIN(l.created_at) - c.detected_at))) AS seconds
+          FROM migration_jobs j
+          JOIN repositories r ON r.id = j.repository_id
+          JOIN breaking_changes c ON c.id = j.breaking_change_id
+          JOIN execution_logs l ON l.job_id = j.id
+          WHERE j.kind = 'api_change' AND j.pull_request_url IS NOT NULL
+            AND l.step = 'PR' AND l.output LIKE '%opened %' ${repoScope}
+          GROUP BY j.id, c.detected_at
+        ) completed
+      `),
+    ]);
+    return {
+      changesDetected,
+      repositoriesImpacted: impacted[0]?.count ?? 0,
+      migrationPrCount: latency[0]?.count ?? 0,
+      averageDetectionToPrSeconds: latency[0]?.average ?? null,
+    };
+  }
 
   async listProviders() {
     const [providers, counts] = await Promise.all([

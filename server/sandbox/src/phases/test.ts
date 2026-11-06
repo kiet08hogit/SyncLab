@@ -1,8 +1,10 @@
 import { run } from '../exec.js';
+import path from 'node:path';
 import { loadConfig } from '../config.js';
 import { detectPackageManager, packageManagerEnv, testCommand } from '../package-manager.js';
 import { clearValidationFailure, writeTestOutput } from '../state.js';
 import type { PhaseResult, StepLog } from '../result.js';
+import { projectDirectories } from '../project-directories.js';
 
 /**
  * Executes repository code, which is why its container is started with no
@@ -17,35 +19,35 @@ export async function test(): Promise<PhaseResult> {
   const baseline = process.env.TEST_BASELINE === 'true';
   const steps: StepLog[] = [];
 
-  const pm = await detectPackageManager(config.repoDir);
-  const { command, args } = testCommand(pm);
-  const result = await run(command, args, {
-    cwd: config.repoDir,
-    env: packageManagerEnv(config.workspace),
-  });
-
-  // The next refactor attempt reads this back to correct itself.
-  await writeTestOutput(config.stateDir, result.output);
-
   const label = baseline
     ? 'Baseline run before the upgrade'
     : `Attempt ${config.llm.attempt}/${config.llm.maxAttempts}`;
-  steps.push({
-    step: baseline ? 'BASELINE' : 'TEST',
-    output: `${label}\n$ ${command} ${args.join(' ')}\n${result.output}`,
-    exitCode: result.code,
-  });
+  for (const directory of await projectDirectories(config)) {
+    const pm = await detectPackageManager(directory);
+    const { command, args } = testCommand(pm);
+    const result = await run(command, args, {
+      cwd: directory,
+      env: packageManagerEnv(config.workspace),
+    });
+    // The next refactor attempt reads this back to correct itself.
+    await writeTestOutput(config.stateDir, result.output);
+    steps.push({
+      step: baseline ? 'BASELINE' : 'TEST',
+      output: `${label}\n$ ${command} ${args.join(' ')}${directory === config.repoDir ? '' : ` (${path.relative(config.repoDir, directory)})`}\n${result.output}`,
+      exitCode: result.code,
+    });
 
-  if (result.code !== 0) {
-    // This attempt never reached validation, so a reason from the previous
-    // attempt must not ride along beside the new test failure.
-    await clearValidationFailure(config.stateDir);
-    return {
-      phase: 'test',
-      ok: false,
-      error: `test suite failed with exit code ${result.code}`,
-      steps,
-    };
+    if (result.code !== 0) {
+      // This attempt never reached validation, so a reason from the previous
+      // attempt must not ride along beside the new test failure.
+      await clearValidationFailure(config.stateDir);
+      return {
+        phase: 'test',
+        ok: false,
+        error: `test suite failed with exit code ${result.code}`,
+        steps,
+      };
+    }
   }
 
   return { phase: 'test', ok: true, steps };

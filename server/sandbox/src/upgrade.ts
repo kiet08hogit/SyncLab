@@ -207,6 +207,11 @@ function isExactVersion(spec: string): boolean {
   return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(spec);
 }
 
+export function missingDependencyOutcome(name: string): UpgradeOutcome {
+  const error = `${name} is not a direct dependency in package.json, so it cannot be upgraded`;
+  return { ok: false, error, step: { step: 'UPGRADE', output: error } };
+}
+
 /**
  * Returns undefined when the package is not a direct dependency: installing it
  * anyway would add a top-level dependency the repository never had.
@@ -227,6 +232,18 @@ export function findDependency(
   return undefined;
 }
 
+export async function packageDeclaresDependency(directory: string, name: string): Promise<boolean> {
+  try {
+    const packageJson = JSON.parse(
+      await fs.readFile(path.join(directory, 'package.json'), 'utf8'),
+    ) as PackageJson;
+    return findDependency(packageJson, name) !== undefined;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
 /**
  * Updates the installed packages, package.json and the lockfile together, so
  * the test phase runs against the target version and publish commits the bump.
@@ -244,10 +261,7 @@ export async function upgradeDependency(
   ) as PackageJson;
 
   const found = findDependency(packageJson, name);
-  if (!found) {
-    const error = `${name} is not a direct dependency in package.json, so it cannot be upgraded`;
-    return { ok: false, error, step: { step: 'UPGRADE', output: error } };
-  }
+  if (!found) return missingDependencyOutcome(name);
 
   const required = normalizeVersion(version);
   if (options.minimum) {

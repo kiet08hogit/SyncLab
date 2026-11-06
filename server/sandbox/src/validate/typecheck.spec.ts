@@ -54,7 +54,10 @@ describe('typecheck', () => {
   }
 
   async function typescriptProject(source: string): Promise<void> {
-    await write('package.json', JSON.stringify({ name: 'fixture', type: 'module' }));
+    await write(
+      'package.json',
+      JSON.stringify({ name: 'fixture', type: 'module', dependencies: { '@anthropic-ai/sdk': SDK.version } }),
+    );
     await write(
       'tsconfig.json',
       JSON.stringify({
@@ -81,6 +84,23 @@ describe('typecheck', () => {
     await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x', max_tokens: 1 });\n");
 
     assert.equal(await check.run(), undefined);
+  });
+
+  it('checks a nested API package when the root has no manifest', async () => {
+    await typescriptProject("import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x', max_tokens: 1 });\n");
+    const staged = path.join(workspace, 'package');
+    await fs.rename(repoDir, staged);
+    await fs.mkdir(path.join(repoDir, 'server'), { recursive: true });
+    await fs.rename(staged, path.join(repoDir, 'server', 'sdk'));
+    Object.assign(process.env, {
+      MIGRATION_KIND: 'api_change',
+      API_CHANGE: JSON.stringify({ provider: 'anthropic', kind: 'param_removed', field: 'max_tokens', evidence: 'Removed max_tokens', sourceUrl: 'https://example.com/replay' }),
+      TARGET_FILES: JSON.stringify(['server/sdk/src/chat.ts']),
+      REPO_URL: 'https://github.com/acme/api.git', REPO_FULL_NAME: 'acme/api', BRANCH_NAME: 'replay', LLM_MODEL: 'test',
+    });
+    const reason = await check.run();
+    assert.match(reason ?? '', /^server\/sdk:/);
+    assert.match(reason ?? '', /max_tokens/);
   });
 
   it('passes a repository that is not TypeScript', async () => {
@@ -194,11 +214,20 @@ describe('typecheck', () => {
 
   it('fails when the required SDK is not installed', async () => {
     await write('tsconfig.json', '{}\n');
+    await write('package.json', JSON.stringify({ dependencies: { '@anthropic-ai/sdk': SDK.version } }));
 
     assert.equal(await check.run(), '@anthropic-ai/sdk@0.60.0 is not installed');
   });
 
+  it('skips a TypeScript package that does not depend on the SDK', async () => {
+    await write('tsconfig.json', '{}\n');
+    await write('package.json', JSON.stringify({ name: 'web', version: '1.0.0' }));
+
+    assert.equal(await check.run(), undefined);
+  });
+
   it('fails when a TypeScript repository has no compiler', async () => {
+    await write('package.json', JSON.stringify({ dependencies: { '@anthropic-ai/sdk': SDK.version } }));
     await write('tsconfig.json', '{}\n');
     await write(
       'node_modules/@anthropic-ai/sdk/package.json',
@@ -213,5 +242,101 @@ describe('typecheck', () => {
     process.env.VALIDATE_CONTEXT = context({ package: '../secrets', version: '1.0.0' });
 
     assert.match(await check.run() ?? '', /refusing to typecheck a package path/);
+  });
+
+  describe('across packages that share one API change', () => {
+    const declaration = 'export interface MessageCreateParams { model: string }\nexport function create(body: MessageCreateParams): void;\n';
+    const tsconfig = {
+      compilerOptions: {
+        strict: true,
+        module: 'nodenext',
+        moduleResolution: 'nodenext',
+        target: 'ES2022',
+        skipLibCheck: true,
+        incremental: false,
+      },
+      include: ['src'],
+    };
+
+    function apiChangeEnv(files: string[]): void {
+      Object.assign(process.env, {
+        MIGRATION_KIND: 'api_change',
+        API_CHANGE: JSON.stringify({
+          provider: 'anthropic',
+          kind: 'param_removed',
+          field: 'max_tokens',
+          evidence: 'Removed max_tokens',
+          sourceUrl: 'https://example.com/replay',
+        }),
+        TARGET_FILES: JSON.stringify(files),
+        REPO_URL: 'https://github.com/acme/api.git',
+        REPO_FULL_NAME: 'acme/api',
+        BRANCH_NAME: 'replay',
+        LLM_MODEL: 'test',
+      });
+    }
+
+    async function packageAt(
+      directory: string,
+      manifest: Record<string, unknown>,
+      source: string | undefined,
+    ): Promise<void> {
+      await write(`${directory}/package.json`, JSON.stringify(manifest));
+      await write(`${directory}/tsconfig.json`, JSON.stringify(tsconfig));
+      if (source !== undefined) await write(`${directory}/src/chat.ts`, source);
+    }
+
+    async function installSdk(directory: string): Promise<void> {
+      await write(
+        `${directory}/node_modules/@anthropic-ai/sdk/package.json`,
+        JSON.stringify({ name: '@anthropic-ai/sdk', version: '0.60.0', types: 'index.d.ts' }),
+      );
+      await write(`${directory}/node_modules/@anthropic-ai/sdk/index.d.ts`, declaration);
+      await fs.symlink(TYPESCRIPT_DIR, path.join(repoDir, directory, 'node_modules', 'typescript'), 'dir');
+    }
+
+    it('typechecks the package that depends on the SDK and skips TypeScript packages that do not', async () => {
+      await packageAt('server/api', { name: 'api' }, "export const value = 1;\n");
+      await packageAt(
+        'server/sandbox',
+        { name: 'sandbox', type: 'module', devDependencies: { '@anthropic-ai/sdk': '0.60.0' } },
+        "import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x', max_tokens: 1 });\n",
+      );
+      await packageAt('web', { name: 'web' }, "export const page = 1;\n");
+      await installSdk('server/sandbox');
+      apiChangeEnv(['server/api/src/chat.ts', 'server/sandbox/src/chat.ts', 'web/src/chat.ts']);
+
+      const reason = await check.run();
+
+      assert.match(reason ?? '', /^server\/sandbox: @anthropic-ai\/sdk@0\.60\.0\n/);
+      assert.match(reason ?? '', /max_tokens/);
+      assert.equal(reason?.includes('is not installed'), false);
+    });
+
+    it('passes when the owning package typechecks and the others do not install the SDK', async () => {
+      await packageAt('server/api', { name: 'api' }, "export const value = 1;\n");
+      await packageAt(
+        'server/sandbox',
+        { name: 'sandbox', type: 'module', dependencies: { '@anthropic-ai/sdk': '0.60.0' } },
+        "import { create } from '@anthropic-ai/sdk';\ncreate({ model: 'x' });\n",
+      );
+      await packageAt('web', { name: 'web' }, "export const page = 1;\n");
+      await installSdk('server/sandbox');
+      apiChangeEnv(['server/api/src/chat.ts', 'server/sandbox/src/chat.ts', 'web/src/chat.ts']);
+
+      assert.equal(await check.run(), undefined);
+    });
+
+    it('still fails when the package that depends on the SDK does not have it installed', async () => {
+      await packageAt('server/api', { name: 'api' }, "export const value = 1;\n");
+      await packageAt(
+        'server/sandbox',
+        { name: 'sandbox', dependencies: { '@anthropic-ai/sdk': '0.60.0' } },
+        "export const value = 1;\n",
+      );
+      apiChangeEnv(['server/api/src/chat.ts', 'server/sandbox/src/chat.ts']);
+
+      assert.equal(await check.run(), 'server/sandbox: @anthropic-ai/sdk@0.60.0 is not installed');
+    });
   });
 });
