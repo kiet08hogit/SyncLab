@@ -15,10 +15,12 @@ interface TypecheckRequest {
 }
 
 /**
- * Typechecks a TypeScript repository against the installed SDK when that
- * release meets the required minimum. With no SDK named in VALIDATE_CONTEXT,
- * or no tsconfig.json, it passes. It uses the repository's own TypeScript
- * compiler and does not fetch anything.
+ * Typechecks the installed SDK when that release meets the required minimum.
+ * With no SDK named in VALIDATE_CONTEXT, it passes. An API-change job checks
+ * the directories from `projectDirectories`; any other job checks the
+ * repository root. A directory with no tsconfig.json, or whose package.json
+ * does not list the SDK, passes its part of the check. It uses that
+ * directory's TypeScript compiler and does not fetch anything.
  */
 export const check = {
   name: 'typecheck',

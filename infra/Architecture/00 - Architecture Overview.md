@@ -40,4 +40,4 @@ See [[01 - Core Components]], [[02 - Database & Queue]], and [[03 - Security & I
 ## Self-maintenance boundary
 
 The external API-change path is implemented through scanning, monitoring, impact analysis, migration, rescan, OpenAI schema checks, and SDK typechecks when a required release is recorded.
-Connecting SyncLab's own repository to that path and proving it opens a pull request for its own affected API use is the remaining Phase 10 dogfooding goal in [[04 - Phased Rollout]].
+Phase 10's progress is in [[04 - Phased Rollout]].

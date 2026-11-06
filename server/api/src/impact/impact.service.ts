@@ -98,7 +98,7 @@ export class ImpactService {
     };
   }
 
-  /** Current confirmed impacts for one repository, including the migration they started. */
+  /** Current impacts for one repository, including a possible match and the migration a change started. */
   async listForRepository(githubRepoId: bigint) {
     const repository = await this.prisma.repository.findUnique({
       where: { githubRepoId },

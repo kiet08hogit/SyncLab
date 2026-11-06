@@ -22,7 +22,7 @@ function isoDate(value: Date | null): string | null {
 export class ApiChangesQueries {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Live operational totals, scoped to repositories the caller may see. */
+  /** Live totals. `changesDetected` counts every recorded change; the other figures are limited to repositories the caller may see. */
   async metrics(caller: Caller) {
     const ids = caller.kind === 'user' ? [...caller.repositories.keys()] : null;
     const changesDetected = await this.prisma.breakingChange.count();

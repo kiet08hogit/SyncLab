@@ -6,7 +6,7 @@ async function hasManifest(directory: string): Promise<boolean> {
   return access(path.join(directory, 'package.json')).then(() => true, () => false);
 }
 
-/** Run an API migration's install and tests in each package containing an impacted file. */
+/** Install and test directories. An API-change job with no root package.json uses each package that contains an impacted file; every other job uses the repository root. */
 export async function projectDirectories(config: SandboxConfig): Promise<string[]> {
   if (config.migration.kind !== 'api_change' || await hasManifest(config.repoDir)) return [config.repoDir];
 

@@ -2,8 +2,8 @@
 
 SyncLab reacts to dependency releases and to confirmed breaking changes in watched provider APIs.
 For an API change, it scans connected repositories, identifies calls to the affected part of the API, migrates confirmed impacts, validates the result, and opens a pull request.
-The loop does not yet maintain SyncLab's own repository automatically; connecting it and proving a self-migration is the Phase 10 goal.
-The rollout is Phases 5 to 10 in [[04 - Phased Rollout]].
+The loop does not yet maintain SyncLab's own repository automatically.
+The rollout is Phases 5 to 10 in [[04 - Phased Rollout]], which also records Phase 10's progress.
 
 ![[Self-Maintaining API Workflow.excalidraw]]
 

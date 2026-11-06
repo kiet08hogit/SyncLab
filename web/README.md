@@ -67,7 +67,9 @@ When the API is down or no longer accepts the session, `app/(app)/error.tsx` off
 A 404 from either read is shown as no completed scan or no current impacts.
 
 `/api-changes` reads the change monitor through `lib/api-changes.ts`: `GET /api-providers`, `GET /api-metrics`, `GET /api-changes` and `POST /api-providers/poll`, with the shapes in the "Monitoring endpoints" section of `infra/Architecture/05 - Self-Maintaining API.md`.
-Signed in to an API that does not run the monitor yet, those routes answer 404, so the page serves its samples too and says the API has no monitor, rather than showing an error.
+Signed in to an API that does not run the monitor yet, those routes answer 404, so providers and changes use the page's samples and it says the API has no monitor, rather than showing an error.
+The metric cards render only when `GET /api-metrics` succeeds.
+Signed out, or when that route answers 404, they are omitted.
 Confirm and dismiss (`POST /api-changes/:id/confirm` and `/dismiss`, through `lib/api.ts`) show only on changes whose `canReview` is true, which the API sets for users listed in its `MONITOR_ADMIN_LOGINS`; a refusal says so and refreshes the page.
 
 The pipeline track in `lib/pipeline.ts` reads a job's `execution_logs` the way the worker writes them: a phase's rows are flushed when the phase finishes, and each retry starts a new attempt.

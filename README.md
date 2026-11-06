@@ -799,5 +799,4 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 The external API-change workflow in Phases 5 to 9 is built: it scans connected repositories, monitors provider sources, analyzes impacts, migrates confirmed changes, and validates the result.
 Phase 9 rescans the migrated tree after the suite passes, checks literal OpenAI requests against the new spec, and typechecks a TypeScript repository when the change names a required SDK release.
 The Phase 9 benchmark proves a partial fix whose tests pass is rejected and the completed fix is accepted.
-Phase 10 will connect SyncLab's own repository and prove the loop opens a migration pull request on SyncLab itself.
-The API-change design and remaining steps are in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md) and [`infra/Architecture/04 - Phased Rollout.md`](infra/Architecture/04%20-%20Phased%20Rollout.md).
+The API-change design and Phase 10 progress are in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md) and [`infra/Architecture/04 - Phased Rollout.md`](infra/Architecture/04%20-%20Phased%20Rollout.md).
