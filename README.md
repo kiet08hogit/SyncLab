@@ -417,7 +417,7 @@ It also derives them when running an older queued job that has no SDK metadata.
 A change from an API release note, deprecation page, or OpenAPI spec keeps the installed SDK unless the job explicitly names a required version.
 A repository with no root `tsconfig.json` skips compilation, but must still have the required SDK installed at the minimum version or newer.
 The named version is a minimum.
-The check compiles the installed SDK when it is that release or newer, and fails without compiling when the installed SDK is older.
+The check fails without compiling when the installed SDK is older, and compiles it when a root `tsconfig.json` is present and the installed SDK is that release or newer.
 The worker passes each check the JSON it builds in `server/api/src/worker/sandbox/validation-context/`, and a check adds its own keys in its own file there.
 A failed check is written to the volume and the next `refactor` attempt reads it.
 The container has no network and no token, so a check cannot call a provider.
@@ -780,7 +780,7 @@ Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architectur
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 
 The external API-change workflow in Phases 5 to 9 is built: it scans connected repositories, monitors provider sources, analyzes impacts, migrates confirmed changes, and validates the result.
-Phase 9 rescans the migrated tree after the suite passes, checks literal OpenAI requests against the new spec, and typechecks a TypeScript repository when the change names a required SDK release.
+Phase 9 rescans the migrated tree after the suite passes, checks literal OpenAI requests against the new spec, and runs the typecheck described in the validate phase when the change names a required SDK release.
 The Phase 9 benchmark proves a partial fix whose tests pass is rejected and the completed fix is accepted.
 Phase 10 will connect SyncLab's own repository and prove the loop opens a migration pull request on SyncLab itself.
 The API-change design and remaining steps are in [`infra/Architecture/05 - Self-Maintaining API.md`](infra/Architecture/05%20-%20Self-Maintaining%20API.md) and [`infra/Architecture/04 - Phased Rollout.md`](infra/Architecture/04%20-%20Phased%20Rollout.md).
