@@ -3,8 +3,12 @@ import { createRequire } from 'node:module';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { check } from './checks/typecheck.js';
+import { run } from '../exec.js';
+import { RESULT_SENTINEL, type PhaseResult } from '../result.js';
+import { readValidationFailure } from '../state.js';
 
 const require = createRequire(import.meta.url);
 const TYPESCRIPT_DIR = path.dirname(require.resolve('typescript/package.json'));
@@ -85,8 +89,32 @@ describe('typecheck', () => {
 
   it('passes a repository that is not TypeScript', async () => {
     await write('src/chat.js', 'module.exports = 1;\n');
+    await write('node_modules/@anthropic-ai/sdk/package.json', JSON.stringify({ version: SDK.version }));
 
     assert.equal(await check.run(), undefined);
+  });
+
+  it('rejects a JavaScript migration with a downgraded SDK through the validation phase', async () => {
+    await write('src/chat.js', 'module.exports = 1;\n');
+    await write('node_modules/@anthropic-ai/sdk/package.json', JSON.stringify({ version: '0.30.0' }));
+
+    const command = await run(process.execPath, [fileURLToPath(new URL('../main.js', import.meta.url)), 'validate']);
+    assert.equal(command.code, 1);
+    const result = JSON.parse(command.output.split(RESULT_SENTINEL)[1]) as PhaseResult;
+
+    assert.equal(result.ok, false);
+    assert.match(result.error ?? '', /0\.30\.0 is installed, and the change requires 0\.60\.0/);
+    assert.equal(await readValidationFailure(path.join(workspace, 'state')), result.error);
+
+    await write('node_modules/@anthropic-ai/sdk/package.json', JSON.stringify({ version: SDK.version }));
+    const retry = await run(process.execPath, [fileURLToPath(new URL('../main.js', import.meta.url)), 'validate']);
+    assert.equal(retry.code, 0);
+    assert.equal(await readValidationFailure(path.join(workspace, 'state')), undefined);
+  });
+
+  it('rejects a JavaScript migration when the required SDK is missing', async () => {
+    await write('src/chat.js', 'module.exports = 1;\n');
+    assert.equal(await check.run(), '@anthropic-ai/sdk@0.60.0 is not installed');
   });
 
   it('reports a type error against the SDK the change requires', async () => {

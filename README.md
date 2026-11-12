@@ -415,7 +415,7 @@ The typecheck runs only when the job names the SDK package and version the chang
 For a change found in a versioned Anthropic or OpenAI SDK changelog entry, the worker records that release's package and version when it queues the job.
 It also derives them when running an older queued job that has no SDK metadata.
 A change from an API release note, deprecation page, or OpenAPI spec keeps the installed SDK unless the job explicitly names a required version.
-A repository with no root `tsconfig.json` passes that check.
+A repository with no root `tsconfig.json` skips compilation, but must still have the required SDK installed at the minimum version or newer.
 The named version is a minimum.
 The check compiles the installed SDK when it is that release or newer, and fails without compiling when the installed SDK is older.
 The worker passes each check the JSON it builds in `server/api/src/worker/sandbox/validation-context/`, and a check adds its own keys in its own file there.
