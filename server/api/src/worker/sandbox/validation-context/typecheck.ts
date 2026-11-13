@@ -1,8 +1,7 @@
 import type { SandboxMigration } from '../sandbox.types';
 
 /**
- * The minimum SDK release a TypeScript repository is typechecked against.
- * The check compiles the installed package when it meets this release.
+ * Names the minimum SDK release for the sandbox typecheck described in the root README.
  * An API change that does not name one contributes nothing, and the check passes.
  */
 export function typecheckContext(migration: SandboxMigration): Record<string, unknown> {

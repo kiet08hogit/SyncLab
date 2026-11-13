@@ -13,8 +13,9 @@ interface TypecheckRequest {
 
 /**
  * Typechecks a TypeScript repository against the installed SDK when that
- * release meets the required minimum. With no SDK named in VALIDATE_CONTEXT,
- * or no tsconfig.json, it passes. It uses the repository's own TypeScript
+ * release meets the required minimum. The SDK minimum is enforced for both
+ * JavaScript and TypeScript. With no SDK named in VALIDATE_CONTEXT it passes.
+ * Without tsconfig.json it skips compilation. It uses the repository's own TypeScript
  * compiler and does not fetch anything.
  */
 export const check = {
@@ -32,12 +33,6 @@ export async function typecheck(): Promise<string | undefined> {
   }
 
   const { repoDir } = loadWorkspace();
-  try {
-    await fs.access(path.join(repoDir, 'tsconfig.json'));
-  } catch {
-    return undefined;
-  }
-
   const installed = await installedVersion(repoDir, request.packageName);
   if (installed === 'invalid-name') {
     return `refusing to typecheck a package path: ${request.packageName}`;
@@ -47,6 +42,13 @@ export async function typecheck(): Promise<string | undefined> {
   }
   if (!satisfiesMinimum(installed, request.version)) {
     return `${request.packageName}@${installed} is installed, and the change requires ${request.version}`;
+  }
+
+  try {
+    await fs.access(path.join(repoDir, 'tsconfig.json'));
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
   }
 
   const tsc = path.join(repoDir, 'node_modules', 'typescript', 'lib', 'tsc.js');

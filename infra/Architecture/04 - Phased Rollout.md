@@ -93,7 +93,7 @@ Phase 10 self-dogfooding and the planned operational metrics remain to be built.
   1. Keep the baseline run and the repository's own test suite as the first gate.
   2. Re-scan the migrated tree: the impacted usage must be gone, and nothing retired or removed may be newly used.
   3. Check literal OpenAI request objects against the request schema of the new spec.
-  4. Typecheck TypeScript repositories as the root README's validate phase describes.
+  4. Run the typecheck as the root README's validate phase describes.
   5. Feed a failed check back into the retry loop with its reason.
   6. Keep live provider calls out of validation, since they would run repository code with a network and a key.
 - **Done when:** a benchmark case whose tests pass but which still sends a retired model ID is rejected and retried.

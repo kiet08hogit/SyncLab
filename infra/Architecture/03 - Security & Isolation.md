@@ -33,5 +33,5 @@ See `server/api/src/worker/sandbox/container-options.ts` for the enforced phase 
 ## Validation boundary
 
 A passing test suite does not prove a provider API call is still valid.
-The API-change validator rescans the migrated tree, checks supported OpenAI request schemas, and typechecks TypeScript when the job names a required SDK release, without calling a live provider.
+The API-change validator rescans the migrated tree, checks supported OpenAI request schemas, and runs the typecheck in the root README's validate phase when the job names a required SDK release, without calling a live provider.
 Running repository code with provider network access and a provider key would break the isolation model, so live API calls are outside this validation path.

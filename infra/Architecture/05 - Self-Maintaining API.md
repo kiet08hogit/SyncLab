@@ -310,7 +310,7 @@ So a migration is also validated before `publish`:
 
 1. The scanner runs again on the migrated tree, and the impacted usage must be gone with no new use of anything retired or removed.
 2. For OpenAI, literal request objects are checked against the request schema of the new spec.
-3. For a TypeScript repository, the typecheck follows the root README's validate phase.
+3. The typecheck follows the root README's validate phase.
 
 A check that fails after the suite passes goes back into the retry loop with its reason, like a failing test.
 A live call to the provider is deliberately not part of validation.
