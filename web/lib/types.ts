@@ -195,3 +195,31 @@ export interface ApiChangeFilter {
   status?: ApiChangeStatus;
   kind?: ApiChangeKind;
 }
+
+export interface RepositoryScan {
+  id: string;
+  trigger: string;
+  status: JobStatus;
+  commitSha: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /repositories/:id/api-usage. Usages belong to usageScan, not latestScan. */
+export interface RepositoryApiUsage {
+  fullName: string;
+  latestScan: RepositoryScan | null;
+  usageScan: RepositoryScan | null;
+  usages: Array<{
+    provider: string;
+    file: string;
+    line: number;
+    style: string;
+    method: string | null;
+    operation: string | null;
+    params: string[];
+    modelIds: string[];
+    dynamic: boolean;
+  }>;
+}

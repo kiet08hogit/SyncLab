@@ -3,7 +3,7 @@ import "server-only";
 import { connection } from "next/server";
 import { cache } from "react";
 
-import { countJobs, fetchJob, listJobs, listRepositories } from "@/lib/api";
+import { countJobs, fetchRepositoryApiUsage, fetchJob, listJobs, listRepositories } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import type {
   ExecutionLog,
@@ -14,6 +14,7 @@ import type {
   MigrationJob,
   Repository,
   RepositorySummary,
+  RepositoryApiUsage,
 } from "@/lib/types";
 
 // Signed in, every getter reads the API with the user's GitHub token, and the
@@ -391,4 +392,24 @@ export async function getRepositories(): Promise<RepositorySummary[]> {
       };
     })
     .sort((a, b) => (b.lastActivityAt ?? "").localeCompare(a.lastActivityAt ?? ""));
+}
+
+export async function getRepositoryApiUsage(id: string): Promise<RepositoryApiUsage | null> {
+  await connection();
+  const session = await getSession();
+  if (session) return fetchRepositoryApiUsage(session.accessToken, id);
+  const repository = repositories.find((repository) => repository.githubRepoId === id);
+  if (!repository) return null;
+  const scan = {
+    id: `sample-${id}`, trigger: "push", status: "COMPLETED" as const,
+    commitSha: "a1b2c3d4e5f6", errorMessage: null, createdAt: ago(HOUR), updatedAt: ago(HOUR),
+  };
+  return {
+    fullName: repository.fullName, latestScan: scan, usageScan: scan,
+    usages: [{
+      provider: "anthropic", file: "src/ai/client.ts", line: 24, style: "sdk",
+      method: "messages.create", operation: "POST /v1/messages", params: ["model", "max_tokens", "messages"],
+      modelIds: ["claude-sonnet-4-5-20250929"], dynamic: false,
+    }],
+  };
 }
