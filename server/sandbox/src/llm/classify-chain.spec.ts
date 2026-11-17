@@ -1,3 +1,4 @@
+import { tokenUsage } from './token-usage.js';
 import assert from 'node:assert/strict';
 import { describe, it, type TestContext } from 'node:test';
 import type { LlmConfig } from '../config.js';
@@ -161,7 +162,9 @@ describe('the Anthropic classify chain', () => {
   it('uses structured output and validates the answer', async (t) => {
     const requests = stubAnthropic(t, JSON.stringify({ changes: [CHANGE] }));
 
+    const beforeUsage = tokenUsage() ?? { input: 0, output: 0 };
     const outcome = await createClassifyChain(llm('anthropic'))(INPUT);
+    assert.deepEqual(tokenUsage(), { input: beforeUsage.input + 1, output: beforeUsage.output + 1 });
 
     assert.deepEqual(outcome, { changes: [CHANGE], dropped: 0 });
     const format = (requests[0].output_config as { format: { type: string; schema: object } }).format;

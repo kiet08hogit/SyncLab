@@ -80,3 +80,38 @@ The pipeline track in `lib/pipeline.ts` reads a job's `execution_logs` the way t
 ```bash
 node -e 'import("./lib/mascot.ts").then(({ mascotSvg }) => require("fs").writeFileSync("app/icon.svg", mascotSvg() + "\n"))'
 ```
+
+## Operations
+
+`/operations` shows live BullMQ queue counts, mean Docker container creation latency, creation failures, and provider-reported LLM input and output tokens.
+The API authorizes the signed-in user against `OPERATIONS_ADMIN_LOGINS`, configured on the API; monitor admin access alone does not grant access.
+Signed-out visitors see a sign-in prompt, and users without access see an access message.
+API and Redis failures show an unavailable state without substituting sample data.
+The page refreshes every five seconds while visible.
+
+Resource counters are shared in Redis across workers and gateways.
+They reset when that Redis data is cleared, so configure Redis persistence for continuity.
+Queue failures reflect retained BullMQ records rather than lifetime failure totals.
+Queue counts do not establish worker health.
+Token counts include Anthropic cached input and Gemini provider usage from refactor and classification replies, including replies rejected by later validation.
+Terminated containers and provider errors without usage cannot report their consumption.
+Rebuild the sandbox image when deploying this instrumentation.
+
+The gateway exposes the same data at `GET /operations` as JSON and `GET /metrics` in Prometheus text format.
+Both endpoints require an operations admin's GitHub user token or the API's `MIGRATIONS_API_TOKEN` as a bearer token.
+Use a secret file for the Prometheus bearer token; keep it out of the browser and source control.
+Scrape one gateway per shared Redis instance to avoid counting the shared metrics more than once in sums.
+
+```yaml
+scrape_configs:
+  - job_name: synclab
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/synclab_metrics_token
+    static_configs:
+      - targets: [gateway:3000]
+```
+
+`histogram_quantile(0.95, sum by (le) (rate(synclab_sandbox_creation_seconds_bucket[5m])))` reports the 95th percentile creation latency.
+`sum(rate(synclab_llm_tokens_total[5m]))` reports recorded tokens per second.

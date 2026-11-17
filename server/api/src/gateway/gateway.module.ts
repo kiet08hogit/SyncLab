@@ -1,3 +1,5 @@
+import { OperationsController } from './operations.controller';
+import { OperationsModule } from '../operations/operations.module';
 import { Module } from '@nestjs/common';
 import { WebhookController } from './webhook.controller';
 import { BullModule } from '@nestjs/bullmq';
@@ -12,6 +14,7 @@ import { ApiChangesQueries } from '../monitor/api-changes.queries';
 
 @Module({
   imports: [
+    OperationsModule,
     BullModule.registerQueue({
       name: MIGRATION_QUEUE,
     }),
@@ -23,6 +26,7 @@ import { ApiChangesQueries } from '../monitor/api-changes.queries';
     }),
   ],
   controllers: [
+    OperationsController,
     WebhookController,
     MigrationsController,
     RepositoriesController,

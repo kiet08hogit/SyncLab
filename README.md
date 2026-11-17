@@ -486,11 +486,15 @@ If no result line appears (for example, the container was killed), the raw log b
 | `/jobs/[id]` | One job's pipeline track, failure reason, and execution log. The stages, how an API-change job is titled, and which jobs can be retried are in [`web/README.md`](web/README.md#pages) |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
 | `/api-changes` | The API change monitor's watched Anthropic and OpenAI sources and the breaking changes it found, with a button to check every source now |
+| `/operations` | System-wide queue depth, Docker creation latency, and LLM token usage, restricted to operations admins |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
 
 Signed in, every page reads the API with the user's own GitHub token (`GET /migrations`, `/migrations/counts`, `/migrations/:id`, `/repositories`), and the API limits each answer to that user's repositories.
-Signed out, the pages show sample data shaped like the API's answers, with a prompt to sign in.
+Signed out, the migration and API-change pages show sample data shaped like the API's answers, with a prompt to sign in.
+The operations page requires sign-in and authorization through the API's `OPERATIONS_ADMIN_LOGINS`; it never substitutes sample data.
+The gateway also exposes these shared Redis metrics at authenticated `GET /operations` (JSON) and `GET /metrics` (Prometheus text).
+Configuration, metric semantics, and a scrape example are in [`web/README.md`](web/README.md#operations).
 See [`web/README.md`](web/README.md) for the environment variables that enable sign-in.
 
 ## Data model
@@ -775,7 +779,6 @@ Known gaps in the current implementation:
 
 Next phases from [`infra/Architecture/04 - Phased Rollout.md`](infra/Architecture/04%20-%20Phased%20Rollout.md):
 
-- Metrics for queue depth, sandbox start time and LLM token usage.
 - Auto-scaling worker deployment (for example, ECS or EKS).
 - Pagination beyond the first 500 jobs in `GET /migrations`.
 

@@ -1,3 +1,4 @@
+import { recordTokenUsage } from './token-usage.js';
 import { z } from 'zod';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import type { LlmConfig } from '../config.js';
@@ -222,6 +223,11 @@ function createAnthropicChain(llm: LlmConfig): ClassifyChain {
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: buildUserPrompt(input) }],
     });
+
+    recordTokenUsage(
+      reply.usage.input_tokens + (reply.usage.cache_creation_input_tokens ?? 0) + (reply.usage.cache_read_input_tokens ?? 0),
+      reply.usage.output_tokens,
+    );
 
     if (reply.stop_reason === 'refusal') {
       throw new PermanentModelError('The model declined to classify the text.');

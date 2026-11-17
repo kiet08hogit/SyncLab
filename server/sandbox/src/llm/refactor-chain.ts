@@ -1,3 +1,4 @@
+import { recordTokenUsage } from './token-usage.js';
 import { z } from 'zod';
 import type { ApiChange, SandboxConfig } from '../config.js';
 import type { DependencyUsage } from '../analysis/imports.js';
@@ -173,6 +174,11 @@ function createAnthropicChain(config: SandboxConfig): RefactorChain {
       messages: [{ role: 'user', content: buildUserPrompt(config, request) }],
     });
     const reply = await stream.finalMessage();
+
+    recordTokenUsage(
+      reply.usage.input_tokens + (reply.usage.cache_creation_input_tokens ?? 0) + (reply.usage.cache_read_input_tokens ?? 0),
+      reply.usage.output_tokens,
+    );
 
     if (reply.stop_reason === 'refusal') {
       throw new PermanentModelError(

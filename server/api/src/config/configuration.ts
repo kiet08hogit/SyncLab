@@ -77,6 +77,7 @@ export interface Configuration {
   migrationsApiToken?: string;
   /** Lowercased GitHub logins that may confirm or dismiss breaking changes. */
   monitorAdminLogins: string[];
+  operationsAdminLogins: string[];
 }
 
 export function resolveAppRole(value: string | undefined): AppRole {
@@ -149,6 +150,10 @@ export function configuration(): Configuration {
     },
     migrationsApiToken: process.env.MIGRATIONS_API_TOKEN,
     monitorAdminLogins: (process.env.MONITOR_ADMIN_LOGINS ?? '')
+      .split(',')
+      .map((login) => login.trim().toLowerCase())
+      .filter(Boolean),
+    operationsAdminLogins: (process.env.OPERATIONS_ADMIN_LOGINS ?? '')
       .split(',')
       .map((login) => login.trim().toLowerCase())
       .filter(Boolean),

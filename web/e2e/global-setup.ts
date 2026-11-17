@@ -133,6 +133,7 @@ export default async function globalSetup() {
         GITHUB_API_URL: githubUrl,
         GITHUB_TOKEN: "e2e-installation-token",
         MONITOR_ADMIN_LOGINS: LOGIN,
+        OPERATIONS_ADMIN_LOGINS: LOGIN,
       }, `http://127.0.0.1:${API_PORT}/`),
     );
     children.push(await serve("web", NEXT, ["start", "-p", `${WEB_PORT}`], WEB_DIR, webEnv, `http://127.0.0.1:${WEB_PORT}/`));

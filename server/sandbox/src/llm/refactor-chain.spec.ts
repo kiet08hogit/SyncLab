@@ -1,3 +1,4 @@
+import { tokenUsage } from './token-usage.js';
 import assert from 'node:assert/strict';
 import { describe, it, type TestContext } from 'node:test';
 import type { SandboxConfig } from '../config.js';
@@ -136,7 +137,9 @@ describe('the Anthropic refactor chain', () => {
       'end_turn',
     );
 
+    const beforeUsage = tokenUsage() ?? { input: 0, output: 0 };
     const outcome = await createRefactorChain(anthropicConfig())(request(ORIGINAL));
+    assert.deepEqual(tokenUsage(), { input: beforeUsage.input + 1, output: beforeUsage.output + 1 });
 
     assert.deepEqual(outcome, {
       changed: true,

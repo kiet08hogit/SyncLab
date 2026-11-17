@@ -1,3 +1,4 @@
+import { tokenUsage } from './llm/token-usage.js';
 import { prepare } from './phases/prepare.js';
 import { install } from './phases/install.js';
 import { upgrade } from './phases/upgrade.js';
@@ -54,6 +55,8 @@ async function main(): Promise<void> {
     };
   }
 
+  const usage = tokenUsage();
+  if (usage) result.data = { ...result.data, tokenUsage: usage };
   emitResult(result);
   process.exitCode = result.ok ? 0 : 1;
 }

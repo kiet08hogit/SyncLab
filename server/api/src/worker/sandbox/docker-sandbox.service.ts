@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { MetricsService } from '../../operations/metrics.service';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { PassThrough } from 'node:stream';
@@ -57,7 +58,10 @@ export class DockerSandboxService {
   private readonly limits: SandboxLimits;
   private readonly timeoutMs: number;
 
-  constructor(private readonly config: ConfigService<Configuration, true>) {
+  constructor(
+    private readonly config: ConfigService<Configuration, true>,
+    @Optional() private readonly metrics?: MetricsService,
+  ) {
     const sandbox = config.get('sandbox', { infer: true });
 
     this.docker = sandbox.dockerSocketPath
@@ -367,15 +371,25 @@ export class DockerSandboxService {
     volumeName: string,
     env: Record<string, string>,
   ): Promise<PhaseResult> {
-    const container = await this.docker.createContainer(
-      buildContainerOptions({
-        phase,
-        image: this.image,
-        volumeName,
-        env,
-        limits: this.limits,
-      }),
-    );
+    const started = performance.now();
+    let created = false;
+    const container = await this.docker
+      .createContainer(
+        buildContainerOptions({
+          phase,
+          image: this.image,
+          volumeName,
+          env,
+          limits: this.limits,
+        }),
+      )
+      .then((container) => {
+        created = true;
+        return container;
+      })
+      .finally(async () => {
+        await this.metrics?.recordCreation((performance.now() - started) / 1000, created);
+      });
 
     try {
       // Attaching before start avoids the race where output is produced before
@@ -404,6 +418,9 @@ export class DockerSandboxService {
 
       const parsed = parsePhaseResult(logs);
       if (parsed) {
+        if (phase === 'refactor' || phase === 'classify') {
+          await this.metrics?.recordTokens(parsed.data?.tokenUsage);
+        }
         return parsed;
       }
 

@@ -1,3 +1,4 @@
+import type { MetricsService } from '../../operations/metrics.service';
 import { PassThrough } from 'node:stream';
 import Docker from 'dockerode';
 import { DockerSandboxService } from './docker-sandbox.service';
@@ -50,6 +51,7 @@ function setup(
   script: Partial<Record<SandboxPhase, ScriptedRun[]>>,
   sandbox = {},
   llm: Record<string, unknown> = GEMINI_LLM,
+  metrics?: MetricsService,
 ) {
   const created: Array<{ phase: SandboxPhase; env: string[]; binds: string[]; network: string }> =
     [];
@@ -129,7 +131,7 @@ function setup(
             ...sandbox,
           },
   };
-  const service = new DockerSandboxService(config as never);
+  const service = new DockerSandboxService(config as never, metrics);
   const onSteps = jest.fn().mockResolvedValue(undefined);
 
   return { service, docker, created, containers, volume, onSteps };
@@ -924,5 +926,54 @@ describe('DockerSandboxService.classify', () => {
     });
     expect(docker.createVolume).not.toHaveBeenCalled();
     expect(docker.createContainer).not.toHaveBeenCalled();
+  });
+});
+
+describe('sandbox telemetry', () => {
+  it('records creation and token usage even when a model phase fails', async () => {
+    const metrics = {
+      recordCreation: jest.fn().mockResolvedValue(undefined),
+      recordTokens: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service, onSteps, containers } = setup(
+      {
+        refactor: [
+          {
+            result: { ok: false, error: 'refusal', data: { tokenUsage: { input: 10, output: 2 } } },
+          },
+        ],
+      },
+      {},
+      GEMINI_LLM,
+      metrics as unknown as MetricsService,
+    );
+    const result = await service.run('metrics-job', params(), onSteps);
+    expect(result.ok).toBe(false);
+    expect(metrics.recordTokens).toHaveBeenCalledWith({ input: 10, output: 2 });
+    expect(metrics.recordCreation).toHaveBeenCalledTimes(containers.length);
+    for (const call of metrics.recordCreation.mock.calls as [number, boolean][]) {
+      expect(call[0]).toBeGreaterThanOrEqual(0);
+      expect(call[1]).toBe(true);
+    }
+    expect(containers.every((c) => c.remove.mock.calls.length === 1)).toBe(true);
+  });
+
+  it('records a failed Docker creation attempt and still cleans up its volume', async () => {
+    const metrics = {
+      recordCreation: jest.fn().mockResolvedValue(undefined),
+      recordTokens: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service, docker, volume } = setup(
+      {},
+      {},
+      GEMINI_LLM,
+      metrics as unknown as MetricsService,
+    );
+    docker.createContainer.mockRejectedValueOnce(new Error('Docker down'));
+    await expect(
+      service.scan('metrics-scan', { repoUrl: 'https://github.com/acme/web.git', token: 'token' }),
+    ).rejects.toThrow('Docker down');
+    expect(metrics.recordCreation).toHaveBeenCalledWith(expect.any(Number), false);
+    expect(volume.remove).toHaveBeenCalled();
   });
 });

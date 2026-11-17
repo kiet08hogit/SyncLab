@@ -1,3 +1,4 @@
+import { OperationsModule } from '../operations/operations.module';
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { API_MONITOR_QUEUE, MIGRATION_QUEUE, SCAN_QUEUE } from '../common/constants';
@@ -10,6 +11,7 @@ import { DockerSandboxService } from './sandbox/docker-sandbox.service';
 
 @Module({
   imports: [
+    OperationsModule,
     BullModule.registerQueue({ name: MIGRATION_QUEUE }),
     BullModule.registerQueue({ name: SCAN_QUEUE }),
     BullModule.registerQueue({ name: API_MONITOR_QUEUE }),

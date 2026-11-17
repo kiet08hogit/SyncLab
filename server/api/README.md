@@ -232,3 +232,16 @@ The response shapes are documented in `infra/Architecture/05 - Self-Maintaining 
 | `npm run test:e2e` | end-to-end tests (no Postgres or Redis needed) |
 
 The sandbox agent has its own suite. Run `npm test` from `server/sandbox` to exercise the phases and their helpers against local git repositories and a stub npm registry.
+
+## Operations metrics
+
+`GET /operations` returns system-wide queue state, Docker container creation latency, and provider-reported LLM tokens as JSON.
+`GET /metrics` exposes the same data in Prometheus text format.
+Both routes require a bearer token and allow only the service credential (`MIGRATIONS_API_TOKEN`) or GitHub users listed in `OPERATIONS_ADMIN_LOGINS`.
+This list is independent of `MONITOR_ADMIN_LOGINS` and defaults to empty.
+
+Workers record resource counters in Redis, so split gateway and worker deployments share the same totals without a database migration.
+Telemetry writes have a one-second deadline and cannot fail a migration.
+Counters reset if the Redis data is cleared; queue counts are current retained state, and token usage is unavailable for containers terminated before reporting results.
+Rebuild the sandbox image to deploy the token instrumentation.
+See [`web/README.md`](../../web/README.md#operations) for the dashboard and Prometheus scrape configuration.
