@@ -27,18 +27,39 @@ test("opens repository calls from the list and preserves the migration filter", 
 
 test("retains the last completed results after a failed rescan", async ({ page }) => {
   seedScan();
-  sql(`INSERT INTO repository_scans (repository_id, trigger, status, error_message, created_at)
-    SELECT id, 'push', 'FAILED', 'Clone failed', now() + interval '1 minute' FROM repositories WHERE github_repo_id = 9001`);
+  sql(`UPDATE repository_scans SET commit_sha = NULL, updated_at = '2026-01-02T03:04:00Z' WHERE id = '${SCAN}';
+    INSERT INTO repository_scans (repository_id, trigger, status, error_message, created_at, updated_at)
+    SELECT id, 'push', 'FAILED', 'Clone failed', now() + interval '1 minute', '2026-03-04T05:06:00Z' FROM repositories WHERE github_repo_id = 9001`);
   await signIn(page, "/repositories/9001");
   await expect(page.getByText("Latest scan: failed")).toBeVisible();
+  await expect(page.getByText(/^Latest scan updated Mar 4, 2026/)).toBeVisible();
   await expect(page.getByText("Clone failed", { exact: true })).toBeVisible();
-  await expect(page.getByText(/has not replaced these results/)).toBeVisible();
+  const results = page.getByText(/from the last completed scan/);
+  await expect(results).toContainText("finished Jan 2, 2026");
+  await expect(results).not.toContainText("Mar 4, 2026");
+  await expect(results).not.toContainText("at commit");
+  await expect(results).toContainText("has not replaced these results");
   await expect(page.getByText("src/client.ts:24")).toBeVisible();
+});
+
+test("reports a pending first scan without asking for another push", async ({ page }) => {
+  sql(`INSERT INTO repositories (github_repo_id, full_name, installation_id) VALUES (9001, 'acme/web', 501);
+    INSERT INTO repository_scans (repository_id, trigger, status) SELECT id, 'push', 'QUEUED' FROM repositories WHERE github_repo_id = 9001`);
+  await signIn(page, "/repositories/9001");
+  await expect(page.getByText("Latest scan: queued")).toBeVisible();
+  await expect(page.getByText("Usage will appear when the pending scan completes.")).toBeVisible();
+  await expect(page.getByText(/Push to the default branch/)).toHaveCount(0);
+  sql("UPDATE repository_scans SET status = 'IN_PROGRESS'");
+  await page.reload();
+  await expect(page.getByText("Latest scan: in progress")).toBeVisible();
+  await expect(page.getByText("Usage will appear when the pending scan completes.")).toBeVisible();
+  await expect(page.getByText(/Push to the default branch/)).toHaveCount(0);
 });
 
 test("distinguishes an unscanned repository from a completed empty scan", async ({ page }) => {
   await signIn(page, "/repositories/9001");
   await expect(page.getByText("No scans yet", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Push to the default branch to trigger a scan/)).toBeVisible();
   seedScan();
   sql("DELETE FROM api_usages");
   await page.reload();

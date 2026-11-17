@@ -39,14 +39,16 @@ async function RepositoryUsage({ params }: { params: Promise<{ id: string }> }) 
       <section aria-labelledby="scan-heading" className="flex flex-col gap-3 border bg-card p-4 sm:p-6">
         <h2 id="scan-heading" className="font-medium">Scan status</h2>
         <p>{latest ? `Latest scan: ${latest.status.replaceAll("_", " ").toLowerCase()}` : "No scans yet"}</p>
-        {latest && <p className="text-sm text-muted-foreground">Updated <time dateTime={latest.updatedAt}>{formatDate(latest.updatedAt)}</time></p>}
+        {latest && <p className="text-sm text-muted-foreground">Latest scan updated <time dateTime={latest.updatedAt}>{formatDate(latest.updatedAt)}</time></p>}
         {latest?.status === "FAILED" && <p role="status" className="break-words text-sm text-status-failed">{latest.errorMessage || "The latest scan failed."}</p>}
         {snapshot && usage ? (
           <p className="break-words text-sm text-muted-foreground">
-            Showing {usage.usages.length} detected {usage.usages.length === 1 ? "call" : "calls"} from the last completed scan
+            Showing {usage.usages.length} detected {usage.usages.length === 1 ? "call" : "calls"} from the last completed scan, finished <time dateTime={snapshot.updatedAt}>{formatDate(snapshot.updatedAt)}</time>
             {snapshot.commitSha ? <> at commit <code>{snapshot.commitSha.slice(0, 12)}</code></> : null}.
             {latest?.id !== snapshot.id && " The latest scan has not replaced these results."}
           </p>
+        ) : latest?.status === "QUEUED" || latest?.status === "IN_PROGRESS" ? (
+          <p className="text-sm text-muted-foreground">Usage will appear when the pending scan completes.</p>
         ) : <p className="text-sm text-muted-foreground">Usage will appear after a scan completes. Push to the default branch to trigger a scan.</p>}
       </section>
       <section aria-labelledby="usage-heading" className="flex flex-col gap-4">
