@@ -3,10 +3,9 @@ import { MetricsService, prometheus } from './metrics.service';
 function setup() {
   const values: Record<string, string> = {};
   const transaction = {
-    runCommand: jest.fn((_command: string, [key, field, value]: [string, string, number]) => {
+    hincrbyfloat: jest.fn((key: string, field: string, value: number) => {
       void key;
       values[field] = String(Number(values[field] ?? 0) + value);
-      return undefined;
     }),
     exec: jest.fn().mockResolvedValue([[null, '1']]),
   };
@@ -57,6 +56,13 @@ describe('shared operations metrics', () => {
     await service.recordTokens({ input: 140, output: 20 });
     await service.recordTokens({ input: 10, output: 5 });
     expect((await service.snapshot()).tokens).toEqual({ input: 150, output: 25 });
+  });
+
+  it('does not fail a sandbox operation when the client cannot increment hash fields', async () => {
+    const queue = { client: Promise.resolve({ multi: () => ({ exec: jest.fn() }) }) };
+    const service = new MetricsService(queue as never, queue as never, queue as never);
+    await expect(service.recordCreation(1, false)).resolves.toBeUndefined();
+    await expect(service.recordTokens({ input: 1, output: 2 })).resolves.toBeUndefined();
   });
 
   it('does not fail a sandbox operation when Redis rejects a telemetry write', async () => {

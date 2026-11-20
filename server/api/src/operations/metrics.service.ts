@@ -6,6 +6,19 @@ import { API_MONITOR_QUEUE, MIGRATION_QUEUE, SCAN_QUEUE } from '../common/consta
 export const METRICS_KEY = 'synclab:operations:v1';
 export const CREATION_BUCKETS = [0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30];
 
+type HashIncrement = {
+  hincrbyfloat(key: string, field: string, increment: number): unknown;
+  exec(): Promise<Array<[Error | null, unknown]> | null>;
+};
+
+function hashIncrement(transaction: object): HashIncrement | undefined {
+  const candidate = transaction as { hincrbyfloat?: unknown; exec?: unknown };
+  if (typeof candidate.hincrbyfloat !== 'function' || typeof candidate.exec !== 'function') {
+    return undefined;
+  }
+  return transaction as HashIncrement;
+}
+
 @Injectable()
 export class MetricsService {
   private readonly logger = new Logger(MetricsService.name);
@@ -48,9 +61,10 @@ export class MetricsService {
       await Promise.race([
         (async () => {
           const client = await this.migrations.client;
-          const transaction = client.multi();
+          const transaction = hashIncrement(client.multi());
+          if (!transaction) throw new Error('Metric write failed');
           for (const [field, value] of Object.entries(increments)) {
-            transaction.runCommand('hincrbyfloat', [METRICS_KEY, field, value]);
+            transaction.hincrbyfloat(METRICS_KEY, field, value);
           }
           const results = await transaction.exec();
           if (!results || results.some(([error]) => error)) throw new Error('Metric write failed');
