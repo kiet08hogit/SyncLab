@@ -1,6 +1,6 @@
 # SyncLab web
 
-Dashboard for SyncLab migration jobs: status counts that double as filters, live pipeline progress, per-job execution logs, the repositories the GitHub App is installed on, GitHub sign-in, a form to start a migration by hand, and the API change monitor's sources and breaking changes.
+Dashboard for SyncLab migration jobs: status counts that double as filters, live pipeline progress, per-job execution logs, the repositories the GitHub App is installed on and the API usage detected in each, GitHub sign-in, a form to start a migration by hand, and the API change monitor's sources and breaking changes.
 
 Built with Next.js (App Router), Tailwind CSS v4, shadcn/ui, Magic UI (`number-ticker`, `border-beam`), and Aceternity UI (`sidebar`).
 
@@ -19,7 +19,7 @@ The dashboard uses port 3001 because the API in `server/api` listens on 3000.
 `npm run test:e2e` runs the Playwright suite in `e2e/` in Chromium.
 It needs Docker and the API's dependencies (`npm install && npm run db:generate` in `server/api`); install the browser once with `npx playwright install chromium`.
 Its global setup starts throwaway PostgreSQL and Redis containers, builds and starts the real API (gateway only, so jobs stay queued) and this app, and stubs GitHub and the npm registry in `e2e/stub.ts`.
-Tests sign in through the real OAuth redirect, seed jobs straight into the database, and cover the landing page, the dashboard, the new-migration form, retry, live refresh, log folding, and pipeline label layout from 390 to 1440 pixels.
+Tests sign in through the real OAuth redirect, seed jobs straight into the database, and cover the landing page, the dashboard, repository API usage, the new-migration form, retry, live refresh, log folding, and pipeline label layout from 390 to 1440 pixels.
 
 ## Pages
 
@@ -28,7 +28,8 @@ Tests sign in through the real OAuth redirect, seed jobs straight into the datab
 | `/` | The landing page: a dark office walk-in hero titled "Code breaks. You keep shipping.", illustrated steps for Detect, Locate, Refactor, Verify, and Review, connected capability drawings, and a closing engineer crossfade. The header carries the mascot and sign-in. Routing for `/` is in the [Dashboard](../README.md#dashboard) table |
 | `/dashboard` | Job counts per status, the jobs a worker is running now, and a searchable, filterable job table; refreshes every 5 seconds while any job is queued or running and no filter is set |
 | `/jobs/[id]` | One job's pipeline track, failure reason, branch name, how long the latest run took, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running. A dependency job's track is clone, changelog, install, baseline, upgrade, refactor, test, and pull request. An API-change job is titled by the changed field, then the operation, then the kind with underscores shown as spaces. Its track omits changelog and upgrade unless the job names both the SDK package and the version the change requires. It also shows the replacement when the change has one, the deadline, and the branch the worker pushes. A failed dependency job has a **Retry migration** button when you are signed in. An API-change job does not. Output longer than 24 lines folds to its last 12, except on a failed step, and each step's output has a copy button |
-| `/repositories` | Installed repositories with job totals and last activity |
+| `/repositories` | Installed repositories with job totals and last activity. The repository name opens `/repositories/[id]` |
+| `/repositories/[id]` | Detected API calls for one reachable repository: provider, source file and line, SDK or HTTP style, method, operation, models, and parameters. It shows the latest scan's status and time, and the error when that scan failed. When a scan has completed, it also shows that scan's finish time and the first 12 characters of its commit when one was recorded. Those calls stay on the page until a newer scan completes. A queued or in-progress scan with no completed results says the scan is pending. No scans yet, or a failed scan with no completed results, asks for a push to the default branch. A completed scan with no calls says none were detected. An empty model or parameter list says "Not statically resolved" when the call is dynamic, and "None detected" otherwise. **View migration jobs** opens the dashboard filtered to this repository. An id that is not a positive integer, or a repository the signed-in user cannot reach, is a 404. The response shape is `GET /repositories/:githubRepoId/api-usage` in [Reading jobs and repositories](../server/api/README.md#reading-jobs-and-repositories) |
 | `/api-changes` | The API change monitor: each watched Anthropic and OpenAI source with its last check, and the breaking changes found, filterable by provider, status and kind; monitor admins confirm or dismiss each change |
 | `/migrations/new` | Pick a repository, a dependency from its root `package.json`, and a stable npm version, then start the job and open its page |
 | `/settings` | Sign in with GitHub, and the App installations you can access, or an Install SyncLab button when there are none |
@@ -57,7 +58,7 @@ Every call to the API sends the same token, and the API resolves it to the user 
 
 ## Data
 
-Signed in, every getter in `lib/data.ts` reads the API: `GET /migrations`, `GET /migrations/counts`, `GET /migrations/:id` and `GET /repositories`.
+Signed in, every getter in `lib/data.ts` reads the API: `GET /migrations`, `GET /migrations/counts`, `GET /migrations/:id`, `GET /repositories`, and `GET /repositories/:githubRepoId/api-usage`.
 Signed out, they serve the built-in sample data instead, shaped exactly like the API's answers, and the pages say so with a sign-in prompt.
 The samples' job pages stay public; a real job is only readable by a signed-in user whose installations reach its repository, and anyone else gets a 404.
 When the API is down or no longer accepts the session, `app/(app)/error.tsx` offers a retry and a way back to Settings.
