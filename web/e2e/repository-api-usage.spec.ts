@@ -19,10 +19,31 @@ test("opens repository calls from the list and preserves the migration filter", 
   await expect(page.getByText("src/client.ts:24")).toBeVisible();
   await expect(page.getByText("POST /v1/messages", { exact: true })).toBeVisible();
   await expect(page.getByText("sample-model", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Dynamic values/)).toBeVisible();
+  await expect(page.getByText("model, messages", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Dynamic values/)).toHaveCount(0);
   await expect(page.getByText("Sample data.")).toHaveCount(0);
   await page.getByRole("link", { name: "View migration jobs" }).click();
   await expect(page).toHaveURL(/\/dashboard\?repo=acme%2Fweb/);
+});
+
+test("labels empty models and parameters from whether the call is dynamic", async ({ page }) => {
+  sql(`INSERT INTO repositories (github_repo_id, full_name, installation_id) VALUES (9001, 'acme/web', 501);
+    INSERT INTO repository_scans (id, repository_id, trigger, status, commit_sha)
+    SELECT '${SCAN}', id, 'push', 'COMPLETED', 'abcdef1234567890' FROM repositories WHERE github_repo_id = 9001;
+    INSERT INTO api_usages (scan_id, provider_id, file, line, style, method, operation, params, model_ids, dynamic)
+    SELECT '${SCAN}', id, 'src/files.ts', 6, 'http', NULL, 'GET /v1/files',
+      '{}'::text[], '{}'::text[], false FROM api_providers WHERE slug = 'openai';
+    INSERT INTO api_usages (scan_id, provider_id, file, line, style, method, operation, params, model_ids, dynamic)
+    SELECT '${SCAN}', id, 'src/request.ts', 11, 'sdk', 'responses.create', 'POST /v1/responses',
+      '{}'::text[], '{}'::text[], true FROM api_providers WHERE slug = 'openai';`);
+  await signIn(page, "/repositories/9001");
+  const staticCall = page.getByRole("listitem").filter({ hasText: "src/files.ts:6" });
+  await expect(staticCall.getByText("None detected", { exact: true })).toHaveCount(2);
+  await expect(staticCall.getByText("Not statically resolved", { exact: true })).toHaveCount(0);
+  const dynamicCall = page.getByRole("listitem").filter({ hasText: "src/request.ts:11" });
+  await expect(dynamicCall.getByText("Not statically resolved", { exact: true })).toHaveCount(2);
+  await expect(dynamicCall.getByText("None detected", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Dynamic values/)).toHaveCount(0);
 });
 
 test("retains the last completed results after a failed rescan", async ({ page }) => {

@@ -59,13 +59,13 @@ async function RepositoryUsage({ params }: { params: Promise<{ id: string }> }) 
             <li key={`${call.file}:${call.line}:${index}`} className="flex min-w-0 flex-col gap-3 border bg-card p-4 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="label-mono">{call.provider}</span>
-                <span className="text-sm text-muted-foreground">{call.style}{call.method ? ` · ${call.method}` : ""}{call.dynamic ? " · Dynamic values" : ""}</span>
+                <span className="text-sm text-muted-foreground">{call.style}{call.method ? ` · ${call.method}` : ""}</span>
               </div>
               <p className="break-all font-mono text-sm">{call.file}:{call.line}</p>
               <p className="break-all font-mono text-sm">{call.operation || "Operation unresolved"}</p>
               <dl className="grid gap-2 text-sm">
-                <div><dt className="text-muted-foreground">Models</dt><dd className="break-all font-mono">{call.modelIds.join(", ") || "Not statically resolved"}</dd></div>
-                <div><dt className="text-muted-foreground">Parameters</dt><dd className="break-all font-mono">{call.params.join(", ") || "None detected"}</dd></div>
+                <div><dt className="text-muted-foreground">Models</dt><dd className="break-all font-mono">{call.modelIds.join(", ") || (call.dynamic ? "Not statically resolved" : "None detected")}</dd></div>
+                <div><dt className="text-muted-foreground">Parameters</dt><dd className="break-all font-mono">{call.params.join(", ") || (call.dynamic ? "Not statically resolved" : "None detected")}</dd></div>
               </dl>
             </li>
           ))}
