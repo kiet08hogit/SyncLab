@@ -241,7 +241,9 @@ Both routes require a bearer token and allow only the service credential (`MIGRA
 This list is independent of `MONITOR_ADMIN_LOGINS` and defaults to empty.
 
 Workers record resource counters in Redis, so split gateway and worker deployments share the same totals without a database migration.
-Telemetry writes have a one-second deadline and cannot fail a migration.
+Telemetry reads and writes share a one-second deadline.
+A read that misses the deadline fails the request.
+A failed write cannot fail a migration.
 Counters reset if the Redis data is cleared; queue counts are current retained state, and token usage is unavailable for containers terminated before reporting results.
 Rebuild the sandbox image to deploy the token instrumentation.
 See [`web/README.md`](../../web/README.md#operations) for the dashboard and Prometheus scrape configuration.

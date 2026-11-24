@@ -490,7 +490,7 @@ If no result line appears (for example, the container was killed), the raw log b
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
 
-Signed in, every page reads the API with the user's own GitHub token (`GET /migrations`, `/migrations/counts`, `/migrations/:id`, `/repositories`), and the API limits each answer to that user's repositories.
+Signed in, migration and repository pages read the API with the user's own GitHub token (`GET /migrations`, `/migrations/counts`, `/migrations/:id`, `/repositories`), and the API limits those answers to that user's repositories.
 Signed out, the migration and API-change pages show sample data shaped like the API's answers, with a prompt to sign in.
 The operations page requires sign-in and authorization through the API's `OPERATIONS_ADMIN_LOGINS`; it never substitutes sample data.
 The gateway also exposes these shared Redis metrics at authenticated `GET /operations` (JSON) and `GET /metrics` (Prometheus text).

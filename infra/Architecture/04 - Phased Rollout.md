@@ -41,7 +41,8 @@ Phases 1 to 4 migrate code when a dependency ships a breaking release.
 Phases 5 to 10 migrate code when an external API ships a breaking change, starting with Anthropic and OpenAI.
 The design is in [[05 - Self-Maintaining API]], and the workflow is sketched in [[Self-Maintaining API Workflow.excalidraw]].
 Phases 5 to 9 are implemented.
-Phase 10 self-dogfooding and the planned operational metrics remain to be built.
+Phase 4 Prometheus metrics for queue depth, sandbox creation latency, and LLM token usage are built.
+Phase 10 self-dogfooding remains to be built, including the metric extensions in its steps below.
 
 ### Phase 5: API Usage Registry & Repository Scanning
 - **Goal:** Know which connected repositories call the Anthropic or OpenAI API, from which files, and with which parameters and models.

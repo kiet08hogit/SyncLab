@@ -1,6 +1,6 @@
 # SyncLab web
 
-Dashboard for SyncLab migration jobs: status counts that double as filters, live pipeline progress, per-job execution logs, the repositories the GitHub App is installed on, GitHub sign-in, a form to start a migration by hand, and the API change monitor's sources and breaking changes.
+Dashboard for SyncLab migration jobs: status counts that double as filters, live pipeline progress, per-job execution logs, the repositories the GitHub App is installed on, GitHub sign-in, a form to start a migration by hand, the API change monitor's sources and breaking changes, and an operations view of queue depth, sandbox latency, and token usage.
 
 Built with Next.js (App Router), Tailwind CSS v4, shadcn/ui, Magic UI (`number-ticker`, `border-beam`), and Aceternity UI (`sidebar`).
 
@@ -14,12 +14,12 @@ npm run dev
 Then open http://localhost:3001.
 The dashboard uses port 3001 because the API in `server/api` listens on 3000.
 
-`npm test` runs the Vitest unit tests (`lib/*.test.ts`) for the pipeline, formatting, sign-in redirect, and ASCII helpers.
+`npm test` runs the Vitest unit tests, including `lib/*.test.ts` and the operations overview.
 
 `npm run test:e2e` runs the Playwright suite in `e2e/` in Chromium.
 It needs Docker and the API's dependencies (`npm install && npm run db:generate` in `server/api`); install the browser once with `npx playwright install chromium`.
 Its global setup starts throwaway PostgreSQL and Redis containers, builds and starts the real API (gateway only, so jobs stay queued) and this app, and stubs GitHub and the npm registry in `e2e/stub.ts`.
-Tests sign in through the real OAuth redirect, seed jobs straight into the database, and cover the landing page, the dashboard, the new-migration form, retry, live refresh, log folding, and pipeline label layout from 390 to 1440 pixels.
+Tests sign in through the real OAuth redirect, seed jobs straight into the database, and cover the landing page, the dashboard, operations access and live metrics, the new-migration form, retry, live refresh, log folding, and pipeline label layout from 390 to 1440 pixels.
 
 ## Pages
 
@@ -30,6 +30,7 @@ Tests sign in through the real OAuth redirect, seed jobs straight into the datab
 | `/jobs/[id]` | One job's pipeline track, failure reason, branch name, how long the latest run took, and execution log with exit codes; refreshes every 5 seconds while the job is queued or running. A dependency job's track is clone, changelog, install, baseline, upgrade, refactor, test, and pull request. An API-change job is titled by the changed field, then the operation, then the kind with underscores shown as spaces. Its track omits changelog and upgrade unless the job names both the SDK package and the version the change requires. It also shows the replacement when the change has one, the deadline, and the branch the worker pushes. A failed dependency job has a **Retry migration** button when you are signed in. An API-change job does not. Output longer than 24 lines folds to its last 12, except on a failed step, and each step's output has a copy button |
 | `/repositories` | Installed repositories with job totals and last activity |
 | `/api-changes` | The API change monitor: each watched Anthropic and OpenAI source with its last check, and the breaking changes found, filterable by provider, status and kind; monitor admins confirm or dismiss each change |
+| `/operations` | System-wide queue depth, sandbox creation, and LLM token usage for operations admins. Access and metric behavior are in [Operations](#operations) |
 | `/migrations/new` | Pick a repository, a dependency from its root `package.json`, and a stable npm version, then start the job and open its page |
 | `/settings` | Sign in with GitHub, and the App installations you can access, or an Install SyncLab button when there are none |
 
@@ -38,7 +39,8 @@ Filters live in the URL (`/dashboard?status=FAILED`, `?repo=owner/name`, `?q=zod
 ## Configuration
 
 Copy `.env.example` to `.env.local`.
-Every variable is optional: without them the dashboard runs on sample data, and Settings lists what is missing.
+Every variable is optional: without them the migration and API-change pages run on sample data, and Settings lists what is missing.
+The operations page never substitutes sample data; see [Operations](#operations).
 
 | Variable | Enables |
 | --- | --- |
@@ -53,7 +55,9 @@ Every variable is optional: without them the dashboard runs on sample data, and 
 
 Signing in runs the GitHub App's web flow and keeps the user access token in an encrypted, httpOnly cookie until the token expires (eight hours by default).
 With that token the server calls `GET /user/installations` and `GET /user/installations/{id}/repositories`, so a user only ever sees installations and repositories that both they and the App can reach.
-Every call to the API sends the same token, and the API resolves it to the user and limits every answer to their repositories, so the dashboard holds no API secret and does no access checks of its own.
+Every call to the API sends the same token, and the API resolves it to the user.
+Migration and repository answers are limited to that user's repositories, so those pages hold no API secret and do no access checks of their own.
+Operations metrics are system-wide, and access is described in [Operations](#operations).
 
 ## Data
 
