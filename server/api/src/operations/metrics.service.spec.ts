@@ -85,6 +85,96 @@ describe('shared operations metrics', () => {
     }
   });
 
+  it('rejects a snapshot when Redis does not answer within one second', async () => {
+    jest.useFakeTimers();
+    try {
+      const queue = {
+        name: 'migration-queue',
+        client: new Promise(() => undefined),
+        getJobCounts: () => new Promise(() => undefined),
+        isPaused: () => new Promise(() => undefined),
+      };
+      const service = new MetricsService(queue as never, queue as never, queue as never);
+      const reading = service.snapshot();
+      const assertion = expect(reading).rejects.toThrow('Metric write timed out');
+      await jest.advanceTimersByTimeAsync(1000);
+      await assertion;
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('rejects a snapshot when Redis refuses the read', async () => {
+    const queue = {
+      name: 'migration-queue',
+      client: Promise.resolve({ hgetall: () => Promise.reject(new Error('Redis unavailable')) }),
+      getJobCounts: jest.fn().mockResolvedValue({}),
+      isPaused: jest.fn().mockResolvedValue(false),
+    };
+    const service = new MetricsService(queue as never, queue as never, queue as never);
+    await expect(service.snapshot()).rejects.toThrow('Redis unavailable');
+  });
+
+  it('absorbs a telemetry write that fails after the deadline', async () => {
+    jest.useFakeTimers();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      let rejectExec: (error: Error) => void = () => undefined;
+      const exec = new Promise<never>((_resolve, reject) => {
+        rejectExec = reject;
+      });
+      const queue = {
+        client: Promise.resolve({
+          multi: () => ({ hincrbyfloat: jest.fn(), exec: () => exec }),
+        }),
+      };
+      const service = new MetricsService(queue as never, queue as never, queue as never);
+      const recording = service.recordCreation(1, false);
+      await jest.advanceTimersByTimeAsync(1000);
+      await expect(recording).resolves.toBeUndefined();
+      jest.useRealTimers();
+      rejectExec(new Error('late Redis failure'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+      jest.useRealTimers();
+    }
+  });
+
+  it('absorbs a snapshot read that fails after the deadline', async () => {
+    jest.useFakeTimers();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      let rejectCounts: (error: Error) => void = () => undefined;
+      const counts = new Promise<never>((_resolve, reject) => {
+        rejectCounts = reject;
+      });
+      const queue = {
+        name: 'migration-queue',
+        client: new Promise(() => undefined),
+        getJobCounts: () => counts,
+        isPaused: () => new Promise(() => undefined),
+      };
+      const service = new MetricsService(queue as never, queue as never, queue as never);
+      const reading = service.snapshot();
+      const assertion = expect(reading).rejects.toThrow('Metric write timed out');
+      await jest.advanceTimersByTimeAsync(1000);
+      await assertion;
+      jest.useRealTimers();
+      rejectCounts(new Error('late Redis failure'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+      jest.useRealTimers();
+    }
+  });
+
   it('returns zero counters before workers have produced telemetry', async () => {
     expect((await setup().service.snapshot()).sandbox.count).toBe(0);
     expect((await setup().service.snapshot()).tokens).toEqual({ input: 0, output: 0 });

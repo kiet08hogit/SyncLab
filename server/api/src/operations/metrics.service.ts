@@ -19,6 +19,28 @@ function hashIncrement(transaction: object): HashIncrement | undefined {
   return transaction as HashIncrement;
 }
 
+type DeadlineResult<T> = { ok: true; value: T } | { ok: false; error: unknown };
+
+function withDeadline<T>(work: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const settled: Promise<DeadlineResult<T>> = work.then(
+    (value) => ({ ok: true, value }),
+    (error: unknown) => ({ ok: false, error }),
+  );
+  const timeout = new Promise<DeadlineResult<T>>((resolve) => {
+    timer = setTimeout(
+      () => resolve({ ok: false, error: new Error('Metric write timed out') }),
+      1000,
+    );
+  });
+  return Promise.race([settled, timeout])
+    .then((result) => {
+      if (!result.ok) throw result.error;
+      return result.value;
+    })
+    .finally(() => clearTimeout(timer));
+}
+
 @Injectable()
 export class MetricsService {
   private readonly logger = new Logger(MetricsService.name);
@@ -56,9 +78,8 @@ export class MetricsService {
   }
 
   private async record(increments: Record<string, number>): Promise<void> {
-    let timer: NodeJS.Timeout | undefined;
     try {
-      await Promise.race([
+      await withDeadline(
         (async () => {
           const client = await this.migrations.client;
           const transaction = hashIncrement(client.multi());
@@ -69,19 +90,18 @@ export class MetricsService {
           const results = await transaction.exec();
           if (!results || results.some(([error]) => error)) throw new Error('Metric write failed');
         })(),
-        new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(() => reject(new Error('Metric write timed out')), 1000);
-        }),
-      ]);
+      );
     } catch {
       // Observability must never fail or indefinitely stall a migration when Redis is unavailable.
       this.logger.warn('Could not persist operations metrics');
-    } finally {
-      clearTimeout(timer);
     }
   }
 
   async snapshot() {
+    return withDeadline(this.collect());
+  }
+
+  private async collect() {
     const [queues, values] = await Promise.all([
       Promise.all(
         [this.migrations, this.scans, this.monitor].map(async (queue) => {
@@ -108,7 +128,7 @@ export class MetricsService {
           };
         }),
       ),
-      (await this.migrations.client).hgetall(METRICS_KEY),
+      this.migrations.client.then((connection) => connection.hgetall(METRICS_KEY)),
     ]);
     const number = (key: string) => Number(values[key] ?? 0);
     return {

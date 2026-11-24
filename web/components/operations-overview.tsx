@@ -12,7 +12,7 @@ export function OperationsOverview({ snapshot }: { snapshot: OperationsSnapshot 
   const { queues, sandbox, tokens } = snapshot;
   const waiting = queues.reduce((sum, q) => sum + q.waiting + q.pausedJobs + q.waitingChildren, 0);
   const active = queues.reduce((sum, q) => sum + q.active, 0);
-  const needsAttention = queues.some((q) => q.paused || q.failed > 0) || sandbox.failed > 0;
+  const needsAttention = queues.some((q) => q.paused || q.failed > 0);
   const average = sandbox.count ? `${(sandbox.totalSeconds / sandbox.count).toFixed(2)}s` : "No samples";
 
   return (
