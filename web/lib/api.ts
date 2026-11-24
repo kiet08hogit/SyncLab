@@ -12,6 +12,7 @@ import type {
   MigrationJob,
   Repository,
   RepositorySummary,
+  RepositoryApiUsage,
 } from "@/lib/types";
 
 // The NestJS gateway in server/api. Every call carries the signed-in user's
@@ -121,4 +122,10 @@ export async function reviewApiChange(
   const response = await request(token, `/api-changes/${encodeURIComponent(id)}/${decision}`, { method: "POST" });
   if (!response.ok) return { ok: false, status: response.status, error: await errorMessage(response) };
   return { ok: true };
+}
+
+export async function fetchRepositoryApiUsage(token: string, id: string): Promise<RepositoryApiUsage | null> {
+  const response = await request(token, `/repositories/${encodeURIComponent(id)}/api-usage`);
+  if (response.status === 404) return null;
+  return json(response);
 }

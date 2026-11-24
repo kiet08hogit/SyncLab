@@ -485,11 +485,13 @@ If no result line appears (for example, the container was killed), the raw log b
 | `/dashboard` | Job counts per status that double as filters, the jobs running now, and a searchable job table |
 | `/jobs/[id]` | One job's pipeline track, failure reason, and execution log. The stages, how an API-change job is titled, and which jobs can be retried are in [`web/README.md`](web/README.md#pages) |
 | `/repositories` | Every repository the signed-in user's installations reach, with job totals and last activity |
+| `/repositories/[id]` | Detected API calls, latest scan status, and the completed scan those calls come from. The page is described in [`web/README.md`](web/README.md#pages) |
 | `/api-changes` | The API change monitor's watched Anthropic and OpenAI sources and the breaking changes it found, with a button to check every source now |
 | `/migrations/new` | A form to pick a repository, one of its dependencies, and a target version, which starts a job through `POST /migrations` |
 | `/settings` | GitHub sign-in, and the App installations the signed-in user can access (or an Install SyncLab button when there are none) |
 
-Signed in, every page reads the API with the user's own GitHub token (`GET /migrations`, `/migrations/counts`, `/migrations/:id`, `/repositories`), and the API limits each answer to that user's repositories.
+Signed in, every page reads the API with the user's own GitHub token, and the API limits each answer to that user's repositories.
+Which getters run, and which routes they call, is in [`web/README.md`](web/README.md#data).
 Signed out, the pages show sample data shaped like the API's answers, with a prompt to sign in.
 See [`web/README.md`](web/README.md) for the environment variables that enable sign-in.
 
