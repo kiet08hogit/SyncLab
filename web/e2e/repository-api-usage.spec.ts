@@ -20,6 +20,7 @@ test("opens repository calls from the list and preserves the migration filter", 
   await expect(page.getByText("POST /v1/messages", { exact: true })).toBeVisible();
   await expect(page.getByText("sample-model", { exact: true })).toBeVisible();
   await expect(page.getByText("model, messages", { exact: true })).toBeVisible();
+  await expect(page.getByText(/from the last completed scan/)).toContainText("abcdef123456");
   await expect(page.getByText(/Dynamic values/)).toHaveCount(0);
   await expect(page.getByText("Sample data.")).toHaveCount(0);
   await page.getByRole("link", { name: "View migration jobs" }).click();
@@ -63,6 +64,30 @@ test("retains the last completed results after a failed rescan", async ({ page }
   await expect(page.getByText("src/client.ts:24")).toBeVisible();
 });
 
+test("keeps completed calls visible during an in-progress rescan", async ({ page }) => {
+  seedScan();
+  sql(`INSERT INTO repository_scans (repository_id, trigger, status, created_at, updated_at)
+    SELECT id, 'push', 'IN_PROGRESS', now() + interval '1 minute', now() + interval '1 minute' FROM repositories WHERE github_repo_id = 9001`);
+  await signIn(page, "/repositories/9001");
+  await expect(page.getByText("Latest scan: in progress")).toBeVisible();
+  await expect(page.getByText(/from the last completed scan/)).toContainText("has not replaced these results");
+  await expect(page.getByText("src/client.ts:24")).toBeVisible();
+  await expect(page.getByText("Usage will appear when the pending scan completes.")).toHaveCount(0);
+  await expect(page.getByText(/Push to the default branch/)).toHaveCount(0);
+});
+
+test("asks for a push when the first scan failed", async ({ page }) => {
+  sql(`INSERT INTO repositories (github_repo_id, full_name, installation_id) VALUES (9001, 'acme/web', 501);
+    INSERT INTO repository_scans (repository_id, trigger, status, error_message)
+    SELECT id, 'push', 'FAILED', 'Clone failed' FROM repositories WHERE github_repo_id = 9001`);
+  await signIn(page, "/repositories/9001");
+  await expect(page.getByText("Latest scan: failed")).toBeVisible();
+  await expect(page.getByText("Clone failed", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Push to the default branch to trigger a scan/)).toBeVisible();
+  await expect(page.getByText("Usage will appear when the pending scan completes.")).toHaveCount(0);
+  await expect(page.getByText(/from the last completed scan/)).toHaveCount(0);
+});
+
 test("reports a pending first scan without asking for another push", async ({ page }) => {
   sql(`INSERT INTO repositories (github_repo_id, full_name, installation_id) VALUES (9001, 'acme/web', 501);
     INSERT INTO repository_scans (repository_id, trigger, status) SELECT id, 'push', 'QUEUED' FROM repositories WHERE github_repo_id = 9001`);
@@ -88,8 +113,23 @@ test("distinguishes an unscanned repository from a completed empty scan", async 
 });
 
 test("does not reveal inaccessible repositories", async ({ page }) => {
-  await signIn(page, "/repositories/9999");
+  sql(`INSERT INTO repositories (github_repo_id, full_name, installation_id) VALUES (4242, 'other-org/private', 999);
+    INSERT INTO repository_scans (id, repository_id, trigger, status, commit_sha)
+    SELECT '${SCAN}', id, 'push', 'COMPLETED', 'secretsha123456' FROM repositories WHERE github_repo_id = 4242;
+    INSERT INTO api_usages (scan_id, provider_id, file, line, style, method, operation, params, model_ids, dynamic)
+    SELECT '${SCAN}', id, 'src/secret-other-org.ts', 9, 'sdk', 'messages.create', 'POST /v1/messages',
+      ARRAY['secret-param'], ARRAY['secret-model'], false FROM api_providers WHERE slug = 'anthropic';`);
+  await page.goto("/repositories/4242");
   await expect(page.getByRole("heading", { name: "This page does not exist" })).toBeVisible();
+  await expect(page.getByText("src/secret-other-org.ts")).toHaveCount(0);
+  await signIn(page, "/repositories");
+  await expect(page.getByText("other-org/private")).toHaveCount(0);
+  for (const id of ["9999", "4242", "abc", "0", "01"]) {
+    await page.goto(`/repositories/${id}`);
+    await expect(page.getByRole("heading", { name: "This page does not exist" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Main" })).toHaveCount(1);
+    await expect(page.getByText("src/secret-other-org.ts")).toHaveCount(0);
+  }
 });
 
 test("sample usage remains readable on a small screen", async ({ page }) => {
